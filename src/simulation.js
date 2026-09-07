@@ -1,4 +1,4 @@
-import {SIDES,sideOf,sameSide,createGates} from './island.js';
+import {SIDES,sideOf,sameSide,createGates,DEFAULT_GATE_POSITION} from './island.js';
 import {CROPS,createPlant,advancePlants,plantActionError,tendPlant,harvestPlant,validPlant} from './plants.js';
 import {defaultGenome,defaultHeadShape,residentHeadShape,HEAD_SHAPE,inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS} from './genetics.js';
 export {inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS};
@@ -510,6 +510,7 @@ export function restore(raw){
   for(const q of [g.queue,...Object.values(g.npcs).map(n=>n.queue)].flat()){q.target.side='front';q.path=null;}
   g.objects.push(...createGates());g.version=9;
  }
+ for(const o of g.objects||[])if(o.type==='gate'&&o.fixed&&o.id.startsWith('island-gate-'))Object.assign(o,DEFAULT_GATE_POSITION);
  migrateResidentNames(g);
  g.config=normalizeConfig(g.config);
  for(const o of g.objects||[])if(CROPS[o.type]&&o.plant?.giant===undefined)o.plant.giant=false;

@@ -1,4 +1,5 @@
 export const CROPS={garden:{key:'spores',name:'发光孢子',minutes:360,yield:3,price:18,giantChance:3},mushroom:{key:'mushrooms',name:'星伞菇',minutes:720,yield:2,price:25,giantChance:3}};
+export const cropVisualScale=(growth,giant)=> (.3+growth*.7)*(giant?2:1);
 export const createPlant=()=>({growth:.15,water:75,health:100,harvests:0,giant:false});
 export function plantStatus(o){const p=o.plant;return p.health<=0?'枯萎':p.growth>=1?(p.giant?'巨型成熟可收获':'成熟可收获'):p.water<25?'缺水':p.growth<.35?'幼苗':p.growth<.75?'生长中':'开花结实';}
 export function advancePlants(objects,minutes,crops=CROPS,random=Math.random){

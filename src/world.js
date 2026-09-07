@@ -1,6 +1,6 @@
 import {createDarkGroundMaterial} from './dark-ground.js';
 import {sideOf} from './island.js';
-import {CROPS} from './plants.js';
+import {CROPS,cropVisualScale} from './plants.js';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -44,7 +44,6 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
 
  const darkLand=cylinder(darkTerrain,0x24243e,[0,-.38,0],14.9,1.3);darkLand.scale.z=.72;
  const darkSoil=cylinder(darkTerrain,0x9384ac,[0,.17,0],14.8,.24);darkSoil.scale.z=.72;darkSoil.material=createDarkGroundMaterial();
- const darkHalo=ring(darkTerrain,0x51bcb7,[0,.3,0],14.85,.035);darkHalo.rotation.x=-Math.PI/2;darkHalo.scale.y=.72;
  for(let i=0;i<18;i++){const angle=i*Math.PI/9,x=Math.cos(angle)*13,z=Math.sin(angle)*9.2;
   const shard=mesh(darkTerrain,new THREE.OctahedronGeometry(.5),i%2?0x8872b9:0x56cabb,[x,.7+(i%4)*.2,z],[.55+(i%3)*.13,1.3+(i%4)*.5,.7],.35);shard.rotation.z=Math.sin(i)*.25;
   const glyph=ring(darkTerrain,0x619796,[x,.34,z],.7,.02);glyph.rotation.x=-Math.PI/2;
@@ -59,7 +58,6 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  const random=seedRandom(28);
  const atmosphere=createAtmosphere(scene,camera,seedRandom(91)),swaying=[],floating=[],ripples=[],crystalLights=[];
  const weatherEffects=createWeatherEffects(scene,seedRandom(137));
- const islandHalo=ring(terrain,0xe3c5e9,[0,-.43,0],14.93,.027);islandHalo.rotation.x=-Math.PI/2;islandHalo.scale.y=.72;islandHalo.material=material(0xe3c5e9,.8);
  for(let i=0;i<12;i++){const a=i*Math.PI/6;const shard=mesh(terrain,new THREE.OctahedronGeometry(.3),0x82e4db,[Math.cos(a)*14,-1.7,Math.sin(a)*10], [1,2.6,1],.65);floating.push({object:shard,y:shard.position.y,phase:i});}
  for(let i=0;i<65;i++){const a=random()*Math.PI*2,r=14+random();mesh(terrain,new THREE.DodecahedronGeometry(.45+random()*.65),[0x9a809d,0xb298af,0x6e6d88][i%3],[Math.cos(a)*r,-.8-random(),Math.sin(a)*r*.71],[1,1,1]);}
  // Open-front habitat: three rooms share a clear, navigable central aisle.
@@ -185,7 +183,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
    render(){const g=getGame(),weather=getWeather(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(marker,selected);
-   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects();syncActors();for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;for(const crop of group.userData.cropVisual){crop.scale.setScalar((.3+p.growth*.7)*(p.giant?1.3:1));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
+   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects();syncActors();for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
    for(const[id,rig]of actors){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];
     let partner=g.queue[0]?.targetId===id?g.player:action&&g.npcs[action.targetId]?g.npcs[action.targetId]:Object.values(g.npcs).find(n=>n.queue[0]?.targetId===id);

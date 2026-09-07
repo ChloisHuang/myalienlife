@@ -5,6 +5,19 @@ import {createGame,buyItem,canPlace,enqueue,tick,setCareer,CAREERS,restore,seria
 function game(){const g=createGame();for(const n of Object.values(g.npcs))n.ai.enabled=false;return g;}
 function run(g,seconds=60){for(let i=0;i<seconds*10;i++)tick(g,.1);}
 
+test('new games place the default teleport gates in the open southwest clearing',()=>{
+ const g=game(),gates=g.objects.filter(o=>o.type==='gate'&&o.fixed);
+ assert.deepEqual(gates.map(({x,z})=>({x,z})),[{x:-7,z:3},{x:-7,z:3}]);
+ assert.deepEqual(({x:g.objects.find(o=>o.id==='portal').x,z:g.objects.find(o=>o.id==='portal').z}),{x:9,z:-4});
+});
+
+test('legacy saves move only the original teleport gates to the new clearing',()=>{
+ const g=game();for(const gate of g.objects.filter(o=>o.type==='gate'&&o.fixed)){gate.x=-10;gate.z=0;}
+ const restored=restore(serialize(g));
+ assert.deepEqual(restored.objects.filter(o=>o.type==='gate'&&o.fixed).map(({x,z})=>({x,z})),[{x:-7,z:3},{x:-7,z:3}]);
+ assert.deepEqual(({x:restored.objects.find(o=>o.id==='portal').x,z:restored.objects.find(o=>o.id==='portal').z}),{x:9,z:-4});
+});
+
 test('opposite faces can hold furniture at the same coordinates',()=>{
  const g=game();g.objects=g.objects.filter(o=>o.type!=='gate');g.viewSide='back';
  assert.equal(canPlace(g,-5,-4),true);
