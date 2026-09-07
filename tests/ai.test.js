@@ -23,9 +23,15 @@ test('an NPC without meal money removes eating from its autonomous choices',()=>
  assert.notEqual(n.queue[0]?.type,'eat');assert.notEqual(n.queue[0]?.targetId,'food');
 });
 test('a working NPC earns personal wages without changing player funds',()=>{
- const g=sim.createGame(),n=g.npcs.zig;Object.assign(n.needs,healthy());n.money=0;const householdMoney=g.money;
+ const g=sim.createGame(),n=g.npcs.zig;Object.assign(n.needs,healthy());Object.assign(n.skills,sim.CAREERS.scientist.levels[0].skills);n.money=0;const householdMoney=g.money;
  run(g,1);assert.equal(n.queue[0]?.type,'work');
- run(g,20);assert.ok(n.money>0);assert.equal(g.money,householdMoney);
+ run(g,40);assert.ok(n.money>0);assert.equal(g.money,householdMoney);
+});
+test('an autonomous NPC trains before taking a career whose entry skills are missing',()=>{
+ const g=sim.createGame(),n=g.npcs.zig;Object.assign(n.needs,healthy());n.money=0;n.skills.science=0;
+ run(g,1);assert.notEqual(n.queue[0]?.type,'work');
+ n.queue=[];n.ai.cooldown=0;n.skills.science=sim.CAREERS.scientist.levels[0].skills.science;run(g,1);
+ assert.equal(n.queue[0]?.type,'work');
 });
 test('urgent needs override a characters hobby preference',()=>{
  const g=sim.createGame();g.npcs.pip.needs={...healthy(),energy:5,fun:20};

@@ -5,9 +5,35 @@ import {RESIDENTS,GENDERS,SKILLS,approachPosition,skillProgress} from './charact
 export {skillProgress};
 export const NEEDS={hunger:['营养','Utensils'],energy:['能量','Zap'],social:['社交','MessagesSquare'],fun:['乐趣','Sparkles'],hygiene:['洁净','Droplets'],comfort:['舒适','Armchair']};
 export const NPCS=[{id:'nova',name:'诺瓦',role:'星际植物学家',trait:'热爱自然 · 温柔',color:'#edabbf',x:1,z:1},{id:'zig',name:'吉格',role:'量子工程师',trait:'天才 · 有点古怪',color:'#b4a0ef',x:5,z:-2},{id:'lumi',name:'露米',role:'银河外交官',trait:'外向 · 浪漫',color:'#f4c16d',x:-3,z:4},{id:'pip',name:'皮普',role:'星云音乐人',trait:'创意十足 · 贪玩',color:'#88cbdc',x:3,z:4}];
-const NPC_WAGES={nova:160,zig:180,lumi:200,pip:160};
 const GOVERNMENT_SUBSIDY=50;
-export const CAREERS={scientist:{name:'量子科学',icon:'Atom',titles:['实验室助理','量子研究员','首席科学家'],wage:180,desc:'研究异常晶体，揭开宇宙的秘密。'},botanist:{name:'异星植物',icon:'Sprout',titles:['孢子培育员','异星植物学家','生态设计师'],wage:160,desc:'培育会发光的植物，让荒星长成家园。'},diplomat:{name:'银河外交',icon:'Orbit',titles:['星际联络员','银河大使','星盟议长'],wage:200,desc:'连接不同文明，让友谊跨越光年。'}};
+export const CAREERS={
+ scientist:{name:'量子科学',icon:'Atom',desc:'研究异常晶体，揭开宇宙的秘密。',levels:[
+  {title:'实验室助理',wage:180,skills:{science:6}},
+  {title:'量子研究员',wage:260,shifts:3,skills:{science:15,social:4}},
+  {title:'首席科学家',wage:400,shifts:5,skills:{science:30,botany:10,social:8}}
+ ]},
+ botanist:{name:'异星植物',icon:'Sprout',desc:'培育会发光的植物，让荒星长成家园。',levels:[
+  {title:'孢子培育员',wage:160,skills:{botany:6}},
+  {title:'异星植物学家',wage:240,shifts:3,skills:{botany:15,science:4}},
+  {title:'生态设计师',wage:380,shifts:5,skills:{botany:30,science:12,social:6}}
+ ]},
+ diplomat:{name:'银河外交',icon:'Orbit',desc:'连接不同文明，让友谊跨越光年。',levels:[
+  {title:'星际联络员',wage:200,skills:{social:6}},
+  {title:'银河大使',wage:300,shifts:3,skills:{social:15,music:8}},
+  {title:'星盟议长',wage:460,shifts:5,skills:{social:30,music:18,science:8}}
+ ]}
+};
+const NPC_CAREERS={nova:'botanist',zig:'scientist',lumi:'diplomat',pip:'diplomat'};
+const careerLevel=(id,level=1)=>CAREERS[id]?.levels[level-1];
+export function careerSkillRequirements(id,level=1){return{...(careerLevel(id,level)?.skills||{})};}
+export function missingCareerSkills(skills,id,level=1){return Object.entries(careerSkillRequirements(id,level)).filter(([key,required])=>(skills?.[key]??0)<required).map(([key,required])=>({key,required,current:skills?.[key]??0}));}
+export function careerEntryMessage(g,id,skills=g.skills){
+ const c=CAREERS[id];if(!c)return '未知职业。';
+ const missing=missingCareerSkills(skills,id);return missing.length?`技能不足：${missing.map(({key,current,required})=>`${SKILLS[key].name} ${current}/${required}`).join('、')}`:null;
+}
+export function recordMajorEvent(g,text,type='event'){
+ g.majorEvents=[{type,text,at:g.minute,day:g.day},...(g.majorEvents||[])].slice(0,3);
+}
 export const ITEMS=[
  {id:'nursery',name:'星芽育生舱',pack:'生活舱',price:480,icon:'Sprout',action:'incubate',desc:'成年居民孕育幼体 · 300 星币 · 3 天'},
  {id:'pod',name:'星眠舱',pack:'生活舱',price:420,icon:'BedDouble',action:'sleep',desc:'能量 +65 · 舒适 +20'},
@@ -24,18 +50,18 @@ export const ITEMS=[
  {id:'lamp',name:'漂浮光球',pack:'孢子花园',price:90,icon:'Lamp',action:'admire',desc:'舒适 +30 · 乐趣 +15'}
 ];
 export const ACTIONS={
- incubate:{name:'孕育星芽 · 300 星币',icon:'Sprout',duration:8,effects:{},manualOnly:true},
- care:{name:'喂养与照料幼体',icon:'Heart',duration:6,effects:{social:10}},
+ incubate:{name:'孕育星芽 · 300 星币',icon:'Sprout',duration:16,effects:{},manualOnly:true},
+ care:{name:'喂养与照料幼体',icon:'Heart',duration:12,effects:{social:10}},
  walk:{name:'走到这里',icon:'Footprints',duration:0,effects:{}},
- eat:{name:'合成一份星际晚餐 · 10 星币',icon:'Utensils',duration:5,effects:{hunger:65},cost:10,costMessage:'星币不足，无法合成晚餐。'},sleep:{name:'进入星眠',icon:'Moon',duration:9,effects:{energy:65,comfort:20}},
- wash:{name:'离子净化',icon:'Droplets',duration:5,effects:{hygiene:70}},relax:{name:'坐下休息',icon:'Armchair',duration:5,effects:{comfort:55,energy:15}},
- research:{name:'研究量子晶体',icon:'Atom',duration:7,effects:{fun:15},skill:'science'},dance:{name:'随星云音乐起舞',icon:'Music2',duration:6,effects:{fun:55,social:10},skill:'music'},
- explore:{name:'星门探险',icon:'Orbit',duration:12,effects:{fun:30,energy:-12},money:80},observe:{name:'观测遥远星系',icon:'Telescope',duration:6,effects:{fun:35},skill:'science'},
- harvest:{name:'收获成熟植物',icon:'Sprout',duration:5,effects:{fun:15,hygiene:-5},skill:'botany'},replant:{name:'清理并补种',icon:'Flower2',duration:6,effects:{fun:10,hygiene:-8},skill:'botany'},
- garden:{name:'浇水养护',icon:'Sprout',duration:6,effects:{fun:25,hygiene:-8},skill:'botany'},admire:{name:'欣赏异星奇观',icon:'Sparkles',duration:4,effects:{comfort:30,fun:15}},
- chat:{name:'聊聊母星',icon:'MessagesSquare',duration:5,effects:{social:30},relation:15,skill:'social'},joke:{name:'讲一个地球笑话',icon:'Smile',duration:5,effects:{social:20,fun:25},relation:12,skill:'social'},
- gift:{name:'赠送星尘 · 30 星币',icon:'Gift',duration:4,effects:{social:25},relation:25,cost:30},flirt:{name:'分享心动频率',icon:'Heart',duration:6,effects:{social:35,fun:15},relation:20,minRelation:35},
- work:{name:'开始一个工作班次',icon:'BriefcaseBusiness',duration:16,effects:{energy:-18,hunger:-15},work:true}
+ eat:{name:'合成一份星际晚餐 · 10 星币',icon:'Utensils',duration:10,effects:{hunger:65},cost:10,costMessage:'星币不足，无法合成晚餐。'},sleep:{name:'进入星眠',icon:'Moon',duration:18,effects:{energy:65,comfort:20}},
+ wash:{name:'离子净化',icon:'Droplets',duration:10,effects:{hygiene:70}},relax:{name:'坐下休息',icon:'Armchair',duration:10,effects:{comfort:55,energy:15}},
+ research:{name:'研究量子晶体',icon:'Atom',duration:14,effects:{fun:15},skill:'science'},dance:{name:'随星云音乐起舞',icon:'Music2',duration:12,effects:{fun:55,social:10},skill:'music'},
+ explore:{name:'星门探险',icon:'Orbit',duration:24,effects:{fun:30,energy:-12},money:80},observe:{name:'观测遥远星系',icon:'Telescope',duration:12,effects:{fun:35},skill:'science'},
+ harvest:{name:'收获成熟植物',icon:'Sprout',duration:10,effects:{fun:15,hygiene:-5},skill:'botany'},replant:{name:'清理并补种',icon:'Flower2',duration:12,effects:{fun:10,hygiene:-8},skill:'botany'},
+ garden:{name:'浇水养护',icon:'Sprout',duration:12,effects:{fun:25,hygiene:-8},skill:'botany'},admire:{name:'欣赏异星奇观',icon:'Sparkles',duration:8,effects:{comfort:30,fun:15}},
+ chat:{name:'聊聊母星',icon:'MessagesSquare',duration:10,effects:{social:30},relation:15,skill:'social'},joke:{name:'讲一个地球笑话',icon:'Smile',duration:10,effects:{social:20,fun:25},relation:12,skill:'social'},
+ gift:{name:'赠送星尘 · 30 星币',icon:'Gift',duration:8,effects:{social:25},relation:25,cost:30},flirt:{name:'分享心动频率',icon:'Heart',duration:12,effects:{social:35,fun:15},relation:20,minRelation:35},
+ work:{name:'开始一个工作班次',icon:'BriefcaseBusiness',duration:32,effects:{energy:-18,hunger:-15},work:true}
 };
 const clamp=n=>Math.max(0,Math.min(100,n));
 const DECAY={hunger:.18,energy:.12,social:.1,fun:.13,hygiene:.08,comfort:.07};
@@ -44,6 +70,7 @@ const createAI=enabled=>({enabled,cooldown:0,lastAction:null,lastTarget:null,rea
 const createSkills=()=>Object.fromEntries(Object.keys(SKILLS).map(key=>[key,0]));
 const createInventory=()=>Object.fromEntries(Object.values(CROPS).map(c=>[c.key,0]));
 const startingMoney=id=>RESIDENTS[id]?.age>=18?600:0;
+const createCareer=id=>({id:NPC_CAREERS[id]||'scientist',level:1,shifts:0});
 const placeholderName=/^星芽 \d+$/;
 function migrateResidentNames(g){
  if(!g?.player||!g.npcs)return;
@@ -55,12 +82,12 @@ function migrateResidentNames(g){
 }
 const identity=(n,profile)=>({uid:n.id,name:n.name,color:n.color,trait:n.trait,...profile,alive:true,starvation:0,parents:[],genome:defaultGenome(),mutations:[],familyDesire:n.id==='zig'?.25:.7,lastBirthDay:null,preferences:{...PREFERENCES[n.id]}});
 export const neighbors=g=>Object.entries(g.npcs).map(([id,n])=>({id,...n}));
-const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
+const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),career:createCareer(n.id),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
 export function createGame(){return {
- version:6,harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(false),
+ version:6,harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(false),
  npcs:Object.fromEntries(NPCS.map(n=>[n.id,createNeighbor(n)])),
  needs:{hunger:76,energy:88,social:62,fun:72,hygiene:85,comfort:79},relationships:{nova:15,zig:12,lumi:20,pip:8},
- career:{id:'scientist',level:1,shifts:0},skills:createSkills(),queue:[],nextId:1,
+ career:{id:'scientist',level:1,shifts:0},skills:{...createSkills(),science:CAREERS.scientist.levels[0].skills.science},queue:[],nextId:1,
  objects:[{id:'pod',type:'pod',x:-5,z:-4,rotation:0},{id:'food',type:'food',x:1,z:-4,rotation:0},{id:'shower',type:'shower',x:-2,z:-4,rotation:0},{id:'sofa',type:'sofa',x:-5,z:0,rotation:0},{id:'lab',type:'lab',x:5,z:-4,rotation:0},{id:'music',type:'music',x:-2,z:0,rotation:0},{id:'garden',type:'garden',x:7,z:3,rotation:0,plant:createPlant()},{id:'portal',type:'portal',x:9,z:-4,rotation:0}],
  log:[{text:'欢迎回家，凯伊。你的异星日常，从这里开始。',at:510}],completed:0
 };}
@@ -71,7 +98,7 @@ export function sellHarvest(g,key){
  const count=g.harvest[key],earned=count*crop.price;g.harvest[key]=0;g.money+=earned;const message=`出售 ${count} 份${crop.name}，获得 ${earned} 星币。`;g.log.unshift({text:message,at:g.minute});return{ok:true,message};
 }
 export function sellItem(g,id){if(g.incubations.some(b=>b.podId===id))return false;if(allActors(g).some(a=>a.queue.some(q=>q.targetId===id)))return false;const i=g.objects.findIndex(o=>o.id===id);if(i<0)return false;g.money+=Math.floor(ITEMS.find(x=>x.id===g.objects[i].type).price*.7);g.objects.splice(i,1);return true;}
-export function setCareer(g,id){if(!g.player.alive||g.player.age<18||!CAREERS[id])return false;if(g.queue.some(a=>a.type==='work'))return false;g.career={id,level:1,shifts:0};return true;}
+export function setCareer(g,id){if(!g.player.alive||g.player.age<18||!CAREERS[id]||careerEntryMessage(g,id))return false;if(g.queue.some(a=>a.type==='work'))return false;g.career={id,level:1,shifts:0};return true;}
 function destination(g,targetId,point){if(point)return point;const npc=g.npcs[targetId];if(npc)return{x:npc.x,z:npc.z+(npc.age<3?.65:1)};const o=g.objects.find(n=>n.id===targetId);return o?approachPosition(o):null;}
 export function updateResident(g,id,{gender,age}){
  const person=id==='player'?g.player:g.npcs[id];
@@ -85,6 +112,7 @@ export function enqueue(g,type,targetId,point,partnerId=null){
  if(!g.player.alive)return{ok:false,message:'这段生命已结束，请在生命页选择接管居民。'};
  if(g.player.age<3)return{ok:false,message:'幼体需要照料，3 星岁后开始自主活动。'};
  if(type==='work'&&g.player.age<18)return{ok:false,message:'成年居民才能开始工作。'};
+ if(type==='work'){const error=careerEntryMessage(g,g.career.id);if(error)return{ok:false,message:`无法开始工作，${error}`};}
  if(type==='incubate'){const error=birthError(g,g.player,targetId)||partnerError(g,'player',partnerId);if(error)return{ok:false,message:error};}
   if(type==='care'&&(!g.npcs[targetId]||g.npcs[targetId].age>=3||g.player.age<18))return{ok:false,message:'成年居民可以照料幼体。'};
   if(['chat','joke','gift','flirt'].includes(type)&&(!g.npcs[targetId]||g.npcs[targetId].age<3))return{ok:false,message:'请使用照料互动陪伴幼体。'};
@@ -108,7 +136,6 @@ function expensePayers(g,person){const parents=person.position.age<18?parentActo
 function canAfford(g,person,amount){const payers=expensePayers(g,person),share=amount/payers.length;return payers.every(payer=>availableMoney(g,payer)>=share);}
 function changeMoney(g,person,amount){if(amount<0){const payers=expensePayers(g,person),share=amount/payers.length;for(const payer of payers){if(payer.id==='player')g.money+=share;else payer.position.money+=share;}return;}if(person.id==='player')g.money+=amount;else person.position.money+=amount;}
 export function canAffordAction(g,id,type){const action=ACTIONS[type];return !!action&&(!action.cost||canAfford(g,actor(g,id),action.cost));}
-function npcWage(id){return NPC_WAGES[id]||160;}
 function conversationWith(g,id){return allActors(g).find(a=>a.id!==id&&a.queue[0]?.targetId===id&&ACTIONS[a.queue[0].type].relation);}
 function findPath(g,start,end){
  const key=(x,z)=>`${x},${z}`,sx=Math.round(start.x),sz=Math.round(start.z),ex=Math.round(end.x),ez=Math.round(end.z);
@@ -116,12 +143,22 @@ function findPath(g,start,end){
  for(let i=0;i<nodes.length;i++){const p=nodes[i];if(p.x===ex&&p.z===ez){found=true;break;}for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz,k=key(x,z);if(Math.abs(x)>11||Math.abs(z)>7||seen.has(k)||g.objects.some(o=>Math.hypot(o.x-x,o.z-z)<.8))continue;seen.set(k,p);nodes.push({x,z});}}
  if(!found)return null;const path=[{x:ex,z:ez}];let prev=seen.get(key(ex,ez));while(prev){path.unshift(prev);prev=seen.get(key(prev.x,prev.z));}path.shift();path.push(end);return path;
 }
+function ensureNpcCareer(person){
+ const current=person.position.career;
+ if(current&&CAREERS[current.id]&&!missingCareerSkills(person.skills,current.id).length)return true;
+ const eligible=Object.keys(CAREERS).filter(id=>!missingCareerSkills(person.skills,id).length);
+ const id=eligible.find(candidate=>candidate===NPC_CAREERS[person.id])||eligible[0];
+ if(!id){person.ai.reason='技能不足，先锻炼职业要求的技能';return false;}
+ person.position.career={id,level:1,shifts:0};
+ return true;
+}
 function decide(g,person){
  const candidates=g.objects.filter(o=>!ACTIONS[ITEMS.find(i=>i.id===o.type).action].manualOnly).map(o=>({type:CROPS[o.type]?(o.plant.health<=0?'replant':o.plant.growth>=1?'harvest':'garden'):ITEMS.find(i=>i.id===o.type).action,targetId:o.id}));
  if(person.position.age>=18)for(const n of neighbors(g))if(n.age<3)candidates.push({type:'care',targetId:n.id});
  // Births share the household budget and must pass resource and caregiver checks.
  for(const n of neighbors(g))if(n.age>=3&&n.id!==person.id&&!g.npcs[n.id].queue.length&&!conversationWith(g,n.id))candidates.push({type:'chat',targetId:n.id});
- if(person.position.age>=18&&g.minute>=480&&g.minute<1080&&person.ai.lastWorkDay!==g.day&&Math.min(...Object.values(person.needs))>45){
+ const careerReady=person.id==='player'?!missingCareerSkills(person.skills,g.career.id).length:ensureNpcCareer(person);
+ if(person.position.age>=18&&g.minute>=480&&g.minute<1080&&person.ai.lastWorkDay!==g.day&&Math.min(...Object.values(person.needs))>45&&careerReady){
   for(const o of g.objects)if(o.type==='lab')candidates.push({type:'work',targetId:o.id});
  }
  const fertility=birthDecision(g,person.id);if(fertility.ready)candidates.push({type:'incubate',targetId:fertility.podId,partnerId:fertility.partnerId});
@@ -156,10 +193,11 @@ function finishAction(g,person,q){
  const action=ACTIONS[q.type],isPlayer=person.id==='player';
  let cropMessage=null;
  if(['garden','harvest','replant'].includes(q.type)){const o=g.objects.find(o=>o.id===q.targetId),error=plantActionError(o,q.type);if(error){person.queue.shift();person.ai.cooldown=3;if(isPlayer)g.log.unshift({text:error,at:g.minute});return;}if(q.type==='garden')tendPlant(o);if(q.type==='replant')o.plant={...createPlant(),growth:0,harvests:o.plant.harvests};if(q.type==='harvest'){const crop=CROPS[o.type],amount=harvestPlant(o),inventory=isPlayer?g.harvest:person.position.inventory;inventory[crop.key]+=amount;cropMessage=`${person.position.name}收获了 ${amount} 份${crop.name}，已放入${isPlayer?'收成仓库':'个人物品包'}。`;g.log.unshift({text:cropMessage,at:g.minute});}}
+ if(action.work){const state=isPlayer?g.career:person.position.career,error=state?careerEntryMessage(g,state.id,person.skills):'尚未申请职业。';if(error){person.queue.shift();person.ai.cooldown=3;if(isPlayer)g.log.unshift({text:`工作未完成：${error}`,at:g.minute});return;}}
  if(action.cost&&!canAfford(g,person,action.cost)){person.queue.shift();g.log.unshift({text:action.costMessage||'星币不足，礼物没有送出。',at:g.minute});return;}
  for(const [need,effect]of Object.entries(action.effects))person.needs[need]=clamp(person.needs[need]+effect);
  if(action.skill)person.skills[action.skill]++;
- if(q.type==='incubate'){const decision=q.source==='ai'?birthDecision(g,person.id):null;const error=decision&&!decision.ready?decision.reason:birthError(g,person.position,q.targetId)||partnerError(g,person.id,q.partnerId,q.source==='ai');if(error){person.queue.shift();g.log.unshift({text:error,at:g.minute});return;}g.money-=300;const parents=[person.position,...(q.partnerId?[g.npcs[q.partnerId]]:[])];for(const parent of parents)parent.lastBirthDay=g.day;g.log.unshift({text:`${person.position.name}${q.source==='ai'?'自主决定':'决定'}孕育星芽，育生舱将在 3 天后迎来新生命。`,at:g.minute});g.incubations.push({id:`egg-${g.nextId++}`,podId:q.targetId,due:gameMinutes(g)+4320,parents:parents.map(p=>({uid:p.uid,name:p.name,color:p.color,genome:{...p.genome},preferences:{...p.preferences},familyDesire:p.familyDesire}))});}
+ if(q.type==='incubate'){const decision=q.source==='ai'?birthDecision(g,person.id):null;const error=decision&&!decision.ready?decision.reason:birthError(g,person.position,q.targetId)||partnerError(g,person.id,q.partnerId,q.source==='ai');if(error){person.queue.shift();g.log.unshift({text:error,at:g.minute});return;}g.money-=300;const parents=[person.position,...(q.partnerId?[g.npcs[q.partnerId]]:[])];for(const parent of parents)parent.lastBirthDay=g.day;const eventText=`${person.position.name}${q.source==='ai'?'自主决定':'决定'}孕育星芽，育生舱将在 3 天后迎来新生命。`;g.log.unshift({text:eventText,at:g.minute});recordMajorEvent(g,eventText,'incubation');g.incubations.push({id:`egg-${g.nextId++}`,podId:q.targetId,due:gameMinutes(g)+4320,parents:parents.map(p=>({uid:p.uid,name:p.name,color:p.color,genome:{...p.genome},preferences:{...p.preferences},familyDesire:p.familyDesire}))});}
  if(q.type==='care'){const baby=g.npcs[q.targetId];if(baby){for(const key in baby.needs)baby.needs[key]=clamp(baby.needs[key]+85);baby.starvation=0;}}
  if(action.relation){
   const other=g.npcs[q.targetId];other.needs.social=clamp(other.needs.social+15);
@@ -169,11 +207,9 @@ function finishAction(g,person,q){
   if(action.cost)changeMoney(g,person,-action.cost);if(action.money)changeMoney(g,person,action.money);
   let text=q.type==='incubate'||cropMessage?g.log[0].text:`完成：${action.name}`;
   if(action.work){
-   const wage=isPlayer?CAREERS[g.career.id].wage*g.career.level:npcWage(person.id);changeMoney(g,person,wage);person.ai.lastWorkDay=g.day;
-   if(isPlayer){
-    const c=CAREERS[g.career.id];g.career.shifts++;text=`工作完成，获得 ${wage} 星币。`;
-    if(g.career.shifts>=3&&g.career.level<3){g.career.level++;g.career.shifts=0;text+=` 晋升为${c.titles[g.career.level-1]}！`;}
-   }
+   const state=isPlayer?g.career:person.position.career,c=CAREERS[state.id],level=c.levels[state.level-1],wage=level.wage;changeMoney(g,person,wage);person.ai.lastWorkDay=g.day;state.shifts++;text=`工作完成，获得 ${wage} 星币。`;
+   const next=c.levels[state.level];
+   if(next&&state.shifts>=next.shifts&&!missingCareerSkills(person.skills,state.id,state.level+1).length){state.level++;state.shifts=0;if(isPlayer)text+=` 晋升为${c.levels[state.level-1].title}！`;}
   }
   if(isPlayer){
    g.completed++;if(q.type!=='incubate'&&!cropMessage)g.log.unshift({text,at:g.minute});g.log=g.log.slice(0,20);
@@ -198,7 +234,8 @@ function advanceAction(g,person,dt){
 
 export function tick(g,seconds){
  if(!g.speed)return;const dt=seconds*g.speed;g.minute+=dt*2;while(g.minute>=1440){g.minute-=1440;g.day++;payGovernmentSubsidy(g);}
- advancePlants(g.objects,dt*2);
+ const previousGrowth=new Map(g.objects.filter(o=>CROPS[o.type]).map(o=>[o.id,o.plant.growth]));advancePlants(g.objects,dt*2);
+ for(const o of g.objects)if(CROPS[o.type]&&previousGrowth.get(o.id)<1&&o.plant.growth>=1)recordMajorEvent(g,`${CROPS[o.type].name}成熟了，可以收获。`,'mature');
  // Direct conversations take precedence over a neighbor's autonomous plan.
  const manual=g.queue[0];
  if(manual?.source==='manual'&&ACTIONS[manual.type].relation){
@@ -275,7 +312,7 @@ function advanceLife(g,person,zeroMinutes){
  const cause=p.age>=120?'old_age':p.starvation>=1440?'starvation':null;if(!cause)return false;
  p.alive=false;person.queue.length=0;person.ai.enabled=false;
  g.memorials.unshift({uid:p.uid,name:p.name,age:p.age,day:g.day,cause,parents:p.parents});
- g.log.unshift({text:`${p.name}${cause==='old_age'?'走完了漫长的一生':'因长期饥饿离世'}。星湾会记得这位居民。`,at:g.minute});
+ const eventText=`${p.name}${cause==='old_age'?'走完了漫长的一生':'因长期饥饿离世'}。星湾会记得这位居民。`;g.log.unshift({text:eventText,at:g.minute});recordMajorEvent(g,eventText,'death');
  if(person.id==='player')g.speed=0;else{delete g.npcs[person.id];delete g.relationships[person.id];}
  for(const other of allActors(g)){const queue=other.queue;for(let i=queue.length-1;i>=0;i--)if(queue[i].targetId===person.id||queue[i].partnerId===person.id)queue.splice(i,1);if(other.id!=='player')delete other.relationships[person.id];}
  return true;
@@ -295,14 +332,14 @@ function hatchReady(g){
   for(const other of Object.values(g.npcs))other.relationships[id]=10;
   g.npcs[id]=baby;g.relationships[id]=birth.parents.some(p=>p.uid===g.player.uid)?60:10;
   g.incubations.splice(g.incubations.indexOf(birth),1);
-  g.log.unshift({text:`${n.name}出生了！${birth.parents.map(p=>p.name).join('与')}的星芽成为星湾的新居民，请照料这位幼体。${baby.mutations.length?' 本次出现了'+baby.mutations.join('、')+'。':''}`,at:g.minute});
+  const eventText=`${n.name}出生了！${birth.parents.map(p=>p.name).join('与')}的星芽成为星湾的新居民，请照料这位幼体。${baby.mutations.length?' 本次出现了'+baby.mutations.join('、')+'。':''}`;g.log.unshift({text:eventText,at:g.minute});recordMajorEvent(g,eventText,'birth');
  }
 }
 export function takeOver(g,id){
  const n=g.npcs[id];if(g.player.alive||!n||n.age<3)return{ok:false,message:'主控居民离世后，可接管 3 星岁以上的居民。'};
- const {needs,skills,relationships,queue,ai,activity,money,inventory,...profile}=n;
+ const {needs,skills,relationships,queue,ai,activity,money,inventory,career,...profile}=n;
  g.money+=money;for(const key of Object.keys(g.harvest))g.harvest[key]+=inventory[key];
- g.player=profile;g.needs=needs;g.skills=skills;g.relationships={...relationships};delete g.relationships[id];g.queue=[];g.autonomy={...ai,enabled:false,cooldown:0,reason:'等待你的安排'};g.career={id:'scientist',level:1,shifts:0};
+ g.player=profile;g.needs=needs;g.skills=skills;g.relationships={...relationships};delete g.relationships[id];g.queue=[];g.autonomy={...ai,enabled:false,cooldown:0,reason:'等待你的安排'};g.career=career||{id:'scientist',level:1,shifts:0};
  delete g.npcs[id];for(const other of Object.values(g.npcs)){delete other.relationships[id];other.queue=other.queue.filter(q=>q.targetId!==id&&q.partnerId!==id);}
  g.speed=0;g.log.unshift({text:`从现在起，你将陪伴${g.player.name}继续星湾的生活。`,at:g.minute});return{ok:true};
 }
@@ -336,23 +373,26 @@ export function restore(raw){
  }
  if(g?.version===5){g.harvest={spores:0,mushrooms:0};for(const o of g.objects)if(CROPS[o.type])o.plant=createPlant();g.version=6;}
  migrateResidentNames(g);
- for(const n of Object.values(g.npcs||{})){if(n.money===undefined)n.money=n.age>=18?600:0;n.inventory={...createInventory(),...(n.inventory||{})};}
+ if(g.majorEvents===undefined)g.majorEvents=[];
+ for(const [id,n] of Object.entries(g.npcs||{})){if(n.money===undefined)n.money=n.age>=18?600:0;n.inventory={...createInventory(),...(n.inventory||{})};if(!n.career)n.career=createCareer(id);}
  const validGenome=d=>d&&Object.keys(defaultGenome()).every(k=>range(d[k],.8,1.2));
  const validParents=p=>Array.isArray(p)&&p.length<=2&&p.every(n=>typeof n.uid==='string'&&typeof n.name==='string');
  const validNeeds=n=>Object.keys(NEEDS).every(k=>range(n?.[k],0,100));
  const validSkills=s=>Object.keys(SKILLS).every(k=>range(s?.[k],0,1e9));
  const validInventory=i=>i&&Object.values(CROPS).every(c=>Number.isSafeInteger(i[c.key])&&i[c.key]>=0);
+ const validCareerState=state=>state&&CAREERS[state.id]&&Number.isInteger(state.level)&&state.level>=1&&state.level<=CAREERS[state.id].levels.length&&Number.isInteger(state.shifts)&&state.shifts>=0;
+ const validMajorEvents=events=>Array.isArray(events)&&events.length<=3&&events.every(event=>event&&typeof event.type==='string'&&typeof event.text==='string'&&event.text.length<=200&&finite(event.at)&&Number.isInteger(event.day)&&event.day>0);
  const validResident=p=>p&&Object.hasOwn(GENDERS,p.gender)&&range(p.age,0,120)&&validGenome(p.genome)&&Array.isArray(p.mutations)&&p.mutations.every(m=>typeof m==='string')&&range(p.familyDesire,0,1)&&(p.lastBirthDay===null||range(p.lastBirthDay,1,1e12))&&typeof p.alive==='boolean'&&typeof p.uid==='string'&&typeof p.name==='string'&&p.name.length<=40&&/^#[0-9a-f]{6}$/i.test(p.color)&&typeof p.trait==='string'&&range(p.starvation,0,1e12)&&validParents(p.parents)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
  const validAI=a=>a&&typeof a.enabled==='boolean'&&range(a.cooldown,0,60)&&typeof a.reason==='string'&&(a.lastAction===null||Object.hasOwn(ACTIONS,a.lastAction))&&(a.lastTarget===null||typeof a.lastTarget==='string')&&Number.isInteger(a.lastWorkDay)&&a.lastWorkDay>=0;
  const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>Object.hasOwn(ACTIONS,a.type)&&(a.type!=='incubate'||a.partnerId===null||Object.hasOwn(g.npcs,a.partnerId))&&point(a.target)&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&['walking','waiting','acting'].includes(a.phase)&&(a.path===null||Array.isArray(a.path)&&a.path.every(point))&&(a.type==='walk'||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
- const valid=g?.version===6&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&range(g.minute,0,1440)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
-  &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&Object.keys(g.npcs).length<=12&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&range(g.relationships?.[id],0,100)&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))
+ const valid=g?.version===6&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&range(g.minute,0,1440)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
+  &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&Object.keys(g.npcs).length<=12&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&range(g.relationships?.[id],0,100)&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validCareerState(n.career)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))
   &&Array.isArray(g.incubations)&&g.incubations.length<=12&&g.incubations.every(b=>typeof b.id==='string'&&range(b.due,0,1e12)&&validParents(b.parents)&&b.parents.length>=1&&b.parents.every(p=>validGenome(p.genome)&&/^#[0-9a-f]{6}$/i.test(p.color)&&range(p.familyDesire,0,1)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100)))&&g.objects.some(o=>o.id===b.podId&&o.type==='nursery'))&&new Set(g.incubations.map(b=>b.podId)).size===g.incubations.length
   &&Array.isArray(g.memorials)&&g.memorials.every(m=>typeof m.uid==='string'&&typeof m.name==='string'&&range(m.age,0,120)&&validParents(m.parents)&&['old_age','starvation'].includes(m.cause)&&range(m.day,1,1e12))
   &&new Set([g.player.uid,...Object.values(g.npcs).map(n=>n.uid)]).size===Object.keys(g.npcs).length+1
   &&(g.player.alive||g.queue.length===0)
 
-  &&CAREERS[g.career?.id]&&range(g.career.level,1,3)&&Number.isInteger(g.career.shifts)&&g.career.shifts>=0&&range(g.skills?.science,0,1e9)&&range(g.skills?.botany,0,1e9)
+  &&validCareerState(g.career)&&range(g.skills?.science,0,1e9)&&range(g.skills?.botany,0,1e9)
   &&Array.isArray(g.objects)&&g.objects.every(o=>point(o)&&typeof o.id==='string'&&ITEMS.some(i=>i.id===o.type)&&finite(o.rotation)&&(!CROPS[o.type]||validPlant(o.plant)))&&new Set(g.objects.map(o=>o.id)).size===g.objects.length
   &&validQueue(g.queue)
   &&Array.isArray(g.log)&&g.log.every(l=>typeof l.text==='string'&&finite(l.at))&&Number.isInteger(g.nextId)&&range(g.nextId,1,1e12)&&Number.isInteger(g.completed);

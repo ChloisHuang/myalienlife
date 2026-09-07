@@ -1,5 +1,5 @@
 import {test,expect} from '@playwright/test';
-import {createGame} from '../src/simulation.js';
+import {createGame,CAREERS} from '../src/simulation.js';
 import {createSaveStore} from '../server/save-store.js';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -23,6 +23,8 @@ async function savedState(page){await expect(page.locator('#save-status')).toHav
 
 test('3D game supports social queue, pause, building, careers and persisted save',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const state=createGame();state.speed=0;state.skills.botany=CAREERS.botanist.levels[0].skills.botany;
+ await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);
  await page.goto('http://127.0.0.1:5173');
  await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  await expect(page.locator('#world canvas')).toBeVisible();
@@ -35,6 +37,8 @@ test('3D game supports social queue, pause, building, careers and persisted save
  await page.locator('#queue [data-cancel]').click();
  await expect(page.locator('#queue')).not.toContainText('聊聊母星');
  await page.getByRole('button',{name:'职业',exact:true}).click();
+ await expect(page.locator('#panel-content')).toContainText('入职要求');
+ await expect.poll(()=>page.locator('#panel-content').evaluate(el=>({overflow:getComputedStyle(el).overflowY,scrollable:el.scrollHeight>el.clientHeight}))).toEqual({overflow:'auto',scrollable:true});
  await page.getByRole('button',{name:'加入异星植物'}).click();
  await expect(page.locator('#panel-content')).toContainText('孢子培育员');
  await page.getByRole('button',{name:'开始工作'}).click();
@@ -52,6 +56,16 @@ test('3D game supports social queue, pause, building, careers and persisted save
  await expect(page.locator('#panel-content')).toContainText('孢子培育员');
  expect(errors).toEqual([]);
  await page.screenshot({path:'test-results/gameplay.png',fullPage:true});
+});
+test('radio displays only the three latest major events',async({page})=>{
+ const state=createGame();state.speed=0;state.majorEvents=[
+  {type:'birth',text:'第三条重大事件',day:3,at:100},
+  {type:'death',text:'第二条重大事件',day:2,at:100},
+  {type:'mature',text:'第一条重大事件',day:1,at:100}
+ ];
+ await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ await expect(page.locator('#journal')).toBeVisible();await expect(page.locator('.journal-entry')).toHaveCount(3);await expect(page.locator('.journal-entry').first()).toContainText('第三条重大事件');
 });
 test('skills and resident appearance have dedicated panels and retain edits after reload',async({page})=>{
  const state=createGame();state.speed=0;state.skills.science=4;
@@ -79,9 +93,9 @@ test('raycast interaction completes social action, earns wages, and places purch
  // Click Nova's visible 3D body, not a substitute UI control.
  await page.mouse.click(805,407);await expect(page.locator('#context-menu')).toContainText('诺瓦');
  await page.locator('[data-action="chat"]').click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();
- await expect(page.locator('#journal-text')).toContainText('完成：聊聊母星',{timeout:20000});
+ await expect(page.locator('#queue')).not.toContainText('聊聊母星',{timeout:20000});await expect(page.locator('#journal')).toBeHidden();
  await page.getByRole('button',{name:'职业',exact:true}).click();await page.getByRole('button',{name:'开始工作',exact:true}).click();
- await expect(page.locator('#journal-text')).toContainText('获得 180 星币',{timeout:25000});
+ await expect(page.locator('#queue')).not.toContainText('开始一个工作班次',{timeout:25000});await expect(page.locator('#journal')).toBeHidden();
  await page.getByRole('button',{name:'暂停',exact:true}).click();await page.getByRole('button',{name:'建造模式',exact:true}).click();
  await page.locator('[data-pack="孢子花园"]').click();await page.getByRole('button',{name:'购买 极光晶簇'}).click();
  await page.mouse.move(660,437);await page.mouse.click(660,437);await expect(page.locator('#toast')).toContainText('已放入家园');
@@ -142,7 +156,7 @@ test('plant menu shows condition, harvests into storage, sells produce and saves
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  const r=await page.locator('#world canvas').boundingBox(),camera=new OrthographicCamera(-14*r.width/r.height,14*r.width/r.height,14,-14,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const p=new Vector3(7,.9,3).project(camera);await page.mouse.click(r.x+(p.x+1)*r.width/2,r.y+(1-p.y)*r.height/2);
  await expect(page.locator('#plant-status')).toContainText('成熟可收获');await expect(page.locator('#plant-status')).toContainText('水分');await expect(page.locator('[data-action="replant"]')).toBeDisabled();await page.screenshot({path:'test-results/plant-mature.png'});
- await page.locator('[data-action="harvest"]').click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();await expect(page.locator('#journal-text')).toContainText('收获了 3 份发光孢子',{timeout:20000});await page.getByRole('button',{name:'暂停',exact:true}).click();
+ await page.locator('[data-action="harvest"]').click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();await expect(page.locator('#queue')).not.toContainText('收获成熟植物',{timeout:20000});await expect(page.locator('#journal')).toBeHidden();await page.getByRole('button',{name:'暂停',exact:true}).click();
  await page.getByRole('button',{name:'物品包',exact:true}).click();await page.getByRole('button',{name:'收成仓库',exact:true}).click();await expect(page.locator('#harvest-content')).toContainText('3 份');await page.locator('#harvest-dialog [data-sell-crop="spores"]').click();await expect(page.locator('#money')).toHaveText('2,454');await expect(page.locator('#harvest-dialog [data-sell-crop="spores"]')).toBeDisabled();await page.getByRole('button',{name:'关闭收成仓库'}).click();
  await page.getByRole('button',{name:'保存游戏',exact:true}).click();const saved=await savedState(page);expect(saved.objects.find(o=>o.type==='garden').plant.harvests).toBe(1);expect(saved.objects.find(o=>o.type==='garden').plant.growth).toBeLessThan(.2);await page.reload();await expect(page.locator('#loading')).toBeHidden();await expect(page.locator('#money')).toHaveText('2,454');
  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'物品包',exact:true}).click();await page.getByRole('button',{name:'收成仓库',exact:true}).click();await expect(page.locator('#harvest-content')).toBeVisible();await page.screenshot({path:'test-results/harvest-mobile.png'});expect(errors).toEqual([]);
@@ -153,14 +167,15 @@ test('life scrolling survives live updates on desktop and narrow screens',async(
  for(const width of [1440,390]){await page.setViewportSize({width,height:1000});const panel=page.locator('.life-panel');await panel.evaluate(el=>{el.scrollTop=180;});const before=await panel.evaluate(el=>el.scrollTop);expect(before).toBeGreaterThan(100);await page.waitForTimeout(1600);expect(await panel.evaluate(el=>el.scrollTop)).toBe(before);}
 });
 test('automatic save runs once a minute and reload flushes newer progress',async({page})=>{
- await page.clock.install();await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const state=createGame();state.skills.botany=CAREERS.botanist.levels[0].skills.botany;
+ await page.clock.install();await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  const initial=(await stores.get(page).store.read()).revision;await page.clock.fastForward(5000);expect((await stores.get(page).store.read()).revision).toBe(initial);
  await page.clock.fastForward(55000);await expect(page.locator('#save-status')).toContainText('已自动保存');const stored=await savedState(page);expect(stored.minute).toBeGreaterThan(510);await expect(page.locator('#save-status')).toContainText('已自动保存');
  await page.getByRole('button',{name:'暂停',exact:true}).click();await page.getByRole('button',{name:'职业',exact:true}).click();await page.getByRole('button',{name:'加入异星植物'}).click();
  const time=await page.locator('#clock').innerText();await page.reload();await expect(page.locator('#loading')).toBeHidden();await expect(page.locator('#clock')).toHaveText(time);await page.getByRole('button',{name:'职业',exact:true}).click();await expect(page.locator('#panel-content')).toContainText('孢子培育员');
 });
 test('failed saves keep the previous snapshot and expose a persistent error',async({page})=>{
- const g=createGame();g.speed=0;
+ const g=createGame();g.speed=0;g.skills.botany=CAREERS.botanist.levels[0].skills.botany;
  await page.addInitScript(state=>localStorage.setItem('orbit-life-v1',JSON.stringify(state)),g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  await page.route('**/api/save',route=>route.request().method()==='POST'?route.fulfill({status:503,json:{error:'Disk unavailable'}}):route.fallback());
@@ -169,7 +184,7 @@ test('failed saves keep the previous snapshot and expose a persistent error',asy
 });
 
 test('separate browser profiles share disk progress and stale pages cannot overwrite it',async({page,browser})=>{
- const g=createGame();g.day=9;g.money=4260;g.speed=0;
+ const g=createGame();g.day=9;g.money=4260;g.speed=0;g.skills.botany=CAREERS.botanist.levels[0].skills.botany;
  await stores.get(page).store.write({state:g,baseRevision:0,clientId:'seed',sequence:1});
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden();
  const second=await browser.newContext();try{
