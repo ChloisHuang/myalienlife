@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as sim from '../src/simulation.js';
+
+const run=(g,seconds)=>{for(let i=0;i<seconds*10;i++)sim.tick(g,.1);};
+const healthy=()=>({hunger:90,energy:90,social:90,fun:90,hygiene:90,comfort:90});
+
+test('a hungry NPC chooses available food and restores its own hunger without spending player funds',()=>{
+ const g=sim.createGame(),n=g.npcs.nova;n.needs={...healthy(),hunger:10};const money=g.money;
+ run(g,1);assert.equal(n.queue[0]?.type,'eat');assert.match(n.ai.reason,/营养/);
+ run(g,20);assert.ok(n.needs.hunger>60);assert.equal(g.money,money);
+});
+test('urgent needs override a characters hobby preference',()=>{
+ const g=sim.createGame();g.npcs.pip.needs={...healthy(),energy:5,fun:20};
+ run(g,1);assert.equal(g.npcs.pip.queue[0]?.type,'sleep');
+});
+test('equal needs lead to different hobbies for botanist and musician',()=>{
+ const g=sim.createGame();for(const n of Object.values(g.npcs))n.needs=healthy();
+ run(g,1);assert.equal(g.npcs.nova.queue[0]?.type,'garden');assert.equal(g.npcs.pip.queue[0]?.type,'dance');
+});
+test('AI reserves furniture and does not choose absent or unreachable food',()=>{
+ const g=sim.createGame();g.npcs.nova.needs={...healthy(),hunger:5};g.npcs.zig.needs={...healthy(),hunger:5};run(g,1);
+ assert.equal(Object.values(g.npcs).filter(n=>n.queue[0]?.targetId==='food').length,1);
+ const h=sim.createGame();h.objects=h.objects.filter(o=>o.type!=='food');h.npcs.nova.needs={...healthy(),hunger:5};run(h,1);assert.notEqual(h.npcs.nova.queue[0]?.type,'eat');
+ const k=sim.createGame();k.npcs.nova.needs={...healthy(),hunger:5};k.objects.push({id:'block',type:'crystal',x:1,z:-3,rotation:0});run(k,1);assert.notEqual(k.npcs.nova.queue[0]?.type,'eat');
+});
+test('player AI remains off by default, can be enabled, and stops when disabled',()=>{
+ const g=sim.createGame();g.needs={...healthy(),hunger:5};run(g,1);assert.equal(g.queue.length,0);
+ assert.equal(typeof sim.setAutonomy,'function');sim.setAutonomy(g,true);run(g,.1);assert.equal(g.queue[0]?.type,'eat');assert.equal(g.queue[0].source,'ai');
+ sim.setAutonomy(g,false);assert.equal(g.queue.length,0);run(g,5);assert.equal(g.queue.length,0);
+});
+test('manual orders interrupt autonomous actions and AI does not interrupt queued manual orders',()=>{
+ const g=sim.createGame();assert.equal(typeof sim.setAutonomy,'function');sim.setAutonomy(g,true);g.needs={...healthy(),energy:5};run(g,.1);assert.equal(g.queue[0]?.type,'sleep');
+ sim.enqueue(g,'walk',null,{x:0,z:5});sim.enqueue(g,'chat','nova');assert.deepEqual(g.queue.map(q=>q.source),['manual','manual']);
+ run(g,.1);assert.equal(g.queue[0].type,'walk');sim.setAutonomy(g,false);assert.equal(g.queue.length,2);
+});
+test('NPCs can socialize with each other and recover social needs on both sides',()=>{
+ const g=sim.createGame();const n=g.npcs.lumi;n.needs={...healthy(),social:5};run(g,.1);assert.equal(n.queue[0]?.type,'chat');
+ const target=g.npcs[n.queue[0].targetId],targetBefore=target.needs.social;run(g,20);
+ assert.ok(n.needs.social>25);assert.ok(Object.values(n.relationships).some(v=>v>0));assert.ok(target.needs.social>=targetBefore-1);
+});
+test('autonomous state survives save and pause freezes decisions',()=>{
+ const g=sim.createGame();assert.equal(typeof sim.setAutonomy,'function');sim.setAutonomy(g,true);run(g,1);
+ assert.deepEqual(sim.restore(sim.serialize(g)),g);g.speed=0;const before=sim.serialize(g);sim.tick(g,15);assert.equal(sim.serialize(g),before);
+});
+test('version 1 saves migrate once without losing household progress or manual orders',()=>{
+ const legacy=sim.createGame();legacy.version=1;delete legacy.autonomy;legacy.money=987;legacy.relationships.nova=65;
+ for(const [id,n]of Object.entries(legacy.npcs))legacy.npcs[id]={x:n.x,z:n.z,timer:8,step:2,path:[],activity:'散步'};
+ sim.enqueue(legacy,'eat','food');delete legacy.queue[0].source;
+ const loaded=sim.restore(JSON.stringify(legacy));assert.equal(loaded.version,6);assert.equal(loaded.money,987);assert.equal(loaded.relationships.nova,65);assert.equal(loaded.autonomy.enabled,false);assert.equal(loaded.queue[0].source,'manual');assert.equal('timer'in loaded.npcs.nova,false);
+});
