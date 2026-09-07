@@ -18,7 +18,7 @@ function poseSkin(rig,limb){
 }
 
 export function createCharacter(source,spec){
- const root=new THREE.Group(),body=cloneSkeleton(source);root.add(body);root.position.set(spec.x,groundHeight(spec.x,spec.z),spec.z);root.rotation.y=.35;
+ const root=new THREE.Group(),body=cloneSkeleton(source);root.add(body);root.position.set(spec.x,groundHeight(spec.x,spec.z,spec.side),spec.z);root.rotation.y=.35;
  const joints=Object.fromEntries(NODES.map(name=>{const node=body.getObjectByName(name);if(!node)throw new Error(`角色资产缺少控制节点：${name}`);return[name,node];}));
  const limbs={};root.updateMatrixWorld(true);const inverseBodyRotation=body.getWorldQuaternion(new THREE.Quaternion()).invert();
  for(const side of SIDES)for(const kind of ['Tendril','Leg']){
@@ -44,7 +44,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  const previousTips=Object.fromEntries(SIDES.map(side=>[side,rig.joints[side+'TendrilTip'].position.clone()])),poseBlend=rig.initialized&&delta>0?1-Math.exp(-delta*12):1;
  for(const [node,rest]of rig.rest){node.scale.copy(rest.scale);node.position.copy(rest.position);node.quaternion.copy(rest.quaternion);}
  const dx=person.x-rig.last.x,dz=person.z-rig.last.z,moving=Math.hypot(dx,dz)>.00001&&action?.phase==='walking';
- const target=new THREE.Vector3(person.x,groundHeight(person.x,person.z),person.z);
+ const target=new THREE.Vector3(person.x,groundHeight(person.x,person.z,person.side),person.z);
  let yaw=rig.root.rotation.y,tilt=0,roll=0,bob=Math.sin(time*1.8)*.01,compression=1;
  if(moving){yaw=Math.atan2(dx,dz);rig.stride+=Math.hypot(dx,dz)*Math.PI*2/(.72*look.scale);bob=Math.cos(rig.stride*2)*.012;compression=1-Math.sin(rig.stride*2)*.018;}
  else if(partner)yaw=Math.atan2(partner.x-person.x,partner.z-person.z);
@@ -67,12 +67,12 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
     for(const [i,side]of SIDES.entries()){const sign=i===0?-1:1,active=i===0?alternate:1-alternate;
      tips[side]=new THREE.Vector3(sign*.36,-.66,.04).lerp(new THREE.Vector3(-sign*.08,.025+wave*.04,.24),active).toArray();}
    }
-   if(type==='eat'){local=[0,0,1.1];facing=0;tips.Left=[-.15,.18,.40];tips.Right=[.09,.32+wave*.08,.34];rig.joints.Head.rotation.x=.08;rig.effects.meal.visible=rig.effects.spoon.visible=true;}
-   if(['research','work','incubate'].includes(type)){local=[0,0,.95];rig.joints.Core.rotation.x=.10;tips.Left=[-.24,.06+wave*.025,.51];tips.Right=[.24,.06-wave*.025,.51];}
+   if(['eat','taste','brew'].includes(type)){local=[0,0,1.1];facing=0;tips.Left=[-.15,.18,.40];tips.Right=[.09,.32+wave*.08,.34];rig.joints.Head.rotation.x=.08;rig.effects.meal.visible=rig.effects.spoon.visible=true;}
+   if(['research','work','incubate','cook'].includes(type)){local=[0,0,.95];rig.joints.Core.rotation.x=.10;tips.Left=[-.24,.06+wave*.025,.51];tips.Right=[.24,.06-wave*.025,.51];}
    if(['garden','harvest','replant'].includes(type)){local=[0,-.05,1.0];rig.joints.Core.rotation.x=.22;tips.Left=[-.28,-.35,.55];tips.Right=[.24,-.48+wave*.06,.65];rig.effects.wateringCan.visible=type==='garden';rig.effects.meal.visible=type==='harvest';}
    if(type==='dance'){local=[0,0,1.45];facing=0;roll=wave*.13;bob+=Math.sin(action.elapsed*4)*.08;tips.Left=[-.57,.16+wave*.2,.25];tips.Right=[.57,.16-wave*.2,.25];}
    if(type==='observe'){local=[0,-.10,1.02];rig.joints.Core.rotation.x=.25;rig.joints.Head.rotation.x=.12;tips.Left=[-.2,.15,.48];tips.Right=[.2,.15,.48];}
-   if(type==='explore'){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
+   if(['explore','travel'].includes(type)){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
    if(type==='admire'){local=[0,0,1.25];rig.joints.Head.rotation.x=-.12;tips.Right=[.32,.24,.4];}
    const p=localToWorld(object,local);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
   }else if(type==='care'){rig.joints.Core.rotation.x=.22;target.y-=.1;tips.Left=[-.15,-.30,.46];tips.Right=[.12,-.20+wave*.07,.48];rig.effects.meal.visible=true;

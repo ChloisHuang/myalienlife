@@ -67,8 +67,8 @@ test('autonomous state survives save and pause freezes decisions',()=>{
  assert.deepEqual(sim.restore(sim.serialize(g)),g);g.speed=0;const before=sim.serialize(g);sim.tick(g,15);assert.equal(sim.serialize(g),before);
 });
 test('version 1 saves migrate once without losing household progress or manual orders',()=>{
- const legacy=sim.createGame();legacy.version=1;delete legacy.autonomy;legacy.money=987;legacy.relationships.nova=65;
+ const legacy=sim.createGame();legacy.version=1;legacy.objects=legacy.objects.filter(o=>o.type!=='gate');delete legacy.autonomy;legacy.money=987;legacy.relationships.nova=65;
  for(const [id,n]of Object.entries(legacy.npcs))legacy.npcs[id]={x:n.x,z:n.z,timer:8,step:2,path:[],activity:'散步'};
  sim.enqueue(legacy,'eat','food');delete legacy.queue[0].source;
- const loaded=sim.restore(JSON.stringify(legacy));assert.equal(loaded.version,8);assert.equal(loaded.money,987);assert.equal(loaded.relationships.nova,65);assert.equal(loaded.autonomy.enabled,false);assert.equal(loaded.queue[0].source,'manual');assert.equal('timer'in loaded.npcs.nova,false);
+ const loaded=sim.restore(JSON.stringify(legacy));assert.equal(loaded.version,9);assert.equal(loaded.money,987);assert.equal(loaded.relationships.nova,65);assert.equal(loaded.autonomy.enabled,false);assert.equal(loaded.queue[0].source,'manual');assert.equal('timer'in loaded.npcs.nova,false);
 });

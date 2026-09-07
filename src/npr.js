@@ -102,11 +102,11 @@ export function createBioluminescence(parent,{radius,height,color,count=7}){
 }
 
 export function createAtmosphere(scene,camera,random){
- const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2};
+ const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},skyBrightness={value:.28};
  // The sky is camera-relative; world-space stars still provide parallax while orbiting.
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(140,100),new THREE.ShaderMaterial({
-  uniforms:{time,cloudCover},depthWrite:false,depthTest:false,vertexShader:uvVertex,
-  fragmentShader:`uniform float time,cloudCover;varying vec2 vUv;${noiseGLSL}
+  uniforms:{time,cloudCover,skyBrightness},depthWrite:false,depthTest:false,vertexShader:uvVertex,
+  fragmentShader:`uniform float time,cloudCover,skyBrightness;varying vec2 vUv;${noiseGLSL}
    void main(){vec2 p=vUv*vec2(7.0,5.0);float n=mist(p+vec2(time*.003,0));
     float band=exp(-pow((vUv.y-.52-(vUv.x-.5)*.35+sin(vUv.x*9.0)*.06)*9.0,2.0));
     vec3 color=vec3(.008,.012,.035)+vec3(.048,.025,.105)*n;
@@ -114,7 +114,7 @@ export function createAtmosphere(scene,camera,random){
     color+=vec3(.012,.065,.06)*pow(mist(p*1.7+5.0),3.0);
     float clouds=smoothstep(.28,.78,mist(p*1.6+vec2(time*.012,0)));
     color=mix(color,vec3(.14,.125,.18),clouds*cloudCover*.7);
-    gl_FragColor=vec4(color*.28,1.0);
+    gl_FragColor=vec4(color*skyBrightness,1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
    }`}));
@@ -142,5 +142,5 @@ export function createAtmosphere(scene,camera,random){
   const points=new THREE.Points(geometry,material);points.frustumCulled=false;scene.add(points);
  }
  particles(850,false);particles(100,true);
- return {update(t,weather){time.value=t;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
+ return {update(t,weather,frontAmount){time.value=t;skyBrightness.value=.28+.12*frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
 }

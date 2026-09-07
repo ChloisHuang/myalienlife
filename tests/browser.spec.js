@@ -21,6 +21,61 @@ test.beforeEach(async({context,page})=>{
 test.afterEach(async({context,page})=>{await context.close();await rm(stores.get(page).directory,{recursive:true,force:true});});
 async function savedState(page){await expect(page.locator('#save-status')).toHaveAttribute('data-state','saved');return(await stores.get(page).store.read()).state;}
 
+test('dark reverse face supports building, free gate travel, cooking and reload',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ page.on('console',m=>{if(m.type()==='error'&&/THREE|WebGL|shader/i.test(m.text()))errors.push(m.text());});
+ const g=createGame();g.speed=0;g.money=10000;g.skills.cooking=3;
+ for(const n of Object.values(g.npcs))n.ai.enabled=false;
+ g.objects.push({id:'back-kitchen',type:'stove',side:'back',x:3,z:0,rotation:0},{id:'back-tea',type:'tea',side:'back',x:5,z:0,rotation:0},{id:'back-relic',type:'relic',side:'back',x:6,z:-3,rotation:0},{id:'back-beacon',type:'beacon',side:'back',x:-4,z:-4,rotation:0});
+ fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.screenshot({path:'test-results/island-front.png'});
+ await page.getByRole('button',{name:'翻转星岛',exact:true}).click();
+ await expect(page.locator('#world')).toHaveAttribute('data-side','back');await expect(page.locator('#world')).toHaveAttribute('data-flipping','false');
+ await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在晴昼面');
+ await page.getByRole('button',{name:'建造模式',exact:true}).click();
+ await page.getByRole('button',{name:'星云膳坊',exact:true}).click();await expect(page.locator('.item-card')).toHaveCount(3);
+ await page.getByRole('button',{name:'幽星秘境',exact:true}).click();await page.getByRole('button',{name:'购买 双面折跃门'}).click();
+ const canvas=await page.locator('#world canvas').boundingBox();await page.mouse.click(canvas.x+canvas.width*.48,canvas.y+canvas.height*.56);
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'建造模式',exact:true}).click();
+ await page.getByRole('button',{name:'保存游戏',exact:true}).click();
+ const built=await savedState(page),newGate=built.objects.find(o=>o.type==='gate'&&!o.fixed);expect(newGate).toBeTruthy();expect(newGate.side).toBe('back');
+ await page.getByRole('button',{name:'职业',exact:true}).click();await page.getByRole('button',{name:'加入星云膳造'}).click();
+ await expect(page.locator('#panel-content')).toContainText('孢火学徒 → 星釜调味师 → 星宴织味宗师');
+ await page.getByRole('button',{name:'选择星门目的地'}).click();await expect(page.locator('[data-destination]')).toHaveCount(2);
+ await page.locator(`[data-destination="${newGate.id}"]`).click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();
+ await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在幽星面',{timeout:25000});
+ await page.getByRole('button',{name:'开始工作'}).click();await expect(page.locator('#queue')).toContainText('开始一个工作班次');
+ await expect(page.locator('#queue [data-cancel]')).toHaveCount(0,{timeout:25000});
+ await page.getByRole('button',{name:'暂停',exact:true}).click();
+ await page.getByRole('button',{name:'保存游戏',exact:true}).click();const saved=await savedState(page);expect(saved.player.side).toBe('back');expect(saved.career.shifts).toBe(1);
+ await page.screenshot({path:'test-results/island-back.png'});
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在幽星面');
+ expect(errors).toEqual([]);
+});
+
+test('camera controls stay separate on narrow screens and remote work automatically uses gates',async({page})=>{
+ const g=createGame();g.speed=0;g.skills.cooking=3;g.career={id:'chef',level:1,shifts:0};
+ for(const n of Object.values(g.npcs))n.ai.enabled=false;
+ g.config.actionDurations.work=1;g.config.actionDurations.travel=.5;
+ g.objects.push({id:'remote-stove',type:'stove',side:'back',x:3,z:0,rotation:0});fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:900});
+  const flip=await page.locator('#flip-island').boundingBox(),tools=await page.locator('.view-tools').boundingBox();
+  expect(flip.y+flip.height).toBeLessThan(tools.y);expect(tools.x+tools.width).toBeLessThanOrEqual(width);
+  await page.getByRole('button',{name:'翻转星岛',exact:true}).click();
+  await expect(page.locator('#world')).toHaveAttribute('data-flipping','false');
+  await page.screenshot({path:`test-results/island-controls-${width}.png`});
+ }
+ await page.setViewportSize({width:1440,height:1000});await page.getByRole('button',{name:'职业',exact:true}).click();
+ await page.getByRole('button',{name:'开始工作'}).click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();
+ await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在幽星面',{timeout:15000});
+ await expect(page.locator('#queue [data-cancel]')).toHaveCount(0,{timeout:15000});
+ await page.getByRole('button',{name:'暂停',exact:true}).click();await page.getByRole('button',{name:'保存游戏',exact:true}).click();
+ const saved=await savedState(page);expect(saved.career.shifts).toBe(1);expect(saved.player.side).toBe('back');
+});
+
 test('3D game supports social queue, pause, building, careers and persisted save',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const state=createGame();state.speed=0;state.skills.botany=CAREERS.botanist.levels[0].skills.botany;
@@ -91,7 +146,7 @@ test('skills and resident appearance have dedicated panels and retain edits afte
  const state=createGame();state.speed=0;state.skills.science=4;
  await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
-  await page.getByRole('button',{name:'技能',exact:true}).click();await expect(page.locator('[data-skill="science"]')).toContainText('Lv.2');await expect(page.locator('.skill-card')).toHaveCount(4);
+  await page.getByRole('button',{name:'技能',exact:true}).click();await expect(page.locator('[data-skill="science"]')).toContainText('Lv.2');await expect(page.locator('.skill-card')).toHaveCount(5);
   await page.getByRole('button',{name:'人物',exact:true}).click();await expect(page.locator('#resident-summary')).toContainText('余额 2,400 星币');await page.locator('#resident-select').selectOption('nova');await expect(page.locator('#resident-summary')).toContainText('余额 600 星币');await page.locator('#resident-select').selectOption('player');const before=await page.locator('#resident-photo').getAttribute('src');
  await page.getByLabel('头部宽度',{exact:true}).fill('85');await page.getByLabel('头部长度',{exact:true}).fill('115');await page.getByLabel('下颌收窄',{exact:true}).fill('110');await page.getByRole('button',{name:'应用人物设定'}).click();
  expect(await page.locator('#resident-photo').getAttribute('src')).not.toBe(before);
@@ -132,7 +187,7 @@ test('raycast interaction completes social action, earns wages, and places purch
  await page.mouse.move(660,437);await page.mouse.click(660,437);await expect(page.locator('#toast')).toContainText('已放入家园');
  await page.getByRole('button',{name:'保存游戏',exact:true}).click();
  const saved=await savedState(page);
- expect(saved.relationships.nova).toBe(30);expect(saved.money).toBe(2460);expect(saved.objects).toHaveLength(9);expect(saved.objects.at(-1).type).toBe('crystal');
+ expect(saved.relationships.nova).toBe(30);expect(saved.money).toBe(2460);expect(saved.objects).toHaveLength(11);expect(saved.objects.at(-1).type).toBe('crystal');
  await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});await expect(page.locator('#money')).toHaveText('2,460');
 });
 test('narrow screens retain needs, career and item controls without horizontal overflow',async({page})=>{
