@@ -57,13 +57,19 @@ test('skills and resident appearance have dedicated panels and retain edits afte
  const state=createGame();state.speed=0;state.skills.science=4;
  await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
- await page.getByRole('button',{name:'技能',exact:true}).click();await expect(page.locator('[data-skill="science"]')).toContainText('Lv.2');await expect(page.locator('.skill-card')).toHaveCount(4);
- await page.getByRole('button',{name:'人物',exact:true}).click();const before=await page.locator('#resident-photo').getAttribute('src');
+  await page.getByRole('button',{name:'技能',exact:true}).click();await expect(page.locator('[data-skill="science"]')).toContainText('Lv.2');await expect(page.locator('.skill-card')).toHaveCount(4);
+  await page.getByRole('button',{name:'人物',exact:true}).click();await expect(page.locator('#resident-summary')).toContainText('余额 2,400 星币');await page.locator('#resident-select').selectOption('nova');await expect(page.locator('#resident-summary')).toContainText('余额 600 星币');await page.locator('#resident-select').selectOption('player');const before=await page.locator('#resident-photo').getAttribute('src');
  await page.getByLabel('性别',{exact:true}).selectOption('female');await page.getByLabel('年龄（星岁）',{exact:true}).fill('68');await page.getByRole('button',{name:'应用人物设定'}).click();
  await expect(page.locator('#resident-summary')).toContainText('长者');expect(await page.locator('#resident-photo').getAttribute('src')).not.toBe(before);
  await page.getByRole('button',{name:'保存游戏',exact:true}).click();await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});
  await page.getByRole('button',{name:'人物',exact:true}).click();await expect(page.getByLabel('性别',{exact:true})).toHaveValue('female');await expect(page.getByLabel('年龄（星岁）',{exact:true})).toHaveValue('68');
  await page.setViewportSize({width:390,height:844});await expect(page.getByRole('button',{name:'应用人物设定'})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+test('insufficient funds remove eating from the food action menu',async({page})=>{
+ const {OrthographicCamera,Vector3}=await import('three');const g={...createGame(),speed:0,money:9};
+ await page.addInitScript(state=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(state));},g);await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ const r=await page.locator('#world canvas').boundingBox(),camera=new OrthographicCamera(-14*r.width/r.height,14*r.width/r.height,14,-14,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const p=new Vector3(1,.9,-4).project(camera);await page.mouse.click(r.x+(p.x+1)*r.width/2,r.y+(1-p.y)*r.height/2);
+ await expect(page.locator('#context-menu')).toContainText('营养合成器');await expect(page.locator('[data-action="eat"]')).toHaveCount(0);
 });
 test('raycast interaction completes social action, earns wages, and places purchased furniture',async({page})=>{
  // Freeze the initial scene before rendering: autonomous NPCs now move immediately.

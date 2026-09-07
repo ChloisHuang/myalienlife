@@ -6,9 +6,26 @@ const run=(g,seconds)=>{for(let i=0;i<seconds*10;i++)sim.tick(g,.1);};
 const healthy=()=>({hunger:90,energy:90,social:90,fun:90,hygiene:90,comfort:90});
 
 test('a hungry NPC chooses available food and restores its own hunger without spending player funds',()=>{
- const g=sim.createGame(),n=g.npcs.nova;n.needs={...healthy(),hunger:10};const money=g.money;
+ const g=sim.createGame(),n=g.npcs.nova;n.needs={...healthy(),hunger:10};const money=g.money,personalMoney=n.money;
  run(g,1);assert.equal(n.queue[0]?.type,'eat');assert.match(n.ai.reason,/营养/);
- run(g,20);assert.ok(n.needs.hunger>60);assert.equal(g.money,money);
+ run(g,20);assert.ok(n.needs.hunger>60);assert.equal(g.money,money);assert.equal(n.money,personalMoney-10);
+});
+test('a minor splits meal costs equally between two living parents',()=>{
+ const g=sim.createGame(),n=g.npcs.pip,a=g.npcs.nova,b=g.npcs.lumi;n.parents=[{uid:a.uid,name:a.name},{uid:b.uid,name:b.name}];n.money=10;n.needs={...healthy(),hunger:10};a.money=100;b.money=100;for(const other of Object.values(g.npcs))other.ai.enabled=other===n;
+ run(g,20);assert.ok(n.needs.hunger>60);assert.equal(n.money,10);assert.equal(a.money,95);assert.equal(b.money,95);
+});
+test('a minor charges the full meal cost to its only living parent',()=>{
+ const g=sim.createGame(),n=g.npcs.pip,parent=g.npcs.nova;n.parents=[{uid:parent.uid,name:parent.name}];n.money=10;n.needs={...healthy(),hunger:10};parent.money=100;for(const other of Object.values(g.npcs))other.ai.enabled=other===n;
+ run(g,20);assert.ok(n.needs.hunger>60);assert.equal(n.money,10);assert.equal(parent.money,90);
+});
+test('an NPC without meal money removes eating from its autonomous choices',()=>{
+ const g=sim.createGame(),n=g.npcs.nova;n.money=9;n.needs={...healthy(),hunger:10};run(g,1);
+ assert.notEqual(n.queue[0]?.type,'eat');assert.notEqual(n.queue[0]?.targetId,'food');
+});
+test('a working NPC earns personal wages without changing player funds',()=>{
+ const g=sim.createGame(),n=g.npcs.zig;Object.assign(n.needs,healthy());n.money=0;const householdMoney=g.money;
+ run(g,1);assert.equal(n.queue[0]?.type,'work');
+ run(g,20);assert.ok(n.money>0);assert.equal(g.money,householdMoney);
 });
 test('urgent needs override a characters hobby preference',()=>{
  const g=sim.createGame();g.npcs.pip.needs={...healthy(),energy:5,fun:20};

@@ -9,6 +9,26 @@ test('queued eating restores hunger only after arrival and completion',()=>{
  const g=createGame(); g.needs.hunger=20; enqueue(g,'eat','food'); tick(g,0.1); assert.ok(g.needs.hunger<21);
  for(let i=0;i<200;i++)tick(g,0.1); assert.ok(g.needs.hunger>65); assert.equal(g.queue.length,0);
 });
+test('completed eating charges ten coins from household funds',()=>{
+ const g=createGame();g.needs.hunger=0;const funds=g.money;enqueue(g,'eat','food');
+ for(let i=0;i<200;i++)tick(g,0.1);
+ assert.equal(g.money,funds-10);assert.ok(g.needs.hunger>60);assert.equal(g.queue.length,0);
+});
+test('eating with insufficient funds does not restore hunger',()=>{
+ const g=createGame();g.money=9;g.needs.hunger=0;const result=enqueue(g,'eat','food');
+ assert.equal(result.ok,false);assert.equal(g.money,9);assert.equal(g.needs.hunger,0);assert.equal(g.queue.length,0);
+});
+test('manual eating with insufficient funds is unavailable before movement',()=>{
+ const g=createGame();g.money=9;const result=enqueue(g,'eat','food');
+ assert.equal(result.ok,false);assert.equal(result.message,'星币不足，无法合成晚餐。');assert.equal(g.queue.length,0);
+});
+test('government subsidy pays minors and elders once per game day',()=>{
+ const g=createGame();g.speed=1;g.minute=1439;g.player.age=18;g.npcs.nova.age=17;g.npcs.zig.age=59;g.npcs.lumi.age=60;g.npcs.pip.age=10;g.npcs.nova.parents=[{uid:g.npcs.zig.uid,name:g.npcs.zig.name},{uid:g.npcs.lumi.uid,name:g.npcs.lumi.name}];
+ for(const n of Object.values(g.npcs))n.ai.enabled=false;
+ const before={player:g.money,nova:g.npcs.nova.money,zig:g.npcs.zig.money,lumi:g.npcs.lumi.money,pip:g.npcs.pip.money};
+ tick(g,1);assert.equal(g.day,2);assert.equal(g.money,before.player);assert.equal(g.npcs.nova.money,before.nova);assert.equal(g.npcs.zig.money,before.zig);assert.equal(g.npcs.lumi.money,before.lumi+50);assert.equal(g.npcs.pip.money,before.pip+50);
+ tick(g,1);assert.equal(g.npcs.nova.money,before.nova);assert.equal(g.npcs.lumi.money,before.lumi+50);
+});
 test('cancelling an action prevents its reward',()=>{
  const g=createGame(); enqueue(g,'work','lab'); const funds=g.money; cancelAction(g,g.queue[0].id); tick(g,60); assert.equal(g.money,funds);
 });

@@ -36,3 +36,7 @@ test('version 2 saves gain demographics and new skills without losing experience
  for(const n of Object.values(g.npcs)){delete n.age;delete n.gender;delete n.skills.social;delete n.skills.music;}
  const loaded=sim.restore(JSON.stringify(g));assert.equal(loaded.version,6);assert.equal(loaded.skills.science,17);assert.equal(loaded.skills.music,0);assert.equal(loaded.player.age,28);
 });
+test('legacy saves gain NPC money and personal harvest inventory',()=>{
+ const g=sim.createGame();for(const n of Object.values(g.npcs)){delete n.money;delete n.inventory;}
+ const loaded=sim.restore(sim.serialize(g));assert.equal(loaded.npcs.nova.money,600);assert.deepEqual(loaded.npcs.nova.inventory,{spores:0,mushrooms:0});
+});
