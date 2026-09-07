@@ -1,4 +1,10 @@
-export const defaultGenome=()=>({stature:1,build:1,head:1,antenna:1});
+export const HEAD_SHAPE={headWidth:'头部宽度',headHeight:'头部长度',headDepth:'前后厚度',jaw:'下颌收窄'};
+export const defaultHeadShape=()=>Object.fromEntries(Object.keys(HEAD_SHAPE).map(key=>[key,1]));
+export function residentHeadShape(uid){
+ const values={kai:[.90,1.18,1.02,1.16],nova:[1.12,1.02,.96,1.20],zig:[.85,1.12,.90,1.04],lumi:[1.18,.86,1.12,.84],pip:[1.04,1.08,1.18,1.10]}[uid];
+ return values?Object.fromEntries(Object.keys(HEAD_SHAPE).map((key,i)=>[key,values[i]])):defaultHeadShape();
+}
+export const defaultGenome=()=>({stature:1,build:1,head:1,antenna:1,...defaultHeadShape()});
 export const DEFAULT_MUTATION_RATES={color:2.4,stature:2.4,build:2.4,head:2.4,antenna:2.4};
 export const MUTATION_PARTS={color:'肤色',stature:'身高',build:'体型',head:'头部比例',antenna:'触角'};
 const NAME_FIRST=[['艾','research','observe'],['阿','chat','dance'],['伊','observe','chat'],['欧','research','dance'],['洛','research','garden'],['维','research','observe'],['泽','garden','research'],['希','observe','chat'],['赛','research','dance'],['塔','research','garden'],['奈','chat','garden'],['科','research'],['弥','chat','dance'],['珂','garden','observe'],['芙','garden','chat'],['索','research','observe'],['乌','garden','observe'],['莱','research','garden'],['卡','dance','research'],['提','observe','dance'],['苏','garden','chat'],['尤','chat','observe'],['帕','dance','research'],['赫','research','observe']].map(([char,...styles])=>({char,styles}));

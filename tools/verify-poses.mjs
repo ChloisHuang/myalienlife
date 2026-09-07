@@ -11,9 +11,9 @@ async function seed(page,state){
  await page.route('**/api/save',async route=>{try{const data=route.request().method()==='GET'?await store.read():await store.write(route.request().postDataJSON());await route.fulfill({json:data});}catch(error){await route.fulfill({status:error.status||500,json:{error:error.message}});}});
 }
 const browser=await chromium.launch({channel:'msedge',headless:true});
-for(const [type,targetId]of [['sleep','pod'],['relax','sofa'],['eat','food'],['wash','shower'],['research','lab'],['garden','garden']]){
+for(const [type,targetId]of [['sleep','pod'],['relax','sofa'],['lounge','sofa'],['eat','food'],['wash','shower'],['research','lab'],['garden','garden']]){
  const state=createGame();for(const n of Object.values(state.npcs))n.ai.enabled=false;
- enqueue(state,type,targetId);for(let i=0;i<400;i++){tick(state,.1);if(state.queue[0]?.phase==='acting'&&state.queue[0].elapsed>=2.5)break;}
+ enqueue(state,type,targetId);for(let i=0;i<400;i++){tick(state,.1);if(state.queue[0]?.phase==='acting'&&state.queue[0].elapsed>=2.5&&(type!=='lounge'||Object.values(state.npcs).filter(n=>n.queue[0]?.type==='lounge'&&n.queue[0].phase==='acting').length===2))break;}
  if(state.queue[0]?.phase!=='acting')throw new Error(`${type} did not reach interaction`);state.speed=0;
  const page=await browser.newPage({viewport:{width:1440,height:1000}});page.on('pageerror',e=>console.log('PAGE_ERROR',e.message));
  await seed(page,state);

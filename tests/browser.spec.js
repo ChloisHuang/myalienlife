@@ -93,10 +93,12 @@ test('skills and resident appearance have dedicated panels and retain edits afte
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
   await page.getByRole('button',{name:'技能',exact:true}).click();await expect(page.locator('[data-skill="science"]')).toContainText('Lv.2');await expect(page.locator('.skill-card')).toHaveCount(4);
   await page.getByRole('button',{name:'人物',exact:true}).click();await expect(page.locator('#resident-summary')).toContainText('余额 2,400 星币');await page.locator('#resident-select').selectOption('nova');await expect(page.locator('#resident-summary')).toContainText('余额 600 星币');await page.locator('#resident-select').selectOption('player');const before=await page.locator('#resident-photo').getAttribute('src');
+ await page.getByLabel('头部宽度',{exact:true}).fill('85');await page.getByLabel('头部长度',{exact:true}).fill('115');await page.getByLabel('下颌收窄',{exact:true}).fill('110');await page.getByRole('button',{name:'应用人物设定'}).click();
+ expect(await page.locator('#resident-photo').getAttribute('src')).not.toBe(before);
  await page.getByLabel('性别',{exact:true}).selectOption('female');await page.getByLabel('年龄（星岁）',{exact:true}).fill('68');await page.getByRole('button',{name:'应用人物设定'}).click();
  await expect(page.locator('#resident-summary')).toContainText('长者');expect(await page.locator('#resident-photo').getAttribute('src')).not.toBe(before);
  await page.getByRole('button',{name:'保存游戏',exact:true}).click();await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});
- await page.getByRole('button',{name:'人物',exact:true}).click();await expect(page.getByLabel('性别',{exact:true})).toHaveValue('female');await expect(page.getByLabel('年龄（星岁）',{exact:true})).toHaveValue('68');
+ await page.getByRole('button',{name:'人物',exact:true}).click();await expect(page.getByLabel('性别',{exact:true})).toHaveValue('female');await expect(page.getByLabel('年龄（星岁）',{exact:true})).toHaveValue('68');await expect(page.getByLabel('头部宽度',{exact:true})).toHaveValue('85');await expect(page.getByLabel('头部长度',{exact:true})).toHaveValue('115');
  await page.setViewportSize({width:390,height:844});await expect(page.getByRole('button',{name:'应用人物设定'})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 test('insufficient funds remove eating from the food action menu',async({page})=>{
@@ -104,6 +106,15 @@ test('insufficient funds remove eating from the food action menu',async({page})=
  await page.addInitScript(state=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(state));},g);await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
  const r=await page.locator('#world canvas').boundingBox(),camera=new OrthographicCamera(-14*r.width/r.height,14*r.width/r.height,14,-14,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const p=new Vector3(1,.9,-4).project(camera);await page.mouse.click(r.x+(p.x+1)*r.width/2,r.y+(1-p.y)*r.height/2);
  await expect(page.locator('#context-menu')).toContainText('营养合成器');await expect(page.locator('[data-action="eat"]')).toHaveCount(0);
+});
+test('sofa menu invites two neighbors into separate seats and saves the seated conversation',async({page})=>{
+ const {OrthographicCamera,Vector3}=await import('three');const g=createGame();g.speed=0;for(const n of Object.values(g.npcs))n.ai.enabled=false;fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ const r=await page.locator('#world canvas').boundingBox(),camera=new OrthographicCamera(-14*r.width/r.height,14*r.width/r.height,14,-14,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const sofa=g.objects.find(o=>o.id==='sofa'),p=new Vector3(sofa.x,.8,sofa.z).project(camera);
+ await page.mouse.click(r.x+(p.x+1)*r.width/2,r.y+(1-p.y)*r.height/2);await expect(page.locator('#context-menu')).toContainText('月弧沙发');await page.getByRole('button',{name:/邀请邻居坐下聊天/}).click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();
+ await page.waitForTimeout(3200);await page.getByRole('button',{name:'暂停',exact:true}).click();await page.getByRole('button',{name:'保存游戏',exact:true}).click();const state=await savedState(page),seats=[state.queue,...Object.values(state.npcs).map(n=>n.queue)].map(q=>q[0]).filter(q=>q?.type==='lounge');
+ expect(seats).toHaveLength(3);expect(seats.every(q=>q.phase==='acting')).toBe(true);expect(new Set(seats.map(q=>q.seat)).size).toBe(3);expect(Object.values(state.relationships).filter(v=>v>15).length).toBe(2);
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});await expect(page.locator('#queue')).toContainText('邀请邻居坐下聊天');
 });
 test('raycast interaction completes social action, earns wages, and places purchased furniture',async({page})=>{
  // Freeze the initial scene before rendering: autonomous NPCs now move immediately.

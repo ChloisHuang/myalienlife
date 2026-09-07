@@ -8,6 +8,7 @@ export function skillProgress(total){
 export const DEFAULT_LIFE_STAGES={infantEnd:3,childEnd:13,teenEnd:18,adultEnd:60,elderEnd:120};
 export function lifeStage(age,stages=DEFAULT_LIFE_STAGES){const {infantEnd,childEnd,teenEnd,adultEnd}={...DEFAULT_LIFE_STAGES,...stages};return age<infantEnd?'infant':age<childEnd?'child':age<teenEnd?'teen':age<adultEnd?'adult':'elder';}
 export const STAGES={infant:'幼体',child:'儿童',teen:'青少年',adult:'成年',elder:'长者'};
+export const SOFA_SEATS=[-.72,0,.72];
 export function appearance(person,stages=DEFAULT_LIFE_STAGES){
  const stage=lifeStage(person.age,stages),genes=person.genome;
  return {stage,scale:{infant:.35,child:.65,teen:.84,adult:1,elder:.94}[stage]*genes.stature,antenna:genes.antenna,head:(stage==='infant'?1.35:stage==='child'?1.18:stage==='teen'?1.07:1)*genes.head,shoulders:(person.gender==='male'?1.12:person.gender==='female'?.94:1)*genes.build,hips:(person.gender==='female'?1.1:1)*genes.build,stoop:stage==='elder'?.14:0};
