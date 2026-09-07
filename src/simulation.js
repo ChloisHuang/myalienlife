@@ -1,6 +1,6 @@
 import {CROPS,createPlant,advancePlants,plantActionError,tendPlant,harvestPlant,validPlant} from './plants.js';
-import {defaultGenome,inheritTraits} from './genetics.js';
-export {inheritTraits};
+import {defaultGenome,inheritTraits,generateResidentName} from './genetics.js';
+export {inheritTraits,generateResidentName};
 import {RESIDENTS,GENDERS,SKILLS,approachPosition,skillProgress} from './characters.js';
 export {skillProgress};
 export const NEEDS={hunger:['营养','Utensils'],energy:['能量','Zap'],social:['社交','MessagesSquare'],fun:['乐趣','Sparkles'],hygiene:['洁净','Droplets'],comfort:['舒适','Armchair']};
@@ -44,6 +44,15 @@ const createAI=enabled=>({enabled,cooldown:0,lastAction:null,lastTarget:null,rea
 const createSkills=()=>Object.fromEntries(Object.keys(SKILLS).map(key=>[key,0]));
 const createInventory=()=>Object.fromEntries(Object.values(CROPS).map(c=>[c.key,0]));
 const startingMoney=id=>RESIDENTS[id]?.age>=18?600:0;
+const placeholderName=/^星芽 \d+$/;
+function migrateResidentNames(g){
+ if(!g?.player||!g.npcs)return;
+ const records=[g.player,...Object.values(g.npcs),...(Array.isArray(g.memorials)?g.memorials:[])].filter(person=>person&&typeof person.name==='string');
+ const used=new Set(records.filter(person=>!placeholderName.test(person.name)).map(person=>person.name)),renamed=new Map();
+ for(const person of records)if(placeholderName.test(person.name)){person.name=generateResidentName(person,[...used]);used.add(person.name);renamed.set(person.uid,person.name);}
+ for(const person of records)for(const parent of person.parents||[])if(renamed.has(parent.uid))parent.name=renamed.get(parent.uid);
+ for(const birth of g.incubations||[])for(const parent of birth.parents||[])if(renamed.has(parent.uid))parent.name=renamed.get(parent.uid);
+}
 const identity=(n,profile)=>({uid:n.id,name:n.name,color:n.color,trait:n.trait,...profile,alive:true,starvation:0,parents:[],genome:defaultGenome(),mutations:[],familyDesire:n.id==='zig'?.25:.7,lastBirthDay:null,preferences:{...PREFERENCES[n.id]}});
 export const neighbors=g=>Object.entries(g.npcs).map(([id,n])=>({id,...n}));
 const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
@@ -277,15 +286,16 @@ function hatchReady(g){
   const pod=g.objects.find(o=>o.id===birth.podId);
   const spot=[[2,0],[-2,0],[0,2],[0,-2],[2,2],[-2,2],[2,-2],[-2,-2]].map(([x,z])=>({x:pod.x+x,z:pod.z+z})).find(p=>canPlace(g,p.x,p.z)&&allActors(g).every(a=>Math.hypot(a.position.x-p.x,a.position.z-p.z)>.9));
   if(!spot)continue;
-  const serial=g.nextId++,id=`resident-${serial}`,name=`星芽 ${serial}`;
+  const serial=g.nextId++,id=`resident-${serial}`;
   const inherited=inheritTraits(birth.parents);
-  const n={id,name,color:inherited.color,trait:'星湾新生 · 喜爱陪伴',x:spot.x,z:spot.z};
-  const baby=createNeighbor(n);Object.assign(baby,{uid:id,name,...inherited,gender:['male','female','nonbinary'][serial%3],age:0,money:0,inventory:createInventory(),parents:birth.parents.map(p=>({uid:p.uid,name:p.name})),activity:'在摇篮中休息 · 等待照料'});
+  const usedNames=[g.player,...Object.values(g.npcs),...g.memorials].map(person=>person.name);
+  const n={id,name:generateResidentName({uid:id,preferences:inherited.preferences},usedNames),color:inherited.color,trait:'星湾新生 · 喜爱陪伴',x:spot.x,z:spot.z};
+  const baby=createNeighbor(n);Object.assign(baby,{uid:id,name:n.name,...inherited,gender:['male','female','nonbinary'][serial%3],age:0,money:0,inventory:createInventory(),parents:birth.parents.map(p=>({uid:p.uid,name:p.name})),activity:'在摇篮中休息 · 等待照料'});
   baby.relationships=Object.fromEntries(Object.keys(g.npcs).map(id=>[id,10]));
   for(const other of Object.values(g.npcs))other.relationships[id]=10;
   g.npcs[id]=baby;g.relationships[id]=birth.parents.some(p=>p.uid===g.player.uid)?60:10;
   g.incubations.splice(g.incubations.indexOf(birth),1);
-  g.log.unshift({text:`${name}出生了！${birth.parents.map(p=>p.name).join('与')}的星芽成为星湾的新居民，请照料这位幼体。${baby.mutations.length?' 本次出现了'+baby.mutations.join('、')+'。':''}`,at:g.minute});
+  g.log.unshift({text:`${n.name}出生了！${birth.parents.map(p=>p.name).join('与')}的星芽成为星湾的新居民，请照料这位幼体。${baby.mutations.length?' 本次出现了'+baby.mutations.join('、')+'。':''}`,at:g.minute});
  }
 }
 export function takeOver(g,id){
@@ -325,6 +335,7 @@ export function restore(raw){
   g.version=5;
  }
  if(g?.version===5){g.harvest={spores:0,mushrooms:0};for(const o of g.objects)if(CROPS[o.type])o.plant=createPlant();g.version=6;}
+ migrateResidentNames(g);
  for(const n of Object.values(g.npcs||{})){if(n.money===undefined)n.money=n.age>=18?600:0;n.inventory={...createInventory(),...(n.inventory||{})};}
  const validGenome=d=>d&&Object.keys(defaultGenome()).every(k=>range(d[k],.8,1.2));
  const validParents=p=>Array.isArray(p)&&p.length<=2&&p.every(n=>typeof n.uid==='string'&&typeof n.name==='string');

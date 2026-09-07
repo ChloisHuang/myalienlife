@@ -1,4 +1,13 @@
 export const defaultGenome=()=>({stature:1,build:1,head:1,antenna:1});
+const NAME_FIRST=[['艾','research','observe'],['阿','chat','dance'],['伊','observe','chat'],['欧','research','dance'],['洛','research','garden'],['维','research','observe'],['泽','garden','research'],['希','observe','chat'],['赛','research','dance'],['塔','research','garden'],['奈','chat','garden'],['科','research'],['弥','chat','dance'],['珂','garden','observe'],['芙','garden','chat'],['索','research','observe'],['乌','garden','observe'],['莱','research','garden'],['卡','dance','research'],['提','observe','dance'],['苏','garden','chat'],['尤','chat','observe'],['帕','dance','research'],['赫','research','observe']].map(([char,...styles])=>({char,styles}));
+const NAME_SECOND=[['恩','research','observe'],['瓦','garden','observe'],['米','dance','chat'],['克','research'],['尔','research','observe'],['拉','garden','chat'],['弥','chat','dance'],['希','observe','chat'],['娅','chat','garden'],['斯','research','observe'],['特','research'],['昂','observe','research'],['珀','research','garden'],['诺','chat','observe'],['萨','garden','dance'],['因','research','observe'],['卡','dance','research'],['罗','chat','garden'],['泽','garden','research'],['亚','chat','observe'],['塔','research','garden'],['尤','chat','dance'],['安','chat'],['埃','observe','research']].map(([char,...styles])=>({char,styles}));
+const nameHash=value=>{let hash=2166136261;for(const char of String(value)){hash^=char.codePointAt(0);hash=Math.imul(hash,16777619);}return hash>>>0;};
+const namePartScore=(part,preferences)=>part.styles.reduce((score,key)=>score+(preferences?.[key]||0),0);
+export function generateResidentName({uid,preferences={}},usedNames=[]){
+ const used=new Set(usedNames),candidates=[];
+ for(const first of NAME_FIRST)for(const second of NAME_SECOND){if(first.char===second.char)continue;const name=first.char+second.char;if(used.has(name))continue;candidates.push({name,score:namePartScore(first,preferences)+namePartScore(second,preferences),tie:nameHash(`${uid}:${name}`)});}
+ candidates.sort((a,b)=>b.score-a.score||b.tie-a.tie);if(!candidates[0])throw new Error('外星名字库已用尽');return candidates[0].name;
+}
 export function inheritTraits(parents,random=Math.random){
  const mean=values=>values.reduce((a,b)=>a+b,0)/values.length;
  const genome=Object.fromEntries(Object.keys(defaultGenome()).map(key=>[key,mean(parents.map(p=>p.genome[key]))]));
