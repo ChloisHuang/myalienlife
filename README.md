@@ -2,6 +2,11 @@
 
 外星人主题的单人 3D 生活模拟可玩原型。使用原创模型与界面，以点击互动、需求管理、社交、家居建造和职业成长组成生活循环。
 
+<p align="center">
+  <img src="docs/images/orbit-life-day.png" alt="星外日常晴昼面" width="49%">
+  <img src="docs/images/orbit-life-night.png" alt="星外日常幽星面" width="49%">
+</p>
+
 ## 开始游戏
 
 Windows 双击 **启动游戏.bat**；macOS 双击 **start-game.command**。也可以在此目录运行 `npm install`、`npm run dev`，访问 http://127.0.0.1:5173 。需要 Node.js 20.19+ / 22.12+ 和支持 WebGL 2 的现代浏览器。首次安装依赖需要网络；游戏服务同时负责磁盘存档，无需数据库或付费服务。字体服务不可达时使用本机字体。
