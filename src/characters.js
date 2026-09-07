@@ -5,10 +5,11 @@ export function skillProgress(total){
  let level=1,start=0;while(level<10&&total>=start+level*3){start+=level*3;level++;}
  return {level,xp:total-start,next:level===10?0:level*3,progress:level===10?100:Math.min(100,(total-start)/(level*3)*100)};
 }
-export function lifeStage(age){return age<3?'infant':age<13?'child':age<18?'teen':age<60?'adult':'elder';}
+export const DEFAULT_LIFE_STAGES={infantEnd:3,childEnd:13,teenEnd:18,adultEnd:60,elderEnd:120};
+export function lifeStage(age,stages=DEFAULT_LIFE_STAGES){const {infantEnd,childEnd,teenEnd,adultEnd}={...DEFAULT_LIFE_STAGES,...stages};return age<infantEnd?'infant':age<childEnd?'child':age<teenEnd?'teen':age<adultEnd?'adult':'elder';}
 export const STAGES={infant:'幼体',child:'儿童',teen:'青少年',adult:'成年',elder:'长者'};
-export function appearance(person){
- const stage=lifeStage(person.age),genes=person.genome;
+export function appearance(person,stages=DEFAULT_LIFE_STAGES){
+ const stage=lifeStage(person.age,stages),genes=person.genome;
  return {stage,scale:{infant:.35,child:.65,teen:.84,adult:1,elder:.94}[stage]*genes.stature,antenna:genes.antenna,head:(stage==='infant'?1.35:stage==='child'?1.18:stage==='teen'?1.07:1)*genes.head,shoulders:(person.gender==='male'?1.12:person.gender==='female'?.94:1)*genes.build,hips:(person.gender==='female'?1.1:1)*genes.build,stoop:stage==='elder'?.14:0};
 }
 // Coordinates are local to each item; simulation and animation use the same rotation.

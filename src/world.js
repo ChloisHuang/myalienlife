@@ -98,13 +98,13 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  new ResizeObserver(resize).observe(container);resize();syncObjects();
  let previousSimTime=null;
  return {
-  render(){const g=getGame();syncObjects();syncActors();for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;for(const crop of group.userData.cropVisual){crop.scale.setScalar(.3+p.growth*.7);crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit){crop.userData.fruit.visible=p.growth>=.7&&p.health>0;crop.userData.fruit.material.emissiveIntensity=p.growth>=1?.8:.2;}}}const time=((g.day-1)*1440+g.minute)/2,delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
+   render(){const g=getGame();syncObjects();syncActors();for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;for(const crop of group.userData.cropVisual){crop.scale.setScalar((.3+p.growth*.7)*(p.giant?1.3:1));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit){crop.userData.fruit.visible=p.growth>=.7&&p.health>0;crop.userData.fruit.material.emissiveIntensity=p.growth>=1?.8:.2;}}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
    for(const[id,rig]of actors){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];
     const partner=g.queue[0]?.targetId===id?g.player:action&&g.npcs[action.targetId]?g.npcs[action.targetId]:Object.values(g.npcs).find(n=>n.queue[0]?.targetId===id);
-    updateCharacter(rig,{person,action,object:action?g.objects.find(o=>o.id===action.targetId):undefined,partner,time,delta});
+     updateCharacter(rig,{person,action,object:action?g.objects.find(o=>o.id===action.targetId):undefined,partner,time,delta,config:g.config});
    }
-   marker.visible=selected.visible=g.player.alive;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z)+.025,main.z);
+    marker.visible=selected.visible=g.player.alive;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player,g.config.lifeStages).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z)+.025,main.z);
    for(const [id,o]of objectMeshes){if(o.userData.orb)o.userData.orb.position.y=1.4+Math.sin(time*2)*.06;if(o.userData.egg){o.userData.egg.visible=g.incubations.some(b=>b.podId===id);o.userData.egg.position.y=.8+Math.sin(time*1.5)*.06;}}
    const hour=g.minute/60;sun.intensity=hour>=7&&hour<19?3.4:1.3;rim.intensity=hour>=7&&hour<19?2:3;controls.update();renderer.render(scene,camera);
   },
@@ -114,10 +114,10 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   resetCamera(){camera.position.set(23,25,30);controls.target.set(0,0,0);camera.zoom=1;camera.updateProjectionMatrix();},
   zoom(delta){camera.zoom=THREE.MathUtils.clamp(camera.zoom+delta,.65,2.5);camera.updateProjectionMatrix();},
   portrait(id){
-   const person=id==='player'?getGame().player:getGame().npcs[id],color=person.color;
-   const rig=createCharacter(alienAsset.scene,{id,color,...person});updateCharacter(rig,{person:{...person,x:0,z:0},time:0,delta:0});rig.root.rotation.set(0,0,0);rig.root.position.set(0,0,0);
+    const person=id==='player'?getGame().player:getGame().npcs[id],color=person.color,config=getGame().config;
+    const rig=createCharacter(alienAsset.scene,{id,color,...person});updateCharacter(rig,{person:{...person,x:0,z:0},time:0,delta:0,config});rig.root.rotation.set(0,0,0);rig.root.position.set(0,0,0);
    const portraitScene=new THREE.Scene();portraitScene.background=new THREE.Color(id==='player'?0xc3e6c8:0xd4cde5);portraitScene.add(new THREE.HemisphereLight(0xffffff,0x667788,3));const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(2,3,4);portraitScene.add(light);portraitScene.add(rig.root);
-   const scale=appearance(person).scale,cam=new THREE.PerspectiveCamera(32,1,.1,10);cam.position.set(0,1.65*scale,3.3*scale);cam.lookAt(0,1.45*scale,0);const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});r.setSize(160,160);r.render(portraitScene,cam);const url=r.domElement.toDataURL();r.dispose();rig.body.traverse(n=>{if(n.isMesh)n.material.dispose();});return url;
+    const scale=appearance(person,config.lifeStages).scale,cam=new THREE.PerspectiveCamera(32,1,.1,10);cam.position.set(0,1.65*scale,3.3*scale);cam.lookAt(0,1.45*scale,0);const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});r.setSize(160,160);r.render(portraitScene,cam);const url=r.domElement.toDataURL();r.dispose();rig.body.traverse(n=>{if(n.isMesh)n.material.dispose();});return url;
   }
  };
 }

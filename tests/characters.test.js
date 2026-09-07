@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as sim from '../src/simulation.js';
+import {appearance,lifeStage} from '../src/characters.js';
 
 test('skills expose independent levels and progress rather than raw training counts',()=>{
  assert.equal(typeof sim.skillProgress,'function');
@@ -22,6 +23,28 @@ test('aging advances one star year per eight game days at normal speed',()=>{
  const g=sim.createGame(),before=g.player.age;
  sim.tick(g,1);
  assert.ok(Math.abs(g.player.age-(before+2/(1440*8)))<1e-12);
+});
+test('life stages follow configurable age boundaries',()=>{
+ const stages={infantEnd:2,childEnd:5,teenEnd:9,adultEnd:14,elderEnd:20};
+ assert.equal(lifeStage(1.99,stages),'infant');
+ assert.equal(lifeStage(2,stages),'child');
+ assert.equal(lifeStage(8.99,stages),'teen');
+ assert.equal(lifeStage(9,stages),'adult');
+ assert.equal(lifeStage(14,stages),'elder');
+ const person=sim.createGame().player;person.age=14;assert.equal(appearance(person,stages).stage,'elder');
+});
+test('lifecycle boundaries are saved and control adult and elder behavior',()=>{
+ const g=sim.createGame();assert.deepEqual(g.config.lifeStages,{infantEnd:3,childEnd:13,teenEnd:18,adultEnd:60,elderEnd:120});
+ g.config.lifeStages={infantEnd:2,childEnd:5,teenEnd:9,adultEnd:14,elderEnd:20};g.player.age=8;
+ assert.equal(sim.enqueue(g,'work','lab').ok,false);g.player.age=9;assert.equal(sim.enqueue(g,'work','lab').ok,true);
+ g.queue=[];g.npcs.zig.age=20;sim.tick(g,1);assert.equal(g.npcs.zig,undefined);
+ assert.deepEqual(sim.restore(sim.serialize(g)).config.lifeStages,g.config.lifeStages);
+});
+test('appearance mutation probabilities are configurable per body part',()=>{
+ const g=sim.createGame();assert.deepEqual(g.config.mutationRates,{color:2.4,stature:2.4,build:2.4,head:2.4,antenna:2.4});
+ const parent=g.player,forced=sim.inheritTraits([parent],()=>0,{color:100,stature:0,build:0,head:0,antenna:0});
+ assert.deepEqual(forced.mutations,['肤色变异']);
+ assert.deepEqual(sim.restore(sim.serialize(g)).config.mutationRates,g.config.mutationRates);
 });
 test('rotating furniture rotates its approach position so interaction reaches its front',()=>{
  const g=sim.createGame();g.objects.find(o=>o.id==='food').rotation=Math.PI/2;sim.enqueue(g,'eat','food');

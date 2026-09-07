@@ -67,6 +67,26 @@ test('radio displays only the three latest major events',async({page})=>{
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
  await expect(page.locator('#journal')).toBeVisible();await expect(page.locator('.journal-entry')).toHaveCount(3);await expect(page.locator('.journal-entry').first()).toContainText('第三条重大事件');
 });
+test('configuration button opens the detailed parameter dialog',async({page})=>{
+ const state=createGame();state.speed=0;
+ let projectConfig;
+ await page.route('**/api/project-config',async route=>{if(route.request().method()==='GET')return route.fulfill({json:{config:state.config}});projectConfig=route.request().postDataJSON().config;return route.fulfill({json:{config:projectConfig}});});
+ await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ await page.getByRole('button',{name:'参数配置',exact:true}).click();
+ const dialog=page.getByRole('dialog',{name:'参数配置'});await expect(dialog).toBeVisible();
+ await expect(dialog.locator('[data-config-path="time.starYearDays"]')).toHaveValue('8');await expect(dialog).toContainText('动作时长');await expect(dialog).toContainText('职业门槛');await expect(dialog).toContainText('需求衰减');await expect(dialog).toContainText('作物参数');await expect(dialog).toContainText('工作');
+ await expect(dialog.locator('[data-config-path="lifeStages.infantEnd"]')).toHaveValue('3');
+ await expect(dialog.locator('[data-config-path="mutationRates.color"]')).toHaveValue('2.4');
+ await dialog.locator('[data-config-path="lifeStages.infantEnd"]').fill('4');
+ await dialog.locator('[data-config-path="mutationRates.color"]').fill('3.1');
+ await dialog.getByRole('button',{name:'应用并保存配置'}).click();
+ await expect(dialog.locator('[data-config-path="lifeStages.infantEnd"]')).toHaveValue('4');
+ await expect(dialog.locator('[data-config-path="mutationRates.color"]')).toHaveValue('3.1');
+ await expect(page.locator('#toast')).toContainText('参数配置已保存');
+ page.once('dialog',dialogEvent=>dialogEvent.accept());await dialog.getByRole('button',{name:'永久覆盖项目配置',exact:true}).click();await expect.poll(()=>projectConfig?.lifeStages.infantEnd).toBe(4);
+ await dialog.locator('button[aria-label="关闭参数配置"]').click();await expect(dialog).toBeHidden();
+});
 test('skills and resident appearance have dedicated panels and retain edits after reload',async({page})=>{
  const state=createGame();state.speed=0;state.skills.science=4;
  await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);

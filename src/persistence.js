@@ -6,6 +6,10 @@ export function createPersistence(){
   const response=await fetch('/api/save',{cache:'no-store',...options});
   const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error),{status:response.status});return data;
  }
+ async function requestProjectConfig(options){
+  const response=await fetch('/api/project-config',{cache:'no-store',...options});
+  const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error),{status:response.status});return data;
+ }
  async function save(game){
   const snapshot=serialize(game);
   if(snapshot===lastSnapshot&&pending.size===0)return null;
@@ -20,9 +24,11 @@ export function createPersistence(){
   const saved=await request();revision=saved.revision;
   if(saved.state){const game=restore(JSON.stringify(saved.state));lastSnapshot=serialize(game);return game;}
   // Import the old browser save only when the server has no saved world.
-  const legacy=localStorage.getItem('orbit-life-v1'),game=legacy?restore(legacy):createGame();
+  const legacy=localStorage.getItem('orbit-life-v1'),project=legacy?null:await requestProjectConfig(),game=legacy?restore(legacy):createGame(project.config);
   try{await save(game);}catch(error){if(error.status===409)return load();throw error;}
   return game;
  }
- return{load,save};
+ async function saveProjectConfig(config){return requestProjectConfig({method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({config})});}
+ async function createNewGame(){const project=await requestProjectConfig();const game=createGame(project.config);lastSnapshot='';await save(game);return game;}
+ return{load,save,saveProjectConfig,createNewGame};
 }

@@ -18,8 +18,8 @@ export function createCharacter(source,spec){
  return {root,body,joints,rest,effects,particles,drops,halo,skinColor:new THREE.Color(spec.color),last:{x:spec.x,z:spec.z},stride:0,profile:null,state:null,initialized:false};
 }
 
-export function updateCharacter(rig,{person,action,object,partner,time,delta}){
- const look=appearance(person),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}`,state=action?`${action.id}-${action.type}-${action.phase}`:'idle';
+export function updateCharacter(rig,{person,action,object,partner,time,delta,config}){
+ const look=appearance(person,config?.lifeStages),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}`,state=action?`${action.id}-${action.type}-${action.phase}`:'idle';
  if(rig.initialized&&delta===0&&rig.profile===profile&&rig.state===state)return;
  const moving=Math.hypot(person.x-rig.last.x,person.z-rig.last.z),dx=person.x-rig.last.x,dz=person.z-rig.last.z;
  const targetPosition=new THREE.Vector3(person.x,groundHeight(person.x,person.z),person.z);let yaw=rig.root.rotation.y,tilt=0,roll=0;

@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createServer} from 'node:http';
 import {saveApi} from '../server/save-api.js';
+import {createProjectConfigStore} from '../server/project-config-store.js';
 import {createGame} from '../src/simulation.js';
 const implementation=await import('../server/save-store.js').catch(()=>({}));
 async function setup(t){assert.equal(typeof implementation.createSaveStore,'function');const dir=await mkdtemp(join(tmpdir(),'orbit-save-'));t.after(()=>rm(dir,{recursive:true,force:true}));return{dir,store:implementation.createSaveStore(dir)};}
@@ -26,4 +27,9 @@ test('HTTP API restores a saved world after restarting its server and refuses co
   assert.equal((await fetch(server.url,{method:'POST',headers:{Origin:'http://different.example'},body:JSON.stringify(request(game,1))})).status,403);
   await writeFile(join(dir,'orbit-life.json'),'damaged');assert.equal((await fetch(server.url)).status,500);
  }finally{await server.close();}
+});
+test('project defaults persist the current configuration independently from a game save',async t=>{
+ const {dir}=await setup(t),store=createProjectConfigStore(join(dir,'project-config.json')),config=createGame().config;
+ assert.deepEqual(await store.read(),config);config.time.starYearDays=4;config.crops.garden.giantChance=7;
+ await store.write(config);const restarted=createProjectConfigStore(join(dir,'project-config.json')),loaded=await restarted.read(),newGame=createGame(loaded);assert.equal(loaded.time.starYearDays,4);assert.equal(loaded.crops.garden.giantChance,7);assert.equal(newGame.config.time.starYearDays,4);assert.equal(newGame.config.crops.garden.giantChance,7);
 });
