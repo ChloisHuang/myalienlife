@@ -28,7 +28,7 @@ export function createCreamGround(){
   }
  }
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setIndex(indices);geometry.computeVertexNormals();
- const ground=new THREE.Mesh(geometry,new StarToonMaterial({color:0xc7b9b0,side:THREE.DoubleSide}));
+ const ground=new THREE.Mesh(geometry,new StarToonMaterial({color:0xb9d7e8,side:THREE.DoubleSide}));
  ground.castShadow=true;ground.receiveShadow=true;return ground;
 }
 

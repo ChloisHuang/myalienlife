@@ -2,6 +2,7 @@ import {createFrontGroundMaterial,createGlassPlatform} from './front-ground.js';
 import {GLASS_PLATFORMS} from './glass-platforms.js';
 import {createCreamGround,createReverseGround,creamEdgeOffset,ISLAND_FACE_OFFSET} from './cream-ground.js';
 import {createSpiritTree} from './spirit-tree.js';
+import {createCrystalFactory} from './crystal.js';
 import {sideOf} from './island.js';
 import {CROPS,cropVisualScale} from './plants.js';
 import * as THREE from 'three';
@@ -28,6 +29,7 @@ function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return s
 export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x10152e);scene.fog=new THREE.FogExp2(0x171c39,.006);
  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
+ const createCrystalMesh=createCrystalFactory(renderer);
  const camera=new THREE.OrthographicCamera(-20,20,15,-15,.1,180);camera.position.set(23,25,30);
  const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,0,0);controls.enableDamping=true;controls.minZoom=.65;controls.maxZoom=2.5;controls.minPolarAngle=.25;controls.maxPolarAngle=1.25;controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
  const ambient=new THREE.HemisphereLight(0xe2eaff,0x70526e,1.3);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffe5d0,2.6);sun.position.set(-10,24,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,far:70});sun.shadow.normalBias=.09;sun.shadow.bias=-.00015;scene.add(sun);
@@ -54,7 +56,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
 
  darkTerrain.add(createReverseGround());
  for(let i=0;i<18;i++){const angle=i*Math.PI/9,x=Math.cos(angle)*13,z=Math.sin(angle)*9.2;
-  const shard=mesh(darkTerrain,new THREE.OctahedronGeometry(.5),i%2?0x8872b9:0x56cabb,[x,.7+(i%4)*.2,z],[.55+(i%3)*.13,1.3+(i%4)*.5,.7],.35);shard.rotation.z=Math.sin(i)*.25;
+  const shard=createCrystalMesh(new THREE.OctahedronGeometry(.5),i%2?0xb5a5df:0x8bdedb);shard.position.set(x,.7+(i%4)*.2,z);shard.scale.set(.55+(i%3)*.13,1.3+(i%4)*.5,.7);darkTerrain.add(shard);shard.rotation.z=Math.sin(i)*.25;
   const glyph=ring(darkTerrain,0x619796,[x,.34,z],.7,.02);glyph.rotation.x=-Math.PI/2;
  }
  for(const [x,z]of [[-6,-4],[6,4],[-6,4],[6,-4]]){
@@ -67,7 +69,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  const random=seedRandom(28);
  const atmosphere=createAtmosphere(scene,camera,seedRandom(91)),swaying=[],floating=[],ripples=[],crystalLights=[];
  const weatherEffects=createWeatherEffects(scene,seedRandom(137));
- for(let i=0;i<12;i++){const a=i*Math.PI/6;const shard=mesh(terrain,new THREE.OctahedronGeometry(.3),0x82e4db,[Math.cos(a)*14,-1.7,Math.sin(a)*10], [1,2.6,1],.65);floating.push({object:shard,y:shard.position.y,phase:i});}
+ for(let i=0;i<12;i++){const a=i*Math.PI/6;const shard=createCrystalMesh(new THREE.OctahedronGeometry(.3),0x82e4db);shard.position.set(Math.cos(a)*14,-1.7,Math.sin(a)*10);shard.scale.set(1,2.6,1);terrain.add(shard);floating.push({object:shard,y:shard.position.y,phase:i});}
  for(let i=0;i<65;i++){const a=random()*Math.PI*2,r=14+random()+creamEdgeOffset(a);mesh(terrain,new THREE.DodecahedronGeometry(.45+random()*.65),[0x9a809d,0xb298af,0x6e6d88][i%3],[Math.cos(a)*r,-1.15-random()*.25,Math.sin(a)*r*.71],[.65,.32,.65]);}
  // Open-front habitat: three rooms share a clear, navigable central aisle.
  box(terrain,colors.ivory,[-2,.02,-2.5],[12.8,.28,7.5]);
@@ -87,9 +89,9 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  [[-10,-5,1.55],[-11,-1,1.2],[-10,5,1.1],[4,-8,1.4],[11,1,1.0],[10,7,.85],[-5,-8,.9]].forEach(([x,z,s])=>swaying.push(model(mushroomAsset,terrain,x,0,z,s)));
  function crystal(parent,x,z,s=1){const g=new THREE.Group();g.position.set(x,0,z);parent.add(g);const facets=[];
   for(let i=0;i<5;i++){const h=(.7+random()*.7)*s,color=[0x9ce9d5,0xd2b0e4,0x86c0e2][i%3];
-   const profile=[[0,0],[.12,0],[.2,.58],[0,1]].map(([r,y])=>new THREE.Vector2(r*s,y*h));
-   const geometry=new THREE.LatheGeometry(profile,5).toNonIndexed();geometry.computeVertexNormals();
-   const o=mesh(g,geometry,color,[(random()-.5)*s,0,(random()-.5)*s]);o.material=new BiolumeMaterial({color,emissive:color,emissiveIntensity:1});o.rotation.z=(random()-.5)*.5;facets.push(o.material);
+   const profile=[[0,0],[.14,0],[.19,.18],[.19,.72],[0,1]].map(([r,y])=>new THREE.Vector2(r*s,y*h));
+   const geometry=new THREE.LatheGeometry(profile,6).toNonIndexed();geometry.computeVertexNormals();
+   const o=createCrystalMesh(geometry,color);o.position.set((random()-.5)*s,0,(random()-.5)*s);g.add(o);o.rotation.z=(random()-.5)*.5;facets.push(o.material);
   }
   g.userData.crystalLight={facets,phase:(x+z)*.7};if(parent===terrain)crystalLights.push(g.userData.crystalLight);return g;
  }
@@ -218,6 +220,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
    floating.forEach(({object,y,phase})=>{object.position.y=y+Math.sin(time*.27+phase)*.18;object.rotation.y=Math.sin(time*.1+phase)*.08;});
    ripples.forEach((o,i)=>{const phase=(time*.12+i/3)%1,r=.3+phase*1.7;o.scale.set(r,r*.65,1);o.material.opacity=Math.sin(phase*Math.PI)*.5;});
    const dark=(1-Math.cos(island.rotation.x))/2;
+   createCrystalMesh.updateLight(daylight,dark);
    sun.intensity=(.65+daylight*1.95)*(1-dark*.75)*(1-weather.weights.rain*.22-weather.weights.mist*.12);
    ambient.intensity=(.85+daylight*.45)*(1-dark*.32);
    rim.intensity=(1.2+(1-daylight)*.25)*(1+dark*.25);
