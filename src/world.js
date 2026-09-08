@@ -1,4 +1,9 @@
-import {STAR_ISLANDS} from './civilization.js';
+import {BLINK_SECONDS} from './nether-blink.js';
+import {createBlinkVisual} from './nether-blink-visuals.js';
+import {shipFoodStatus} from './space-logistics.js';
+import {createUfoVisual,ufoDock,createUfoFoodLabel,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
+import {islandDefinition} from './civilization.js';
+import {createIslandTerrain} from './island-terrain.js';
 import {createWonderVisual} from './wonder-visuals.js';
 import {createFrontGroundMaterial,createGlassPlatform} from './front-ground.js';
 import {GLASS_PLATFORMS} from './glass-platforms.js';
@@ -101,15 +106,15 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  for(let i=0;i<48;i++){const x=(random()-.5)*27,z=(random()-.5)*17;if((x>-9&&x<10&&z>-6&&z<6)||x*x/190+z*z/85>1)continue;const stalk=cylinder(terrain,0x789d8d,[x,.18,z],.035,.35);sphere(terrain,[0xe8accd,0xf1d7a0,0xb3e3bd][i%3],[stalk.position.x,.42,z],[.17,.23,.17],.2);}
  for(let i=0;i<20;i++){const a=i/20*Math.PI*2;const r=18+random()*10;const rock=mesh(scene,new THREE.IcosahedronGeometry(1+random()*1.4,0),0x615e7e,[Math.cos(a)*r,-4-random()*4,Math.sin(a)*r*.6],[1.5,1,1]);floating.push({object:rock,y:rock.position.y,phase:i*.73});}
  const planet=sphere(scene,0xb19faf,[-2,-5,-28],[2.5,2.5,2.5]);const orbit=ring(scene,0xd2b5ac,[-2,-5,-28],3.7,.12);orbit.rotation.x=1.1;orbit.rotation.y=.2;
- const remoteTerrains=new Map();
- for(const [id,definition] of Object.entries(STAR_ISLANDS))if(id!=='home'){
-  const land=new THREE.Group();faces.front.add(land);remoteTerrains.set(id,land);
-  const ground=cylinder(land,definition.color,[0,-.45,0],14,1.4,14);ground.scale.z=.68;
-  for(let i=0;i<18;i++){const a=i*Math.PI/9,x=Math.cos(a)*12.6,z=Math.sin(a)*8.1;
-   if(id==='spore')model(mushroomAsset,land,x,.29,z,.6+(i%3)*.3);
-   else {box(land,0x686785,[x,.8,z],[.8,1.2+(i%4)*.7,.8]);const glyph=ring(land,0xc0a9ef,[x,1.6+(i%4)*.3,z],.4,.025);glyph.rotation.y=a;}
+ let remoteTerrain=null,terrainIsland=null;
+ function syncTerrain(g){
+  terrain.visible=darkTerrain.visible=g.viewIsland==='home';
+  if(g.viewIsland==='home'){if(remoteTerrain)for(const t of Object.values(remoteTerrain))t.root.visible=false;return;}
+  if(terrainIsland!==g.viewIsland){
+   if(remoteTerrain)for(const t of Object.values(remoteTerrain))t.dispose();remoteTerrain={};
+   for(const side of ['front','back']){const t=createIslandTerrain(islandDefinition(g,g.viewIsland),mushroomAsset.scene,side);faces[side].add(t.root);remoteTerrain[side]=t;}terrainIsland=g.viewIsland;
   }
-  const pad=ring(land,0xc5ebf1,[0,.3,2],1.25,.035);pad.rotation.x=-Math.PI/2;
+  for(const t of Object.values(remoteTerrain))t.root.visible=true;
  }
  const interactive=new THREE.Group();faces.front.add(interactive);const backInteractive=new THREE.Group();faces.back.add(backInteractive);const surfaceItems={front:interactive,back:backInteractive};const objectMeshes=new Map();
  function prop(type){if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
@@ -170,14 +175,34 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   g.userData.wonderVisual=createWonderVisual(g,type);return g;
  }
  function syncObjects(){const g=getGame();for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.removeFromParent();objectMeshes.delete(id);}for(const o of g.objects){if(!objectMeshes.has(o.id)){const group=prop(o.type);group.position.set(o.x,o.type==='spiritTree'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};objectMeshes.set(o.id,group);}const objectMesh=objectMeshes.get(o.id);objectMesh.visible=islandOf(o)===g.viewIsland;surfaceItems[sideOf(o)].add(objectMesh);}}
+ const ufoMeshes=new Map(),onboard=new Map(),flightBoard=document.createElement('div');flightBoard.className='ufo-flight-board';flightBoard.setAttribute('aria-label','UFO 航行动态');container.append(flightBoard);let flightBoardText='';
+ function syncUfos(g){
+  const flights=[];onboard.clear();
+  for(const [id,visual] of ufoMeshes)if(!g.space.ships.some(s=>s.id===id)){visual.label.dispose();visual.beam.dispose();visual.dispose();ufoMeshes.delete(id);}
+  for(const ship of g.space.ships){
+   if(!ufoMeshes.has(ship.id)){const visual=createUfoVisual(ship.tier);visual.label=createUfoFoodLabel();visual.beam=createUfoTransferBeam();visual.root.add(visual.label.root);visual.root.userData.target={kind:'ufo',id:ship.id};ufoMeshes.set(ship.id,visual);}
+   const visual=ufoMeshes.get(ship.id),root=visual.root,flight=ufoFlightPresentation(g,ship),food=shipFoodStatus(ship);
+   for(const uid of flight.crew)onboard.set(uid,flight);
+   surfaceItems[flight.side].add(visual.beam.root);visual.beam.update(flight);visual.beam.root.visible=!!flight.beam&&flight.island===g.viewIsland;
+   root.visible=flight.island===g.viewIsland;surfaceItems[flight.side].add(root);
+   visual.update(food.ratio,((g.day-1)*1440+g.minute)/2);
+   root.position.set(flight.x,flight.y+(flight.beam?0:Math.sin(g.minute*.2)*.08),flight.z);root.scale.setScalar((.85+ship.tier*.18)*flight.scale);root.rotation.z+=flight.bank;
+   root.userData.flightStage=flight.stage;visual.label.update(ship.food,food.capacity,flight.stage);
+   if(flight.route)flights.push(`${flight.stage} · ${Math.round(flight.progress*100)}% · ${flight.route}`);
+  }
+  const text=flights.join('\n');if(text!==flightBoardText){flightBoard.textContent=text;flightBoard.hidden=!text;flightBoardText=text;}
+  container.dataset.ufoBeams=String([...ufoMeshes.values()].filter(v=>v.beam.root.visible).length);
+  container.dataset.ufoFlights=String(flights.length);
+  container.dataset.ufoCount=String(g.space.ships.filter(s=>s.island===g.viewIsland&&s.side===g.viewSide).length);
+ }
  const actors=new Map();
  function syncActors(){
   const g=getGame(),residents=[...(g.player.alive?[{id:'player',...g.player}]:[]),...neighbors(g)];
   for(const [id,rig]of actors)if(!residents.some(n=>n.id===id&&n.uid===rig.uid)){
-   rig.root.removeFromParent();rig.prayerVisuals.dispose();rig.root.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();actors.delete(id);
+   rig.root.removeFromParent();rig.prayerVisuals.dispose();rig.blinkVisual.dispose();rig.root.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();actors.delete(id);
   }
   for(const data of residents)if(!actors.has(data.id)){
-   const rig=createCharacter(alienAsset.scene,data);rig.uid=data.uid;rig.root.userData.target={kind:data.id==='player'?'player':'npc',id:data.id};surfaceItems[sideOf(data)].add(rig.root);actors.set(data.id,rig);
+   const rig=createCharacter(alienAsset.scene,data);rig.uid=data.uid;rig.blinkVisual=createBlinkVisual(rig.root);rig.root.userData.target={kind:data.id==='player'?'player':'npc',id:data.id};surfaceItems[sideOf(data)].add(rig.root);actors.set(data.id,rig);
   }
  }
  syncActors();
@@ -202,22 +227,31 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  let previousSimTime=null,previousFrame=performance.now();island.rotation.x=getGame().viewSide==='back'?Math.PI:0;
  return {
    render(){const g=getGame(),weather=getWeather(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
-   terrain.visible=darkTerrain.visible=g.viewIsland==='home';for(const [id,land]of remoteTerrains)land.visible=g.viewIsland===id;container.dataset.island=g.viewIsland;
+   syncTerrain(g);container.dataset.island=g.viewIsland;
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(marker,selected);
-   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects();syncActors();for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
+   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects();syncActors();syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
+
    for(const[id,rig]of actors){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];
     let partner=g.queue[0]?.targetId===id?g.player:action&&g.npcs[action.targetId]?g.npcs[action.targetId]:Object.values(g.npcs).find(n=>n.queue[0]?.targetId===id);
     if(action?.phase==='acting'&&['relax','lounge'].includes(action.type)){const peers=[{id:'player',person:g.player,queue:g.queue},...Object.entries(g.npcs).map(([id,person])=>({id,person,queue:person.queue}))].filter(a=>a.id!==id&&a.queue[0]?.phase==='acting'&&['relax','lounge'].includes(a.queue[0].type)&&a.queue[0].targetId===action.targetId);if(peers.length)partner=peers[Math.floor(time/4)%peers.length].person;}
-     rig.root.visible=islandOf(person)===g.viewIsland;surfaceItems[sideOf(person)].add(rig.root);
-     const visualAction=action?.transit?{type:'travel',phase:'acting',elapsed:action.transit.elapsed}:action&&['spaceResearch','voyage'].includes(action.type)?{...action,type:action.type==='spaceResearch'?'research':'travel'}:action;
+     rig.root.visible=islandOf(person)===g.viewIsland&&!onboard.has(person.uid);surfaceItems[sideOf(person)].add(rig.root);
+     const visualAction=action?.transit?{type:'travel',phase:'acting',elapsed:action.transit.elapsed}:action&&['spaceResearch','buildUfo1','buildUfo2','buildUfo3','prepareRations','senseNether','voyage','starVoyage'].includes(action.type)?{...action,type:['voyage','starVoyage'].includes(action.type)?'travel':action.type==='prepareRations'?'cook':action.type==='senseNether'?'observe':'research'}:action;
+     rig.blinkVisual.reset();rig.root.scale.setScalar(1);
      updateCharacter(rig,{person,action:visualAction,object:action?g.objects.find(o=>o.id===(action.transit?.sourceId||action.targetId)):undefined,partner:partner&&sameSide(partner,person)?partner:null,time,delta,config:g.config});
+     if(action?.blinkTransit){
+      const progress=Math.min(1,action.blinkTransit.elapsed/BLINK_SECONDS),position=progress<.5?person:action.path[0],side=sideOf(position),y=groundHeight(position.x,position.z,side,islandOf(position));
+      surfaceItems[side].add(rig.root,rig.blinkVisual.root);rig.root.visible=islandOf(position)===g.viewIsland;rig.root.position.set(position.x,y,position.z);rig.blinkVisual.update(progress);rig.blinkVisual.root.position.set(position.x,y,position.z);rig.blinkVisual.root.visible=rig.root.visible;
+     }
+     if(onboard.has(person.uid)){const transfer=ufoPassengerPresentation(onboard.get(person.uid),person);rig.root.visible=transfer.visible&&transfer.island===g.viewIsland;if(transfer.visible){surfaceItems[transfer.side].add(rig.root);rig.root.position.set(transfer.x,transfer.y,transfer.z);rig.root.scale.setScalar(transfer.scale);}}
    }
-    marker.visible=selected.visible=g.player.alive&&islandOf(g.player)===g.viewIsland&&sideOf(g.player)===g.viewSide;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player,g.config.lifeStages).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z,sideOf(g.player),islandOf(g.player))+.025,main.z);
+    container.dataset.blinking=String([...actors.values()].filter(r=>r.blinkVisual.root.visible).length);
+    marker.visible=selected.visible=!g.queue[0]?.blinkTransit&&g.player.alive&&!onboard.has(g.player.uid)&&islandOf(g.player)===g.viewIsland&&sideOf(g.player)===g.viewSide;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player,g.config.lifeStages).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z,sideOf(g.player),islandOf(g.player))+.025,main.z);
    for(const [id,o]of objectMeshes){if(o.userData.rift){o.userData.rift.material.uniforms.time.value=time;o.userData.riftFrame.position.y=1.5+Math.sin(time*1.4)*.06;}if(o.userData.orb)o.userData.orb.position.y=1.4+Math.sin(time*1.4)*.09;if(o.userData.egg){o.userData.egg.visible=g.incubations.some(b=>b.podId===id);o.userData.egg.position.y=.8+Math.sin(time*1.5)*.06;}if(o.userData.portal){o.userData.portal.material.uniforms.time.value=time;o.userData.glyphs.rotation.z=time*.09;}if(o.userData.cropVisual)for(const [i,crop]of o.userData.cropVisual.entries())crop.rotation.z+=Math.sin(time*.85+i+o.position.x)*.025;}
    atmosphere.update(time,weather,(1+Math.cos(island.rotation.x))/2);weatherEffects.update(time,weather);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
+   if(g.viewIsland!=='home'&&remoteTerrain)for(const t of Object.values(remoteTerrain))t.update(time,weather.wind,1-daylight);
    const blessings=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].filter(a=>a?.type==='pray'&&a.phase==='celebrating');
    for(const item of g.objects)if(item.type==='spiritTree'){
     const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update(time+item.x*.7+item.z,sideOf(item),daylight,weather.wind);
@@ -247,6 +281,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   setBuild(type){buildType=type;buildGrid.visible=!!type;ghost.visible=false;if(ghostProp){ghost.remove(ghostProp);ghostProp.userData.spiritTree?.dispose();ghostProp.traverse(n=>{if(n.isMesh)n.material.dispose();});}if(type){ghostProp=prop(type);ghostProp.traverse(n=>{if(n.isLight||n.isPoints)n.visible=false;if(n.isMesh)n.material=new THREE.MeshBasicMaterial({color:0xafffca,transparent:true,opacity:.45,side:n.material.side});});ghost.add(ghostProp);const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const coverage=ring(ghostProp,lighting.color,[0,.025,0],lighting.radius,.025);coverage.rotation.x=-Math.PI/2;coverage.material=new THREE.MeshBasicMaterial({color:lighting.color,transparent:true,opacity:.45,depthWrite:false});}}return type;},
   rotateBuild(){buildRotation+=Math.PI/2;ghost.rotation.y=buildRotation;},
   focus(id){const p=id==='home'?{x:-3,z:-1}:id==='garden'?{x:7,z:3}:id==='lab'?{x:6,z:-3}:getGame().player;const dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
+  focusUfo(id){const g=getGame(),ship=g.space.ships.find(s=>s.id===id);if(!ship)return;const p=ufoDock(g,ship),dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
   resetCamera(){camera.position.set(23,25,30);controls.target.set(0,0,0);camera.zoom=1;camera.updateProjectionMatrix();},
   zoom(delta){camera.zoom=THREE.MathUtils.clamp(camera.zoom+delta,.65,2.5);camera.updateProjectionMatrix();},
   portrait(id){

@@ -1,5 +1,13 @@
 // One reservation per activity; queued guests never hold a device for their host.
 export const groupId=q=>q.hostActionId??q.sofaGroup??q.id;
+export const AUTONOMOUS_COOPERATION_WEIGHT=.15;
+const cooperative=q=>['passOrb','decodeTogether','lounge','voyage','boardUfo'].includes(q.type);
+export function autonomousCooperationReady(g,p,exclude){
+ return (g.day-1)*1440+g.minute>=(p.ai.cooperationAfter??0)&&!p.queue.some(q=>q!==exclude&&cooperative(q));
+}
+export function restFromCooperation(g,...people){
+ for(const p of people)p.ai.cooperationAfter=(g.day-1)*1440+g.minute+360;
+}
 export function releaseGroup(people,q){
  const id=groupId(q);
  for(const p of people)for(let i=p.queue.length-1;i>=0;i--)if(groupId(p.queue[i])===id)p.queue.splice(i,1);
@@ -22,7 +30,9 @@ export function advanceCooperation(people,dt,isPaired){
   // Count only time blocked at the front, including interruptions by conversations.
   q.blockedSeconds=q.phase==='acting'?0:(q.blockedSeconds??0)+dt;
   const members=people.filter(n=>n.queue.some(a=>groupId(a)===groupId(q)));
-  if(members.length!==2||members.some(n=>Math.min(n.needs.hunger,n.needs.energy)<12)||q.blockedSeconds>180){
+  const flight=members.flatMap(p=>p.queue).find(a=>a.id===groupId(q)&&a.type==='voyage');
+  const expected=flight?1+people.filter(p=>flight.passengerUids?.includes(p.position.uid)&&p.queue.some(a=>a.hostActionId===flight.id)).length:2;
+  if(members.length!==expected||members.some(n=>Math.min(n.needs.hunger,n.needs.energy)<12)||q.blockedSeconds>180){
    releaseGroup(people,q);p.ai.cooldown=5;p.ai.reason='协作未能会合，先处理自己的事情';
   }
  }

@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchControl,autonomousCandidates} from '../src/simulation.js';
+import {backDiscovered} from '../src/space-logistics.js';
+const run=(g,seconds=80)=>{for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.5);};
+function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const key in g.config.needDecay)g.config.needDecay[key]=0;g.civilization.technology=240;g.civilization.observations=3;g.skills.science=18;g.money=10000;return g;}
+function equip(g,tier=2){g.space.ships.push({id:'ship-a',tier,island:'home',side:'front',food:0,reservedBy:null});g.space.provisions.home=24;}
+test('manufacture and rations require their professions and create persisted resources after completion',()=>{
+ const g=setup();g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);run(g);assert.equal(g.space.ships[0].tier,2);assert.match(g.space.ships[0].id,/^ufo-\d+$/);assert.equal(g.money,8600);
+ const stove=buyItem(g,'stove',5,5).object;assert.ok(stove);assert.equal(enqueue(g,'prepareRations',stove.id).ok,false);g.career={id:'chef',level:1,shifts:0};g.skills.cooking=3;const money=g.money;assert.equal(enqueue(g,'prepareRations',stove.id).ok,true);run(g);assert.equal(g.space.provisions.home,8);assert.equal(g.money,money-30);assert.deepEqual(restore(serialize(g)).space,g.space);
+});
+test('passengers keep earlier work and every race plus infants can travel without pilot skills',()=>{
+ let g=setup();equip(g);const guests=['nova','lumi','pip'];g.npcs.nova.prayer.nether=10;g.npcs.lumi.prayer.radiance=10;g.npcs.pip.age=1;for(const id of guests)g.npcs[id].skills.science=0;
+ switchControl(g,'nova');enqueue(g,'research','lab');switchControl(g,'kai');g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;const earlier=g.npcs.nova.queue[0].id;
+ assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',guests).ok,true);assert.equal(g.npcs.nova.queue[0].id,earlier);assert.equal(g.npcs.nova.queue[1].type,'boardUfo');assert.equal(g.space.provisions.home,16);
+ g=restore(serialize(g));run(g);for(const p of [g.player,...guests.map(id=>g.npcs[id])])assert.equal(p.island,'spore');assert.equal(g.civilization.visits.spore,4);assert.equal(g.space.ships[0].food,4);assert.equal(g.queue.length,0);assert.equal(g.npcs.nova.queue.length,0);
+});
+test('canceling from a passenger releases the manifest and ship but keeps loaded food',()=>{
+ const g=setup();equip(g);enqueue(g,'voyage','portal',undefined,null,'spore',['nova']);switchControl(g,'nova');cancelAction(g,g.queue[0].id);assert.equal(g.queue.length,0);assert.equal(g.npcs.kai.queue.length,0);assert.equal(g.space.ships[0].reservedBy,null);assert.equal(g.space.ships[0].food,4);assert.equal(g.space.provisions.home,20);
+});
+test('one resident cannot be booked into competing flights and provisions cannot be double spent',()=>{
+ const g=setup();equip(g);g.space.ships.push({...g.space.ships[0],id:'ship-b'});g.space.provisions.home=4;
+ assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);switchControl(g,'lumi');assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,false);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,false);assert.equal(g.space.provisions.home,0);
+});
+test('flight waiting for long prior work expires without cancelling that work',()=>{
+ const g=setup();equip(g);switchControl(g,'nova');g.config.actionDurations.research=1000;enqueue(g,'research','lab');switchControl(g,'kai');g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;enqueue(g,'voyage','portal',undefined,null,'spore',['nova']);run(g,200);assert.equal(g.queue.length,0);assert.equal(g.npcs.nova.queue[0].type,'research');assert.equal(g.npcs.nova.queue.length,1);assert.equal(g.space.ships[0].reservedBy,null);
+});
+test('home back is open by default; remote discovery requires Nether and gates must be purchased',()=>{
+ const g=setup();equip(g);const home=structuredClone(g.objects.filter(o=>o.fixed));assert.equal(backDiscovered(g,'home'),true);enqueue(g,'voyage','portal',undefined,null,'spore');run(g);
+ assert.equal(backDiscovered(g,'spore'),false);g.viewSide='back';assert.equal(buyItem(g,'gate',5,5).ok,false);g.viewSide='front';assert.equal(enqueue(g,'senseNether','spore-portal').ok,false);g.player.prayer.nether=10;assert.equal(enqueue(g,'senseNether','spore-portal').ok,true);run(g);assert.equal(backDiscovered(g,'spore'),true);
+ assert.equal(g.objects.filter(o=>o.island==='spore'&&o.type==='gate').length,0);const front=buyItem(g,'gate',-7,3).object;g.viewSide='back';const back=buyItem(g,'gate',-7,3).object;assert.ok(front&&back);g.viewSide='front';assert.equal(enqueue(g,'travel',front.id,undefined,null,back.id).ok,true);run(g);assert.equal(g.player.side,'back');assert.deepEqual(g.objects.filter(o=>o.fixed&&(!o.island||o.island==='home')),home);
+});
+test('qualified logistics actions are autonomous candidates and incompatible jobs cannot manufacture',()=>{
+ const g=setup();g.career.level=2;const types=autonomousCandidates(g,'player').map(c=>c.type);assert.ok(types.includes('buildUfo2'));g.career.id='chef';assert.equal(enqueue(g,'buildUfo2','lab').ok,false);
+});
+test('version 15 migration keeps day, occupants, and main island gates',()=>{
+ const g=setup();g.version=15;g.day=161;delete g.space;const objects=structuredClone(g.objects),player=structuredClone(g.player);const loaded=restore(serialize(g));assert.equal(loaded.day,161);assert.deepEqual(loaded.objects,objects);assert.deepEqual(loaded.player,player);assert.equal(backDiscovered(loaded,'home'),true);
+});
+
+test('a flight and an earlier shared task cannot keep each other waiting in a cycle',()=>{
+ const g=setup();equip(g);const lamp=buyItem(g,'lamp',5,5).object;assert.equal(enqueue(g,'passOrb',lamp.id,undefined,'nova').ok,true);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);g.queue.reverse();tick(g,.1,()=>.5);assert.equal(g.queue[0].type,'passOrb');assert.equal(g.npcs.nova.queue.length,1);assert.equal(g.space.ships[0].reservedBy,null);run(g);assert.equal(g.queue.length,0);assert.equal(g.npcs.nova.queue.length,0);
+});
+test('autonomous voyage chooses its action first and only then draws occasional passengers',()=>{
+ const g=setup();equip(g);g.player.preferences.voyage=10000;g.autonomy.enabled=true;for(const n of Object.values(g.npcs))n.preferences.explore=10;let draws=0;tick(g,.1,()=>{draws++;return 0;});assert.equal(g.queue[0].type,'voyage');assert.equal(g.queue[0].passengerUids.length,2);assert.equal(draws,4);assert.equal(Object.values(g.npcs).filter(n=>n.queue.some(q=>q.type==='boardUfo')).length,2);
+});
+
+test('only quantum scientists with science level ten can travel by portal without ships or food',()=>{
+ const g=setup();g.skills.science=135;g.career.id='chef';assert.equal(enqueue(g,'starVoyage','portal',undefined,null,'spore').ok,false);g.career.id='scientist';g.skills.science=134;assert.equal(enqueue(g,'starVoyage','portal',undefined,null,'spore').ok,false);g.skills.science=135;
+ assert.equal(enqueue(g,'starVoyage','portal',undefined,null,'spore').ok,true);let loaded=restore(serialize(g));run(loaded,40);assert.equal(loaded.player.island,'spore');assert.equal(loaded.space.ships.length,0);assert.equal(enqueue(loaded,'starVoyage','spore-portal',undefined,null,'home').ok,true);run(loaded,40);assert.equal(loaded.player.island,'home');
+});
+test('unskilled residents can use provisioned UFO while ship loading conserves food',async()=>{
+ const {loadShipFood,shipFoodStatus}=await import('../src/space-logistics.js');const g=setup();equip(g);g.skills.science=0;g.career.id='chef';const stock=g.space.provisions.home;assert.equal(loadShipFood(g,'ship-a').ok,true);assert.equal(shipFoodStatus(g.space.ships[0]).full,true);assert.equal(g.space.provisions.home+g.space.ships[0].food,stock);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g);assert.equal(g.player.island,'spore');assert.equal(shipFoodStatus(g.space.ships[0]).full,false);
+});

@@ -10,7 +10,7 @@ test('all object interactions can enter autonomous candidate generation, includi
 test('AI invites a busy partner and keeps the shared action queued',()=>{
  const g=setup(),o=buyItem(g,'lamp',0,0).object;g.player.preferences={passOrb:100};g.autonomy.enabled=true;g.needs.fun=20;g.needs.social=10;
  g.npcs.nova.queue=[{id:g.nextId++,type:'walk',targetId:null,target:{x:8,z:4,side:'front'},source:'manual',phase:'walking',elapsed:0,path:null}];
- run(g,.1);assert.equal(g.queue[0].type,'passOrb');assert.ok(Object.values(g.npcs).some(n=>n.queue.some(q=>q.hostActionId===g.queue[0].id)));
+ let draws=0;tick(g,.1,()=>draws++===0?.98:0);assert.equal(g.queue[0].type,'passOrb');assert.ok(Object.values(g.npcs).some(n=>n.queue.some(q=>q.hostActionId===g.queue[0].id)));
 });
 test('crystal switches for free at any charge, resets it, then uses dust only when activated',()=>{
  const g=setup(),o=buyItem(g,'crystal',0,0).object;o.wonder.charge=72;g.wonders.dust=0;
@@ -31,11 +31,11 @@ test('scientific skill and inherited research preference increase cooperative re
  p.position.preferences={research:30};const low=autonomyBonus(g,p,c,[p,partner]);p.skills.science=30;assert.ok(autonomyBonus(g,p,c,[p,partner])>low);assert.equal(actionPreference(p,'decodeTogether'),19.5);
 });
 test('v11 exploration migration preserves archive and crystals without inventing past city visits',()=>{
- const g=setup(),o=buyItem(g,'crystal',0,0).object;g.version=11;g.wonders={dust:7,archive:3,lastExpeditionDay:1};o.wonder={mode:'insight',charge:100,armed:true};const loaded=restore(serialize(g));assert.equal(loaded.version,13);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.wonders.dust,7);assert.equal(loaded.wonders.expeditions,0);assert.equal(loaded.objects[0].wonder.armed,true);
+ const g=setup(),o=buyItem(g,'crystal',0,0).object;g.version=11;g.wonders={dust:7,archive:3,lastExpeditionDay:1};o.wonder={mode:'insight',charge:100,armed:true};const loaded=restore(serialize(g));assert.equal(loaded.version,18);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.wonders.dust,7);assert.equal(loaded.wonders.expeditions,0);assert.equal(loaded.objects[0].wonder.armed,true);
 });
 test('an NPC can autonomously invite the controlled resident without replacing their queue',()=>{
  const g=setup();buyItem(g,'lamp',0,0);g.npcs.nova.preferences={passOrb:100};g.npcs.nova.ai.enabled=true;g.npcs.nova.needs.fun=20;g.npcs.nova.needs.social=10;
- run(g,.1);const host=g.npcs.nova.queue[0];assert.equal(host.type,'passOrb');assert.equal(host.partnerId,'player');assert.equal(g.queue[0].hostActionId,host.id);g.npcs.nova.ai.enabled=false;run(g,45);assert.equal(g.relationships.nova,33);assert.doesNotThrow(()=>restore(serialize(g)));
+ let draws=0;tick(g,.1,()=>draws++===0?.98:0);const host=g.npcs.nova.queue[0];assert.equal(host.type,'passOrb');assert.equal(host.partnerId,'player');assert.equal(g.queue[0].hostActionId,host.id);g.npcs.nova.ai.enabled=false;run(g,45);assert.equal(g.relationships.nova,33);assert.doesNotThrow(()=>restore(serialize(g)));
 });
 test('autonomous sofa invitations preserve an invited residents earlier action',()=>{
  const g=setup(),sofa=buyItem(g,'sofa',0,0).object,pod=buyItem(g,'pod',4,0).object;g.player.preferences={lounge:100};g.autonomy.enabled=true;g.npcs.nova.queue=[{id:g.nextId++,type:'sleep',targetId:pod.id,target:{x:4,z:1,side:'front'},source:'manual',phase:'acting',elapsed:0,path:[]}];

@@ -60,12 +60,12 @@ test('cancelling an action prevents its reward',()=>{
  const g=createGame();g.autonomy.enabled=false; enqueue(g,'work','lab'); const funds=g.money; cancelAction(g,g.queue[0].id); tick(g,60); assert.equal(g.money,funds);
 });
 test('work earns wages and repeated shifts promote the chosen career',()=>{
- const g=createGame();Object.assign(g.skills,CAREERS.botanist.levels[1].skills);assert.equal(setCareer(g,'botanist'),true); const money=g.money;
+ const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;Object.assign(g.skills,CAREERS.botanist.levels[1].skills);assert.equal(setCareer(g,'botanist'),true); const money=g.money;
  for(let j=0;j<3;j++){enqueue(g,'work','lab');for(let i=0;i<700;i++)tick(g,0.1);}
  assert.ok(g.money>money); assert.equal(g.career.level,2);
 });
 test('career entry and promotion use configured skill requirements',()=>{
- const g=createGame(),career=CAREERS.botanist;
+ const g=createGame(),career=CAREERS.botanist;g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;
  assert.ok(career.levels[0].skills.botany>0);
  assert.equal(setCareer(g,'botanist'),false);
  Object.assign(g.skills,career.levels[0].skills);assert.equal(setCareer(g,'botanist'),true);
@@ -92,7 +92,7 @@ test('needs remain bounded over extended simulation',()=>{
 });
 test('neighbors wander autonomously but stay still during a conversation',()=>{
  const g=createGame(); const before=JSON.stringify(g.npcs);for(let i=0;i<150;i++)tick(g,.1);assert.notEqual(JSON.stringify(g.npcs),before);
- enqueue(g,'chat','nova');const position={x:g.npcs.nova.x,z:g.npcs.nova.z};tick(g,.1);assert.equal(g.npcs.nova.x,position.x);assert.equal(g.npcs.nova.z,position.z);
+ for(const q of [...g.queue])cancelAction(g,q.id);assert.equal(enqueue(g,'chat','nova').ok,true);assert.equal(g.queue[0].type,'chat');const position={x:g.npcs.nova.x,z:g.npcs.nova.z};tick(g,.1);assert.equal(g.npcs.nova.x,position.x);assert.equal(g.npcs.nova.z,position.z);
 });
 test('corrupt saves with invalid needs or furniture are rejected',()=>{
  const g=createGame();g.needs.hunger='broken';assert.throws(()=>restore(JSON.stringify(g)));

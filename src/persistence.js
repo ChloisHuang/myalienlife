@@ -10,12 +10,13 @@ export function createPersistence(){
   const response=await fetch('/api/project-config',{cache:'no-store',...options});
   const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error),{status:response.status});return data;
  }
- async function save(game){
+ async function save(game,{leaving=false}={}){
   const snapshot=serialize(game);
   if(snapshot===lastSnapshot&&pending.size===0)return null;
   if(pending.has(snapshot))return pending.get(snapshot);
   restore(snapshot);const number=++sequence;
-  const operation=request({method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({state:JSON.parse(snapshot),baseRevision:revision,clientId,sequence:number})}).then(data=>{
+  const body=JSON.stringify({state:JSON.parse(snapshot),baseRevision:revision,clientId,sequence:number});
+  const operation=request({method:'POST',headers:{'Content-Type':'application/json'},keepalive:leaving&&new TextEncoder().encode(body).byteLength<=60000,body}).then(data=>{
    if(number>acknowledged){acknowledged=number;revision=data.revision;lastSnapshot=snapshot;}return data;
   }).finally(()=>pending.delete(snapshot));
   pending.set(snapshot,operation);return operation;
