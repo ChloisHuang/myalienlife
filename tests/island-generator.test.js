@@ -16,14 +16,14 @@ test('seeded generation is reproducible, diverse and valid for all 64 islands',(
 });
 test('new exploration generates only remote blueprints and never replaces home furniture or occupants',()=>{
  const g=createGame(),home=structuredClone(g.objects),people=structuredClone(g.player);
- for(let i=0;i<18;i++)contributeCivilization(g,'observe',g.player);
+ for(let i=0;i<18;i++)contributeCivilization(g,'observe',g.player,undefined,undefined,()=>i===11||i===17?0:1);
  assert.equal(Object.keys(g.civilization.islands).length,2);assert.deepEqual(g.objects,home);assert.deepEqual(g.player,people);assert.equal(g.civilization.visits['wild-0'],0);
  const loaded=restore(serialize(g));assert.deepEqual(loaded.civilization.islands,g.civilization.islands);assert.deepEqual(loaded.objects,home);
  assert.throws(()=>createIslandTerrain(STAR_ISLANDS.home,new Group()),/固定/);
 });
 test('generated layouts support arrival, research, saving and return without altering home',()=>{
  const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const k in g.config.needDecay)g.config.needDecay[k]=0;g.civilization.seed=20260908;
- for(let i=0;i<12;i++)contributeCivilization(g,'observe',g.player);g.civilization.technology=240;g.skills.science=18;g.space.ships.push({id:'fixture-ufo',tier:3,island:'home',side:'front',food:2,reservedBy:null});g.skills.botany=18;g.player.preferences.garden=10;
+ for(let i=0;i<12;i++)contributeCivilization(g,'observe',g.player,undefined,undefined,()=>0);g.civilization.technology=240;g.skills.science=18;g.space.ships.push({id:'fixture-ufo',tier:3,island:'home',side:'front',food:2,durability:100,reservedBy:null});g.skills.botany=18;g.player.preferences.garden=10;
  const home=structuredClone(g.objects);assert.equal(enqueue(g,'voyage','portal',undefined,null,'wild-0').ok,true);for(let i=0;i<500;i++)tick(g,.1,()=>0);
  assert.equal(g.player.island,'wild-0');const lab=g.objects.find(o=>o.id==='wild-0-lab');assert.ok(lab);assert.equal(enqueue(g,'research',lab.id).ok,true);for(let i=0;i<400;i++)tick(g,.1,()=>0);assert.equal(g.queue.length,0);
  const loaded=restore(serialize(g));assert.equal(loaded.player.island,'wild-0');assert.deepEqual(loaded.objects.filter(o=>!o.island||o.island==='home').map(o=>({id:o.id,x:o.x,z:o.z,rotation:o.rotation})),home.map(o=>({id:o.id,x:o.x,z:o.z,rotation:o.rotation})));

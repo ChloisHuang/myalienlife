@@ -4,7 +4,7 @@ import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchCon
 import {backDiscovered} from '../src/space-logistics.js';
 const run=(g,seconds=80)=>{for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.5);};
 function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const key in g.config.needDecay)g.config.needDecay[key]=0;g.civilization.technology=240;g.civilization.observations=3;g.skills.science=18;g.money=10000;return g;}
-function equip(g,tier=2){g.space.ships.push({id:'ship-a',tier,island:'home',side:'front',food:0,reservedBy:null});g.space.provisions.home=24;}
+function equip(g,tier=2){g.space.ships.push({id:'ship-a',tier,island:'home',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.home=24;}
 test('manufacture and rations require their professions and create persisted resources after completion',()=>{
  const g=setup();g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);run(g);assert.equal(g.space.ships[0].tier,2);assert.match(g.space.ships[0].id,/^ufo-\d+$/);assert.equal(g.money,8600);
  const stove=buyItem(g,'stove',5,5).object;assert.ok(stove);assert.equal(enqueue(g,'prepareRations',stove.id).ok,false);g.career={id:'chef',level:1,shifts:0};g.skills.cooking=3;const money=g.money;assert.equal(enqueue(g,'prepareRations',stove.id).ok,true);run(g);assert.equal(g.space.provisions.home,8);assert.equal(g.money,money-30);assert.deepEqual(restore(serialize(g)).space,g.space);
@@ -19,7 +19,7 @@ test('canceling from a passenger releases the manifest and ship but keeps loaded
  const g=setup();equip(g);enqueue(g,'voyage','portal',undefined,null,'spore',['nova']);switchControl(g,'nova');cancelAction(g,g.queue[0].id);assert.equal(g.queue.length,0);assert.equal(g.npcs.kai.queue.length,0);assert.equal(g.space.ships[0].reservedBy,null);assert.equal(g.space.ships[0].food,4);assert.equal(g.space.provisions.home,20);
 });
 test('one resident cannot be booked into competing flights and provisions cannot be double spent',()=>{
- const g=setup();equip(g);g.space.ships.push({...g.space.ships[0],id:'ship-b'});g.space.provisions.home=4;
+ const g=setup();equip(g);g.space.ships.push({...g.space.ships[0],id:'ship-b'});g.npcs.pip.career.id='chef';g.space.provisions.home=4;
  assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);switchControl(g,'lumi');assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,false);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,false);assert.equal(g.space.provisions.home,0);
 });
 test('flight waiting for long prior work expires without cancelling that work',()=>{
@@ -27,8 +27,8 @@ test('flight waiting for long prior work expires without cancelling that work',(
 });
 test('home back is open by default; remote discovery requires Nether and gates must be purchased',()=>{
  const g=setup();equip(g);const home=structuredClone(g.objects.filter(o=>o.fixed));assert.equal(backDiscovered(g,'home'),true);enqueue(g,'voyage','portal',undefined,null,'spore');run(g);
- assert.equal(backDiscovered(g,'spore'),false);g.viewSide='back';assert.equal(buyItem(g,'gate',5,5).ok,false);g.viewSide='front';assert.equal(enqueue(g,'senseNether','spore-portal').ok,false);g.player.prayer.nether=10;assert.equal(enqueue(g,'senseNether','spore-portal').ok,true);run(g);assert.equal(backDiscovered(g,'spore'),true);
- assert.equal(g.objects.filter(o=>o.island==='spore'&&o.type==='gate').length,0);const front=buyItem(g,'gate',-7,3).object;g.viewSide='back';const back=buyItem(g,'gate',-7,3).object;assert.ok(front&&back);g.viewSide='front';assert.equal(enqueue(g,'travel',front.id,undefined,null,back.id).ok,true);run(g);assert.equal(g.player.side,'back');assert.deepEqual(g.objects.filter(o=>o.fixed&&(!o.island||o.island==='home')),home);
+ assert.equal(backDiscovered(g,'spore'),false);g.viewSide='back';assert.equal(buyItem(g,'gate',5,5).ok,false);g.viewSide='front';assert.equal(enqueue(g,'senseNether','spore-portal').ok,false);g.player.prayer.nether=10;g.autonomy.enabled=true;g.autonomy.cooldown=0;g.autonomy.lastWorkDay=g.day;g.player.preferences.explore=10;for(let i=0;i<30;i++)tick(g,.1,()=>0);g.autonomy.enabled=false;g.queue=[];assert.equal(backDiscovered(g,'spore'),true);
+ assert.equal(g.objects.filter(o=>o.island==='spore'&&o.type==='gate').length,0);g.viewSide='front';const front=buyItem(g,'gate',-7,3).object;g.viewSide='back';const back=buyItem(g,'gate',-7,3).object;assert.ok(front&&back);g.viewSide='front';assert.equal(enqueue(g,'travel',front.id,undefined,null,back.id).ok,true);run(g);assert.equal(g.player.side,'back');assert.deepEqual(g.objects.filter(o=>o.fixed&&(!o.island||o.island==='home')),home);
 });
 test('qualified logistics actions are autonomous candidates and incompatible jobs cannot manufacture',()=>{
  const g=setup();g.career.level=2;const types=autonomousCandidates(g,'player').map(c=>c.type);assert.ok(types.includes('buildUfo2'));g.career.id='chef';assert.equal(enqueue(g,'buildUfo2','lab').ok,false);
@@ -50,4 +50,32 @@ test('only quantum scientists with science level ten can travel by portal withou
 });
 test('unskilled residents can use provisioned UFO while ship loading conserves food',async()=>{
  const {loadShipFood,shipFoodStatus}=await import('../src/space-logistics.js');const g=setup();equip(g);g.skills.science=0;g.career.id='chef';const stock=g.space.provisions.home;assert.equal(loadShipFood(g,'ship-a').ok,true);assert.equal(shipFoodStatus(g.space.ships[0]).full,true);assert.equal(g.space.provisions.home+g.space.ships[0].food,stock);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g);assert.equal(g.player.island,'spore');assert.equal(shipFoodStatus(g.space.ships[0]).full,false);
+});
+
+test('only a living chef on the departure planet blocks understocked manual and autonomous voyages',async()=>{
+ const {hasLocalChef}=await import('../src/space-logistics.js');const g=setup();equip(g);g.space.provisions.home=0;g.npcs.nova.career.id='chef';g.npcs.nova.island='spore';
+ assert.equal(hasLocalChef(g,'home'),false);assert.ok(autonomousCandidates(g,'player').some(q=>q.type==='voyage'));assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);cancelAction(g,g.queue[0].id);
+ g.npcs.nova.island='home';g.npcs.nova.side='back';assert.equal(hasLocalChef(g,'home'),true);assert.match(enqueue(g,'voyage','portal',undefined,null,'spore').message,/当前星球有星厨/);assert.ok(!autonomousCandidates(g,'player').some(q=>q.type==='voyage'));
+ g.npcs.nova.alive=false;assert.equal(hasLocalChef(g,'home'),false);g.career.id='chef';assert.equal(hasLocalChef(g,'home'),true);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,false);
+ g.space.provisions.home=1;assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g);assert.equal(g.player.island,'spore');assert.equal(g.space.ships[0].food,0);
+});
+test('without a local chef missing food charges every passenger once and cannot make stocks negative',()=>{
+ const g=setup();equip(g);g.space.provisions.home=1;g.needs.hunger=80;g.needs.energy=80;g.npcs.nova.needs.hunger=80;g.npcs.nova.needs.energy=80;
+ assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);run(g,40);
+ for(const p of [g.player,g.npcs.nova])assert.equal(p.island,'spore');for(const needs of [g.needs,g.npcs.nova.needs]){assert.equal(needs.hunger,70);assert.equal(needs.energy,75);}assert.equal(g.space.provisions.home,0);assert.equal(g.space.ships[0].food,0);assert.equal(g.space.ships[0].durability,90);
+});
+test('a chef arriving during boarding stops an understocked departure and releases passengers',()=>{
+ const g=setup();equip(g);g.space.provisions.home=0;assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);g.npcs.zig.career.id='chef';run(g,40);assert.equal(g.player.island??'home','home');assert.equal(g.npcs.nova.island??'home','home');assert.equal(g.queue.length,0);assert.equal(g.npcs.nova.queue.length,0);assert.equal(g.space.ships[0].durability,100);assert.equal(g.space.ships[0].reservedBy,null);
+});
+test('fleet capacity includes pending manufacture and permits completion of the final slot',async()=>{
+ const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();equip(g);assert.equal(fleetLimit(g),3);g.space.ships.push({...g.space.ships[0],id:'ship-b'});g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);assert.equal(enqueue(g,'buildUfo2','lab').ok,false);run(g);assert.equal(g.space.ships.length,3);assert.equal(g.space.ships.at(-1).durability,100);switchControl(g,'nova');assert.equal(fleetLimit(g),3);
+});
+test('old ships migrate with durability and excess fleet is recycled without losing cargo',()=>{
+ const g=setup();equip(g);g.version=20;g.space.ships=Array.from({length:6},(_,i)=>({...g.space.ships[0],id:`old-${i}`,food:2}));for(const s of g.space.ships)delete s.durability;const loaded=restore(serialize(g));assert.equal(loaded.space.ships.length,3);assert.ok(loaded.space.ships.every(s=>s.durability===100));assert.equal(loaded.space.provisions.home,30);
+});
+test('last durability supports a return flight and recycles only after landing',()=>{
+ const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);const ship=g.space.ships[0];ship.durability=10;assert.equal(enqueue(g,'voyage','spore-portal',undefined,null,'home').ok,true);run(g,40);assert.equal(g.player.island,'home');assert.equal(g.space.ships.length,0);assert.match(g.log.map(l=>l.text).join(' '),/耐久耗尽/);
+});
+test('rations made by a remote chef remain on that planet',()=>{
+ const g=setup();equip(g);enqueue(g,'voyage','portal',undefined,null,'spore');run(g,40);g.career={id:'chef',level:1,shifts:0};g.skills.cooking=3;const stove=buyItem(g,'stove',5,5).object;assert.ok(stove);assert.equal(enqueue(g,'prepareRations',stove.id).ok,true);run(g);assert.equal(g.space.provisions.spore,8);assert.equal(g.space.provisions.home,22);
 });

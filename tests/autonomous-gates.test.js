@@ -18,6 +18,6 @@ test('blocked back placement does not buy a stranded front gate or spend money',
 
 test('completing Nether discovery autonomously builds a usable cross-face route',()=>{
  const g=fixture();delete g.space.backs.spore;g.objects.push({id:'spore-portal',type:'portal',x:0,z:0,rotation:0,island:'spore',side:'front'});
- assert.equal(enqueue(g,'senseNether','spore-portal').ok,true);for(let i=0;i<300;i++)tick(g,.1,()=>.5);assert.equal(g.space.backs.spore,true);assert.equal(gates(g).length,2);g.autonomy.enabled=false;g.queue=[];
+ for(let i=0;i<300;i++)tick(g,.1,()=>.5);assert.equal(g.space.backs.spore,true);assert.equal(gates(g).length,2);g.autonomy.enabled=false;g.queue=[];
  const front=gates(g).find(o=>o.side==='front'),back=gates(g).find(o=>o.side==='back');assert.equal(enqueue(g,'travel',front.id,undefined,null,back.id).ok,true);for(let i=0;i<300;i++)tick(g,.1,()=>.5);assert.equal(g.player.side,'back');assert.equal(g.player.island,'spore');
 });

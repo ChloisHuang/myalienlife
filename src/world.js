@@ -1,7 +1,7 @@
 import {BLINK_SECONDS} from './nether-blink.js';
 import {createBlinkVisual} from './nether-blink-visuals.js';
 import {shipFoodStatus} from './space-logistics.js';
-import {createUfoVisual,ufoDock,createUfoFoodLabel,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
+import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
 import {islandDefinition} from './civilization.js';
 import {createIslandTerrain} from './island-terrain.js';
 import {createWonderVisual} from './wonder-visuals.js';
@@ -178,16 +178,17 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  const ufoMeshes=new Map(),onboard=new Map(),flightBoard=document.createElement('div');flightBoard.className='ufo-flight-board';flightBoard.setAttribute('aria-label','UFO 航行动态');container.append(flightBoard);let flightBoardText='';
  function syncUfos(g){
   const flights=[];onboard.clear();
-  for(const [id,visual] of ufoMeshes)if(!g.space.ships.some(s=>s.id===id)){visual.label.dispose();visual.beam.dispose();visual.dispose();ufoMeshes.delete(id);}
+  for(const [id,visual] of ufoMeshes)if(!g.space.ships.some(s=>s.id===id)){visual.beam.dispose();visual.dispose();ufoMeshes.delete(id);}
   for(const ship of g.space.ships){
-   if(!ufoMeshes.has(ship.id)){const visual=createUfoVisual(ship.tier);visual.label=createUfoFoodLabel();visual.beam=createUfoTransferBeam();visual.root.add(visual.label.root);visual.root.userData.target={kind:'ufo',id:ship.id};ufoMeshes.set(ship.id,visual);}
+   if(!ufoMeshes.has(ship.id)){const visual=createUfoVisual(ship.tier);visual.beam=createUfoTransferBeam();visual.root.userData.target={kind:'ufo',id:ship.id};ufoMeshes.set(ship.id,visual);}
    const visual=ufoMeshes.get(ship.id),root=visual.root,flight=ufoFlightPresentation(g,ship),food=shipFoodStatus(ship);
    for(const uid of flight.crew)onboard.set(uid,flight);
    surfaceItems[flight.side].add(visual.beam.root);visual.beam.update(flight);visual.beam.root.visible=!!flight.beam&&flight.island===g.viewIsland;
    root.visible=flight.island===g.viewIsland;surfaceItems[flight.side].add(root);
-   visual.update(food.ratio,((g.day-1)*1440+g.minute)/2);
-   root.position.set(flight.x,flight.y+(flight.beam?0:Math.sin(g.minute*.2)*.08),flight.z);root.scale.setScalar((.85+ship.tier*.18)*flight.scale);root.rotation.z+=flight.bank;
-   root.userData.flightStage=flight.stage;visual.label.update(ship.food,food.capacity,flight.stage);
+   const seconds=((g.day-1)*1440+g.minute)/g.config.time.gameMinutesPerRealSecond,motion=ufoHoverMotion(ship.id,seconds,flight);
+   visual.update(food.ratio,seconds,flight.flying);
+   root.position.set(flight.x+motion.x,flight.y+motion.y,flight.z+motion.z);root.scale.setScalar((.85+ship.tier*.18)*flight.scale);root.rotation.set(motion.pitch,motion.yaw,motion.roll+flight.bank);
+   root.userData.flightStage=flight.stage;
    if(flight.route)flights.push(`${flight.stage} · ${Math.round(flight.progress*100)}% · ${flight.route}`);
   }
   const text=flights.join('\n');if(text!==flightBoardText){flightBoard.textContent=text;flightBoard.hidden=!text;flightBoardText=text;}
@@ -218,6 +219,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   face.worldToLocal(point);const hits=raycaster.intersectObjects(surfaceItems[side].children.filter(o=>o.visible),true);let target=null;
   if(hits[0]){let o=hits[0].object;while(o&&!o.userData.target)o=o.parent;target=o?.userData.target;}return{target,point};
  }
+ renderer.domElement.addEventListener('pointerleave',()=>{hoverTarget=null;onHover(null,0,0);});
  renderer.domElement.addEventListener('pointermove',e=>{if(container.dataset.flipping==='true')return;const h=hit(e);if(buildType){ghost.position.set(Math.round(h.point.x),.3,Math.round(h.point.z));ghost.visible=Math.abs(h.point.x)<12&&Math.abs(h.point.z)<8;const valid=canPlace(getGame(),ghost.position.x,ghost.position.z);ghost.traverse(n=>{if(n.isMesh)n.material.color.set(valid?0xafffca:0xff7e94);});}else{hoverTarget=h.target;renderer.domElement.style.cursor=h.target?'pointer':'default';onHover(h.target,e.clientX,e.clientY);}});
  renderer.domElement.addEventListener('pointerdown',e=>{pointerDown={x:e.clientX,y:e.clientY};});
  renderer.domElement.addEventListener('pointerup',e=>{if(e.button!==0||!pointerDown||Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y)>6)return;const h=hit(e);if(buildType){onPlace(buildType,Math.round(h.point.x),Math.round(h.point.z),buildRotation);return;}if(h.target)onClick(h.target,e.clientX,e.clientY);else if(Math.abs(h.point.x)<=11&&Math.abs(h.point.z)<=7)onClick({kind:'ground',point:{x:h.point.x,z:h.point.z}},e.clientX,e.clientY);});
@@ -237,7 +239,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
     let partner=g.queue[0]?.targetId===id?g.player:action&&g.npcs[action.targetId]?g.npcs[action.targetId]:Object.values(g.npcs).find(n=>n.queue[0]?.targetId===id);
     if(action?.phase==='acting'&&['relax','lounge'].includes(action.type)){const peers=[{id:'player',person:g.player,queue:g.queue},...Object.entries(g.npcs).map(([id,person])=>({id,person,queue:person.queue}))].filter(a=>a.id!==id&&a.queue[0]?.phase==='acting'&&['relax','lounge'].includes(a.queue[0].type)&&a.queue[0].targetId===action.targetId);if(peers.length)partner=peers[Math.floor(time/4)%peers.length].person;}
      rig.root.visible=islandOf(person)===g.viewIsland&&!onboard.has(person.uid);surfaceItems[sideOf(person)].add(rig.root);
-     const visualAction=action?.transit?{type:'travel',phase:'acting',elapsed:action.transit.elapsed}:action&&['spaceResearch','buildUfo1','buildUfo2','buildUfo3','prepareRations','senseNether','voyage','starVoyage'].includes(action.type)?{...action,type:['voyage','starVoyage'].includes(action.type)?'travel':action.type==='prepareRations'?'cook':action.type==='senseNether'?'observe':'research'}:action;
+     const visualAction=action?.transit?{type:'travel',phase:'acting',elapsed:action.transit.elapsed}:action&&['spaceResearch','buildUfo1','buildUfo2','buildUfo3','prepareRations','voyage','starVoyage'].includes(action.type)?{...action,type:['voyage','starVoyage'].includes(action.type)?'travel':action.type==='prepareRations'?'cook':'research'}:action;
      rig.blinkVisual.reset();rig.root.scale.setScalar(1);
      updateCharacter(rig,{person,action:visualAction,object:action?g.objects.find(o=>o.id===(action.transit?.sourceId||action.targetId)):undefined,partner:partner&&sameSide(partner,person)?partner:null,time,delta,config:g.config});
      if(action?.blinkTransit){

@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame} from '../src/simulation.js';
-import {createUfoVisual,ufoDock,ufoFlightPresentation,UFO_HOVER_HEIGHT,ufoPassengerPresentation,createUfoTransferBeam} from '../src/ufo-visuals.js';
-function fixture(){const g=createGame();g.space.ships=[{id:'flight-test',tier:2,island:'home',side:'front',food:4,reservedBy:99}];g.queue=[{id:99,type:'voyage',phase:'acting',elapsed:0,destinationId:'spore',passengerUids:[]}];return g;}
+import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,UFO_HOVER_HEIGHT,ufoPassengerPresentation,createUfoTransferBeam} from '../src/ufo-visuals.js';
+function fixture(){const g=createGame();g.space.ships=[{id:'flight-test',tier:2,island:'home',side:'front',food:4,durability:100,reservedBy:99}];g.queue=[{id:99,type:'voyage',phase:'acting',elapsed:0,destinationId:'spore',passengerUids:[]}];return g;}
 test('UFO flight rises and recedes, then approaches the destination and docks without a position jump',()=>{
  const g=fixture(),ship=g.space.ships[0],duration=g.config.actionDurations.voyage;
  const start=ufoFlightPresentation(g,ship);assert.equal(start.y,ufoDock(g,ship).y);assert.equal(start.scale,1);
@@ -28,4 +28,31 @@ test('passengers rise into the beam, stay hidden in flight and lower onto the la
  const low=ufoPassengerPresentation(frame(.13),g.player),high=ufoPassengerPresentation(frame(.26),g.player);assert.ok(high.y>low.y);assert.ok(high.scale<low.scale);assert.equal(ufoPassengerPresentation(frame(.4),g.player).visible,false);
  const above=ufoPassengerPresentation(frame(.71),g.player),below=ufoPassengerPresentation(frame(.85),g.player);assert.ok(above.y>below.y);assert.ok(above.scale<below.scale);assert.equal(below.island,'spore');
  const beam=createUfoTransferBeam();beam.update(frame(.2));assert.equal(beam.root.visible,true);beam.update(frame(.4));assert.equal(beam.root.visible,false);beam.dispose();
+});
+
+
+test('hover drifts and tilts gently on all axes with unique smooth headings per ship',()=>{
+ const idle={flying:false,progress:0},a=ufoHoverMotion('ship-a',100,idle),b=ufoHoverMotion('ship-b',100,idle);
+ assert.notDeepEqual(a,b);assert.deepEqual(a,ufoHoverMotion('ship-a',100,idle));
+ for(let t=0;t<300;t+=.25){const m=ufoHoverMotion('ship-a',t,idle),next=ufoHoverMotion('ship-a',t+.001,idle);assert.ok(Math.abs(m.x)<=.15&&Math.abs(m.y)<=.13&&Math.abs(m.z)<=.12);assert.ok(Math.abs(m.pitch)<=.035&&Math.abs(m.roll)<=.045);for(const key of Object.keys(m))assert.ok(Math.abs(next[key]-m[key])<.001);}
+ for(const key of Object.keys(a))assert.notEqual(a[key],ufoHoverMotion('ship-a',110,idle)[key]);
+});
+test('hover settles for boarding and fades back into the same parked motion after landing',()=>{
+ const at=p=>ufoHoverMotion('ship-a',100,{flying:true,progress:p}),idle=ufoHoverMotion('ship-a',100,{flying:false});
+ assert.deepEqual(at(0),idle);assert.deepEqual(at(1),idle);for(const p of [.12,.2,.5,.8,.86]){const m=at(p);for(const key of ['x','y','z','pitch','roll'])assert.equal(Math.abs(m[key]),0);}
+});
+
+test('parked fleets keep hull and hover clearance using height when the narrow outer arc fills',()=>{
+ const g=createGame();g.space.ships=Array.from({length:24},(_,i)=>({id:`parked-${i}`,tier:i%3+1,island:'home',side:'front'}));
+ const docks=g.space.ships.map(s=>({...ufoDock(g,s),radius:1.58*(.85+s.tier*.18)}));
+ for(let i=0;i<docks.length;i++)for(let j=0;j<i;j++){const a=docks[i],b=docks[j];assert.ok(Math.abs(a.y-b.y)>=2.6||Math.hypot(a.x-b.x,a.z-b.z)>=a.radius+b.radius+.8);}
+ const original=ufoDock(g,g.space.ships[5]);g.space.ships.reverse();assert.deepEqual(ufoDock(g,g.space.ships.find(s=>s.id==='parked-5')),original);
+});
+
+test('UFO core and hull lights emit only during active flight and turn off again while waiting',()=>{
+ const g=fixture(),ship=g.space.ships[0],visual=createUfoVisual(ship.tier),core=visual.root.getObjectByName('fluorescent-core'),strip=visual.root.getObjectByName('hull-fluorescent-strip');
+ const frame=()=>visual.update(.5,12,ufoFlightPresentation(g,ship).flying);
+ g.queue[0].phase='waiting';frame();visual.root.traverse(n=>{if(n.isMesh&&n.material.emissive?.getHex()!==0)assert.equal(n.material.emissiveIntensity,0);});
+ g.queue[0].phase='acting';frame();assert.ok(core.material.emissiveIntensity>2);assert.ok(strip.material.emissiveIntensity>1);for(let i=0;i<8;i++)assert.ok(visual.root.getObjectByName(`food-segment-${i}`).material.emissiveIntensity>1);
+ ship.reservedBy=null;g.queue=[];frame();assert.equal(core.material.emissiveIntensity,0);assert.equal(strip.material.emissiveIntensity,0);visual.dispose();
 });
