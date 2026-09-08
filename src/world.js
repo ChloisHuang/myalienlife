@@ -1,9 +1,11 @@
+import {STAR_ISLANDS} from './civilization.js';
+import {createWonderVisual} from './wonder-visuals.js';
 import {createFrontGroundMaterial,createGlassPlatform} from './front-ground.js';
 import {GLASS_PLATFORMS} from './glass-platforms.js';
 import {createCreamGround,createReverseGround,creamEdgeOffset,ISLAND_FACE_OFFSET} from './cream-ground.js';
 import {createSpiritTree} from './spirit-tree.js';
 import {createCrystalFactory} from './crystal.js';
-import {sideOf} from './island.js';
+import {sideOf,islandOf,sameSide} from './island.js';
 import {CROPS,cropVisualScale} from './plants.js';
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
@@ -99,13 +101,23 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  for(let i=0;i<48;i++){const x=(random()-.5)*27,z=(random()-.5)*17;if((x>-9&&x<10&&z>-6&&z<6)||x*x/190+z*z/85>1)continue;const stalk=cylinder(terrain,0x789d8d,[x,.18,z],.035,.35);sphere(terrain,[0xe8accd,0xf1d7a0,0xb3e3bd][i%3],[stalk.position.x,.42,z],[.17,.23,.17],.2);}
  for(let i=0;i<20;i++){const a=i/20*Math.PI*2;const r=18+random()*10;const rock=mesh(scene,new THREE.IcosahedronGeometry(1+random()*1.4,0),0x615e7e,[Math.cos(a)*r,-4-random()*4,Math.sin(a)*r*.6],[1.5,1,1]);floating.push({object:rock,y:rock.position.y,phase:i*.73});}
  const planet=sphere(scene,0xb19faf,[-2,-5,-28],[2.5,2.5,2.5]);const orbit=ring(scene,0xd2b5ac,[-2,-5,-28],3.7,.12);orbit.rotation.x=1.1;orbit.rotation.y=.2;
+ const remoteTerrains=new Map();
+ for(const [id,definition] of Object.entries(STAR_ISLANDS))if(id!=='home'){
+  const land=new THREE.Group();faces.front.add(land);remoteTerrains.set(id,land);
+  const ground=cylinder(land,definition.color,[0,-.45,0],14,1.4,14);ground.scale.z=.68;
+  for(let i=0;i<18;i++){const a=i*Math.PI/9,x=Math.cos(a)*12.6,z=Math.sin(a)*8.1;
+   if(id==='spore')model(mushroomAsset,land,x,.29,z,.6+(i%3)*.3);
+   else {box(land,0x686785,[x,.8,z],[.8,1.2+(i%4)*.7,.8]);const glyph=ring(land,0xc0a9ef,[x,1.6+(i%4)*.3,z],.4,.025);glyph.rotation.y=a;}
+  }
+  const pad=ring(land,0xc5ebf1,[0,.3,2],1.25,.035);pad.rotation.x=-Math.PI/2;
+ }
  const interactive=new THREE.Group();faces.front.add(interactive);const backInteractive=new THREE.Group();faces.back.add(backInteractive);const surfaceItems={front:interactive,back:backInteractive};const objectMeshes=new Map();
  function prop(type){if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
   if(type==='polelight'){
    cylinder(g,0x48485e,[0,.12,0],.42,.24);cylinder(g,0x7e88a4,[0,1.65,0],.065,3.1,.09);
    for(const y of [.4,2.8]){const collar=ring(g,0xa2bccc,[0,y,0],.13,.03);collar.rotation.x=Math.PI/2;}
    const head=cylinder(g,0x79859e,[0,3.4,0],.56,.18,.35);
-   const lens=cylinder(g,0xc8e7ff,[0,3.29,0],.46,.045);lens.material=material(0xc8e7ff,1.4);
+   const lens=cylinder(g,0xc8e7ff,[0,3.29,0],.46,.045);lens.material=material(0xc8e7ff,1.4);g.userData.lens=lens;
    sphere(g,0x93a3bf,[0,3.52,0],[.22,.08,.22]);
   }
   if(type==='glowlight'){
@@ -152,12 +164,12 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
    const fruit=sphere(stalk,[colors.pink,colors.mint,colors.gold][i%3],[0,.55,0],[.22,.18,.22],.25);stalk.userData.fruit=fruit;g.userData.cropVisual.push(stalk);}}
   if(type==='crystal')g.userData.crystalLight=crystal(g,0,0,1).userData.crystalLight;
   if(type==='mushroom'){const crop=new THREE.Group();g.add(crop);model(mushroomAsset,crop,0,0,0,.65);g.userData.cropVisual=[crop];}
-  if(type==='lamp'){cylinder(g,colors.ivory,[0,.15,0],.35,.3);cylinder(g,colors.purple,[0,.7,0],.045,1);sphere(g,colors.gold,[0,1.4,0],[.35,.35,.35],.7);ring(g,colors.ivory,[0,1.4,0],.48,.035).rotation.x=1.1;}
-  const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const light=new THREE.PointLight(lighting.color,lighting.intensity,Math.hypot(lighting.radius,lighting.height),2);light.position.set(0,lighting.height,0);g.add(light);}
+  if(type==='lamp'){cylinder(g,colors.ivory,[0,.15,0],.35,.3);cylinder(g,colors.purple,[0,.7,0],.045,1);g.userData.playOrb=sphere(g,colors.gold,[0,1.4,0],[.35,.35,.35],.7);ring(g,colors.ivory,[0,1.4,0],.48,.035).rotation.x=1.1;}
+  const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const light=new THREE.PointLight(lighting.color,lighting.intensity,Math.hypot(lighting.radius,lighting.height),2);light.position.set(0,lighting.height,0);g.add(light);g.userData.areaLight=light;}
   if(CROPS[type]){g.userData.cropLight=createBioluminescence(g,{radius:type==='garden'?.8:.65,height:type==='garden'?1.3:1.8,color:0xc9e8e4});for(const crop of g.userData.cropVisual)crop.traverse(n=>{if(n.isMesh){n.material=n.material.clone();n.userData.plantColor=n.material.color.clone();}});for(const crop of g.userData.cropVisual)if(crop.userData.fruit){const fruit=crop.userData.fruit;fruit.material=new BiolumeMaterial({color:fruit.material.color,emissive:0xbce6d9,emissiveIntensity:1});}}
-  return g;
+  g.userData.wonderVisual=createWonderVisual(g,type);return g;
  }
- function syncObjects(){const g=getGame();for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.removeFromParent();objectMeshes.delete(id);}for(const o of g.objects){if(!objectMeshes.has(o.id)){const group=prop(o.type);group.position.set(o.x,o.type==='spiritTree'?groundHeight(o.x,o.z,sideOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};objectMeshes.set(o.id,group);}surfaceItems[sideOf(o)].add(objectMeshes.get(o.id));}}
+ function syncObjects(){const g=getGame();for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.removeFromParent();objectMeshes.delete(id);}for(const o of g.objects){if(!objectMeshes.has(o.id)){const group=prop(o.type);group.position.set(o.x,o.type==='spiritTree'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};objectMeshes.set(o.id,group);}const objectMesh=objectMeshes.get(o.id);objectMesh.visible=islandOf(o)===g.viewIsland;surfaceItems[sideOf(o)].add(objectMesh);}}
  const actors=new Map();
  function syncActors(){
   const g=getGame(),residents=[...(g.player.alive?[{id:'player',...g.player}]:[]),...neighbors(g)];
@@ -178,7 +190,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   const side=getGame().viewSide,face=faces[side];face.updateWorldMatrix(true,false);
   const plane=ground.clone().applyMatrix4(face.matrixWorld),point=new THREE.Vector3();
   if(!raycaster.ray.intersectPlane(plane,point))return {target:null,point:new THREE.Vector3(1000,0,1000)};
-  face.worldToLocal(point);const hits=raycaster.intersectObjects(surfaceItems[side].children,true);let target=null;
+  face.worldToLocal(point);const hits=raycaster.intersectObjects(surfaceItems[side].children.filter(o=>o.visible),true);let target=null;
   if(hits[0]){let o=hits[0].object;while(o&&!o.userData.target)o=o.parent;target=o?.userData.target;}return{target,point};
  }
  renderer.domElement.addEventListener('pointermove',e=>{if(container.dataset.flipping==='true')return;const h=hit(e);if(buildType){ghost.position.set(Math.round(h.point.x),.3,Math.round(h.point.z));ghost.visible=Math.abs(h.point.x)<12&&Math.abs(h.point.z)<8;const valid=canPlace(getGame(),ghost.position.x,ghost.position.z);ghost.traverse(n=>{if(n.isMesh)n.material.color.set(valid?0xafffca:0xff7e94);});}else{hoverTarget=h.target;renderer.domElement.style.cursor=h.target?'pointer':'default';onHover(h.target,e.clientX,e.clientY);}});
@@ -190,6 +202,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  let previousSimTime=null,previousFrame=performance.now();island.rotation.x=getGame().viewSide==='back'?Math.PI:0;
  return {
    render(){const g=getGame(),weather=getWeather(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
+   terrain.visible=darkTerrain.visible=g.viewIsland==='home';for(const [id,land]of remoteTerrains)land.visible=g.viewIsland===id;container.dataset.island=g.viewIsland;
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(marker,selected);
    container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects();syncActors();for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
@@ -197,11 +210,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];
     let partner=g.queue[0]?.targetId===id?g.player:action&&g.npcs[action.targetId]?g.npcs[action.targetId]:Object.values(g.npcs).find(n=>n.queue[0]?.targetId===id);
     if(action?.phase==='acting'&&['relax','lounge'].includes(action.type)){const peers=[{id:'player',person:g.player,queue:g.queue},...Object.entries(g.npcs).map(([id,person])=>({id,person,queue:person.queue}))].filter(a=>a.id!==id&&a.queue[0]?.phase==='acting'&&['relax','lounge'].includes(a.queue[0].type)&&a.queue[0].targetId===action.targetId);if(peers.length)partner=peers[Math.floor(time/4)%peers.length].person;}
-     surfaceItems[sideOf(person)].add(rig.root);
-     const visualAction=action?.transit?{type:'travel',phase:'acting',elapsed:action.transit.elapsed}:action;
-     updateCharacter(rig,{person,action:visualAction,object:action?g.objects.find(o=>o.id===(action.transit?.sourceId||action.targetId)):undefined,partner:partner&&sideOf(partner)===sideOf(person)?partner:null,time,delta,config:g.config});
+     rig.root.visible=islandOf(person)===g.viewIsland;surfaceItems[sideOf(person)].add(rig.root);
+     const visualAction=action?.transit?{type:'travel',phase:'acting',elapsed:action.transit.elapsed}:action&&['spaceResearch','voyage'].includes(action.type)?{...action,type:action.type==='spaceResearch'?'research':'travel'}:action;
+     updateCharacter(rig,{person,action:visualAction,object:action?g.objects.find(o=>o.id===(action.transit?.sourceId||action.targetId)):undefined,partner:partner&&sameSide(partner,person)?partner:null,time,delta,config:g.config});
    }
-    marker.visible=selected.visible=g.player.alive&&sideOf(g.player)===g.viewSide;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player,g.config.lifeStages).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z,sideOf(g.player))+.025,main.z);
+    marker.visible=selected.visible=g.player.alive&&islandOf(g.player)===g.viewIsland&&sideOf(g.player)===g.viewSide;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player,g.config.lifeStages).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z,sideOf(g.player),islandOf(g.player))+.025,main.z);
    for(const [id,o]of objectMeshes){if(o.userData.rift){o.userData.rift.material.uniforms.time.value=time;o.userData.riftFrame.position.y=1.5+Math.sin(time*1.4)*.06;}if(o.userData.orb)o.userData.orb.position.y=1.4+Math.sin(time*1.4)*.09;if(o.userData.egg){o.userData.egg.visible=g.incubations.some(b=>b.podId===id);o.userData.egg.position.y=.8+Math.sin(time*1.5)*.06;}if(o.userData.portal){o.userData.portal.material.uniforms.time.value=time;o.userData.glyphs.rotation.z=time*.09;}if(o.userData.cropVisual)for(const [i,crop]of o.userData.cropVisual.entries())crop.rotation.z+=Math.sin(time*.85+i+o.position.x)*.025;}
    atmosphere.update(time,weather,(1+Math.cos(island.rotation.x))/2);weatherEffects.update(time,weather);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
@@ -211,6 +224,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
     tree.updateBlessing(blessings.find(a=>a.targetId===item.id),camera);
    }
    for(const {facets,phase}of [...crystalLights,...[...objectMeshes.values()].filter(o=>o.userData.crystalLight).map(o=>o.userData.crystalLight)])for(const m of facets){m.bio.time.value=time+phase;m.bio.strength.value=bioStrength*.7;}
+   for(const item of g.objects){const group=objectMeshes.get(item.id);if(group.userData.wonderVisual){const action=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].find(a=>a?.targetId===item.id&&a.phase==='acting'&&!a.hostId);group.userData.wonderVisual.update(item.wonder,{seconds:time,minutes:(g.day-1)*1440+g.minute},action);}}
    for(const [i,plant]of swaying.entries())plant.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial){n.material.bio.time.value=time+i*.67+(n.material.name==='Pearl stem'?.7:0);n.material.bio.strength.value=bioStrength;}});
    for(const item of g.objects){if(!CROPS[item.type])continue;const group=objectMeshes.get(item.id),health=item.plant.health/100,growth=item.plant.growth;
     group.userData.cropLight.update(time+item.x,health*(.2+growth*.5)*(1-daylight*.65));

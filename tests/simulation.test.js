@@ -6,7 +6,7 @@ test('pause freezes clock, needs, and active actions', () => {
  const g=createGame(); enqueue(g,'eat','food'); g.speed=0; const before=JSON.stringify(g); tick(g,10); assert.equal(JSON.stringify(g),before);
 });
 test('interactive action durations are explicit while walking keeps its duration',()=>{
- const expected={incubate:16,care:12,eat:10,sleep:18,wash:10,relax:10,research:14,dance:12,explore:24,observe:12,harvest:10,replant:12,garden:12,admire:8,chat:10,joke:10,gift:8,flirt:12,work:32};
+ const expected={incubate:16,care:12,eat:10,sleep:18,wash:10,relax:10,research:14,dance:12,explore:24,observe:12,harvest:10,replant:12,garden:12,chaseOrb:14,chat:10,joke:10,gift:8,flirt:12,work:32};
  for(const [type,duration] of Object.entries(expected))assert.equal(ACTIONS[type].duration,duration,type);
  assert.equal(ACTIONS.walk.duration,0);
 });
@@ -24,12 +24,13 @@ test('ordinary crop maturity leaves radio events unchanged',()=>{
  recordMajorEvent(g,'保留的事件');const events=structuredClone(g.majorEvents);
  tick(g,3);assert.equal(plant.plant.growth,1);assert.equal(plant.plant.giant,false);assert.deepEqual(g.majorEvents,events);
 });
-test('giant crop maturity creates one major event when growth crosses the threshold',()=>{
+test('giant crop maturity preserves crops without adding radio events',()=>{
  const g=createGame();g.speed=1;for(const n of Object.values(g.npcs))n.ai.enabled=false;
  g.config.crops.garden.giantChance=100;
  const plant=g.objects.find(o=>o.type==='garden');plant.plant.growth=.99;plant.plant.water=100;
- tick(g,3);assert.equal(plant.plant.giant,true);assert.equal(g.majorEvents.filter(event=>event.type==='mature').length,1);assert.equal(g.majorEvents[0].text,'巨型发光孢子成熟了，可以收获。');
- tick(g,1);assert.equal(g.majorEvents.filter(event=>event.type==='mature').length,1);
+ recordMajorEvent(g,'保留的事件');const events=structuredClone(g.majorEvents);
+ tick(g,3);assert.equal(plant.plant.giant,true);assert.equal(plant.plant.growth,1);assert.deepEqual(g.majorEvents,events);
+ tick(g,1);assert.deepEqual(g.majorEvents,events);
 });
 test('queued eating restores hunger only after arrival and completion',()=>{
  const g=createGame();g.autonomy.enabled=false; g.needs.hunger=20; enqueue(g,'eat','food'); tick(g,0.1); assert.ok(g.needs.hunger<21);
@@ -96,4 +97,8 @@ test('neighbors wander autonomously but stay still during a conversation',()=>{
 test('corrupt saves with invalid needs or furniture are rejected',()=>{
  const g=createGame();g.needs.hunger='broken';assert.throws(()=>restore(JSON.stringify(g)));
  const h=createGame();h.objects[0].type='invalid';assert.throws(()=>restore(JSON.stringify(h)));
+});
+
+test('loading removes historical crop broadcasts while preserving other major events',()=>{
+ const g=createGame();recordMajorEvent(g,'文明记忆已解锁','discovery');recordMajorEvent(g,'巨型发光孢子成熟了，可以收获。','mature');const loaded=restore(serialize(g));assert.deepEqual(loaded.majorEvents,g.majorEvents.filter(e=>e.type!=='mature'));assert.deepEqual(loaded.objects,g.objects);
 });

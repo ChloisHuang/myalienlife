@@ -1,3 +1,4 @@
+import {createWonder} from '../src/wonders.js';
 import {chromium} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {createGame} from '../src/simulation.js';
@@ -44,7 +45,7 @@ if(label!=='before'){
  state.minute=23*60;state.speed=0;await page.reload();await page.locator('#loading').waitFor({state:'hidden',timeout:45000});await page.waitForTimeout(500);
  await page.screenshot({path:`artifacts/${label}-night.png`});
  state.objects.find(o=>o.type==='garden').plant.growth=1;
- state.objects.push({id:'render-crystal',type:'crystal',x:5,z:4,rotation:0},{id:'render-mushroom',type:'mushroom',x:6,z:6,rotation:0,plant:{...createPlant(),growth:1}});
+ state.objects.push({id:'render-crystal',type:'crystal',wonder:createWonder('crystal'),x:5,z:4,rotation:0},{id:'render-mushroom',type:'mushroom',x:6,z:6,rotation:0,plant:{...createPlant(),growth:1}});
  await page.reload();await page.locator('#loading').waitFor({state:'hidden',timeout:45000});
  await page.locator('[data-location="garden"]').click();for(let i=0;i<6;i++)await page.locator('#zoom-in').click();await page.waitForTimeout(800);
  await page.screenshot({path:`artifacts/${label}-bioluminescence.png`});

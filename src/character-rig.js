@@ -19,7 +19,7 @@ function poseSkin(rig,limb){
 }
 
 export function createCharacter(source,spec){
- const root=new THREE.Group(),body=cloneSkeleton(source);root.add(body);root.position.set(spec.x,groundHeight(spec.x,spec.z,spec.side),spec.z);root.rotation.y=.35;
+ const root=new THREE.Group(),body=cloneSkeleton(source);root.add(body);root.position.set(spec.x,groundHeight(spec.x,spec.z,spec.side,spec.island),spec.z);root.rotation.y=.35;
  const joints=Object.fromEntries(NODES.map(name=>{const node=body.getObjectByName(name);if(!node)throw new Error(`角色资产缺少控制节点：${name}`);return[name,node];}));
  const limbs={};root.updateMatrixWorld(true);const inverseBodyRotation=body.getWorldQuaternion(new THREE.Quaternion()).invert();
  for(const side of SIDES)for(const kind of ['Tendril','Leg']){
@@ -46,7 +46,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  const previousTips=Object.fromEntries(SIDES.map(side=>[side,rig.joints[side+'TendrilTip'].position.clone()])),poseBlend=rig.initialized&&delta>0?1-Math.exp(-delta*12):1;
  for(const [node,rest]of rig.rest){node.scale.copy(rest.scale);node.position.copy(rest.position);node.quaternion.copy(rest.quaternion);}
  const dx=person.x-rig.last.x,dz=person.z-rig.last.z,moving=Math.hypot(dx,dz)>.00001&&action?.phase==='walking';
- const target=new THREE.Vector3(person.x,groundHeight(person.x,person.z,person.side),person.z);
+ const target=new THREE.Vector3(person.x,groundHeight(person.x,person.z,person.side,person.island),person.z);
  let kneel=0,yaw=rig.root.rotation.y,tilt=0,roll=0,bob=Math.sin(time*1.8)*.01,compression=1;
  if(moving){yaw=Math.atan2(dx,dz);rig.stride+=Math.hypot(dx,dz)*Math.PI*2/(.72*look.scale);bob=Math.cos(rig.stride*2)*.012;compression=1-Math.sin(rig.stride*2)*.018;}
  else if(partner)yaw=Math.atan2(partner.x-person.x,partner.z-person.z);
@@ -76,8 +76,14 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
    if(type==='observe'){local=[0,-.10,1.02];rig.joints.Core.rotation.x=.25;rig.joints.Head.rotation.x=.12;tips.Left=[-.2,.15,.48];tips.Right=[.2,.15,.48];}
    if(['explore','travel'].includes(type)){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
    if(type==='pray'){local=[0,0,1.6];kneel=settle;bob=0;rig.joints.Core.rotation.x=0;rig.joints.Head.rotation.x=.22;rig.joints.Head.rotation.y=0;tips.Left=[-.055,-.10,.4];tips.Right=[.055,-.10,.4];}
-   if(type==='admire'){local=[0,0,1.25];rig.joints.Head.rotation.x=-.12;tips.Right=[.32,.24,.4];}
-   const p=localToWorld(object,local);if(type==='pray')p.y=groundHeight(p.x,p.z,object.side);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
+   if(['lightDaily','lightGrow','lightParty'].includes(type)){tips.Right=[.3,.12+wave*.04,.5];rig.joints.Head.rotation.x=-.15;}
+   if(['traceRelic','decodeRelic','decodeTogether','restoreMemory','tuneSleep','tuneInsight'].includes(type)){local=[0,0,action.hostId?-1.15:1.15];facing=action.hostId?0:Math.PI;rig.joints.Core.rotation.x=.16;tips.Left=[-.2,.05+wave*.07,.48];tips.Right=[.2,.05-wave*.07,.48];}
+   if(['catchBugs','releaseBugs'].includes(type)){local=[0,0,1.1];tips.Left=[-.25,.2+wave*.12,.4];tips.Right=[.3,.3-wave*.1,.45];rig.joints.Head.rotation.x=-.18;}
+   if(type==='chaseOrb'){local=[Math.sin(action.elapsed*2)*.65,0,1.25+Math.cos(action.elapsed*2)*.25];bob+=Math.abs(wave)*.05;tips.Left=[-.4,-.1+wave*.15,.35];tips.Right=[.4,-.1-wave*.15,.35];}
+   if(type==='passOrb'){local=[0,0,action.hostId?-1.15:1.15];facing=action.hostId?0:Math.PI;tips.Left=[-.2,.1+wave*.12,.5];tips.Right=[.2,.1+wave*.12,.5];}
+   if(type==='sootheOrb'){local=[0,0,1.15];rig.joints.Core.rotation.x=.18;tips.Right=[.25,-.05+wave*.06,.5];}
+   if(type==='memoryExpedition'){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
+   const p=localToWorld(object,local);if(type==='pray')p.y=groundHeight(p.x,p.z,object.side,object.island);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
   }else if(type==='care'){rig.joints.Core.rotation.x=.22;target.y-=.1;tips.Left=[-.15,-.30,.46];tips.Right=[.12,-.20+wave*.07,.48];rig.effects.meal.visible=true;
   }else if(['chat','joke','gift','flirt'].includes(type)){tips.Right=[.45,.12+wave*.12,.33];rig.joints.Head.rotation.x=wave*.045;}
  }

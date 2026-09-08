@@ -1,3 +1,4 @@
+import {createWonder} from '../src/wonders.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as sim from '../src/simulation.js';
@@ -38,8 +39,7 @@ test('urgent needs override a characters hobby preference',()=>{
  run(g,1);assert.equal(g.npcs.pip.queue[0]?.type,'sleep');
 });
 test('equal needs lead to different hobbies for botanist and musician',()=>{
- const g=sim.createGame();for(const n of Object.values(g.npcs))n.needs=healthy();
- run(g,1);assert.equal(g.npcs.nova.queue[0]?.type,'garden');assert.equal(g.npcs.pip.queue[0]?.type,'dance');
+ for(const [id,expected] of [['nova','garden'],['pip','dance']]){const g=sim.createGame();g.autonomy.enabled=false;for(const [key,n] of Object.entries(g.npcs)){n.needs=healthy();n.ai.enabled=key===id;}run(g,1);assert.equal(g.npcs[id].queue[0]?.type,expected);}
 });
 test('autonomous choices give lower-benefit actions a chance instead of always taking the top score',()=>{
  const selected=new Set();
@@ -55,7 +55,7 @@ test('AI reserves furniture and does not choose absent or unreachable food',()=>
  const g=sim.createGame();g.npcs.nova.needs={...healthy(),hunger:5};g.npcs.zig.needs={...healthy(),hunger:5};run(g,1);
  assert.equal(Object.values(g.npcs).filter(n=>n.queue[0]?.targetId==='food').length,1);
  const h=sim.createGame();h.objects=h.objects.filter(o=>o.type!=='food');h.npcs.nova.needs={...healthy(),hunger:5};run(h,1);assert.notEqual(h.npcs.nova.queue[0]?.type,'eat');
- const k=sim.createGame();k.npcs.nova.needs={...healthy(),hunger:5};k.objects.push({id:'block',type:'crystal',x:1,z:-3,rotation:0});run(k,1);assert.notEqual(k.npcs.nova.queue[0]?.type,'eat');
+ const k=sim.createGame();k.npcs.nova.needs={...healthy(),hunger:5};k.objects.push({id:'block',type:'crystal',wonder:createWonder('crystal'),x:1,z:-3,rotation:0});run(k,1);assert.notEqual(k.npcs.nova.queue[0]?.type,'eat');
 });
 test('player AI is enabled by default, can be disabled, and can be re-enabled',()=>{
  const g=sim.createGame();g.needs={...healthy(),hunger:5};assert.equal(g.autonomy.enabled,true);run(g,.1);assert.equal(g.queue[0]?.type,'eat');assert.equal(g.queue[0].source,'ai');
@@ -80,5 +80,5 @@ test('version 1 saves migrate once without losing household progress or manual o
  const legacy=sim.createGame();legacy.version=1;legacy.objects=legacy.objects.filter(o=>o.type!=='gate');delete legacy.autonomy;legacy.money=987;legacy.relationships.nova=65;
  for(const [id,n]of Object.entries(legacy.npcs))legacy.npcs[id]={x:n.x,z:n.z,timer:8,step:2,path:[],activity:'散步'};
  sim.enqueue(legacy,'eat','food');delete legacy.queue[0].source;
- const loaded=sim.restore(JSON.stringify(legacy));assert.equal(loaded.version,10);assert.equal(loaded.money,987);assert.equal(loaded.relationships.nova,65);assert.equal(loaded.autonomy.enabled,false);assert.equal(loaded.queue[0].source,'manual');assert.equal('timer'in loaded.npcs.nova,false);
+ const loaded=sim.restore(JSON.stringify(legacy));assert.equal(loaded.version,13);assert.equal(loaded.money,987);assert.equal(loaded.relationships.nova,65);assert.equal(loaded.autonomy.enabled,false);assert.equal(loaded.queue[0].source,'manual');assert.equal('timer'in loaded.npcs.nova,false);
 });

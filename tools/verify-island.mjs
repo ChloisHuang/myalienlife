@@ -1,3 +1,4 @@
+import {WONDER_OPTIONS,createWonder} from '../src/wonders.js';
 import {chromium} from '@playwright/test';
 import {mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -12,7 +13,7 @@ try{
  page.on('console',message=>{if(message.type()==='error'&&/THREE|WebGL|shader/i.test(message.text()))errors.push(message.text());});
  const state=createGame();state.speed=0;state.viewSide='back';state.player.side='back';state.player.x=2;state.player.z=2;
  if(process.argv[3])state.minute=Number(process.argv[3]);
- for(const [type,x,z]of [['stove',3,0],['tea',5,0],['banquet',0,0],['relic',6,-3],['beacon',-4,-4],['glowlight',0,4],['polelight',-4,2]])state.objects.push({id:`preview-${type}`,type,side:'back',x,z,rotation:0});
+ for(const [type,x,z]of [['stove',3,0],['tea',5,0],['banquet',0,0],['relic',6,-3],['beacon',-4,-4],['glowlight',0,4],['polelight',-4,2]])state.objects.push({id:`preview-${type}`,type,side:'back',x,z,rotation:0,...(WONDER_OPTIONS[type]?{wonder:createWonder(type)}:{})});
  await page.route('**/api/save',route=>route.fulfill({json:{state,revision:1,savedAt:null}}));
  await page.goto('http://127.0.0.1:5173');await page.locator('#loading').waitFor({state:'hidden',timeout:45000});
  await page.waitForTimeout(500);await page.screenshot({path:`artifacts/${label}-back.png`});

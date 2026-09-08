@@ -1,3 +1,4 @@
+import {createWonder} from '../src/wonders.js';
 import {test,expect} from '@playwright/test';
 import {prayerFixture} from './helpers/prayer-fixture.js';
 import {createGame,CAREERS} from '../src/simulation.js';
@@ -21,6 +22,55 @@ test.beforeEach(async({context,page})=>{
 });
 test.afterEach(async({context,page})=>{await context.close();await rm(stores.get(page).directory,{recursive:true,force:true});});
 async function savedState(page){await expect(page.locator('#save-status')).toHaveAttribute('data-state','saved');return(await stores.get(page).store.read()).state;}
+
+test('star island navigation shows discovery without granting landing or legacy location shortcuts',async({page})=>{
+ const state=createGame();state.speed=0;state.civilization.observations=3;state.wonders.archive=3;fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await expect(page.locator('.locations button')).toHaveCount(3);await expect(page.locator('.locations')).not.toContainText('孢子花园');await expect(page.locator('.locations')).not.toContainText('科研星港');
+ await page.locator('[data-location="city"]').click();await expect(page.locator('#world')).toHaveAttribute('data-island','home');
+ await expect(page.locator('.exploration-panel')).toContainText('太空科技');await expect(page.locator('.exploration-panel')).not.toContainText('晶簇共振');await expect(page.locator('.exploration-panel')).not.toContainText('星灵觉醒');await expect(page.locator('[data-voyage="city"]')).toBeDisabled();
+});
+
+test('qualified resident lands on a distinct island, views home without teleporting, reloads and returns',async({page})=>{
+ const state=createGame();state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;
+ state.civilization.observations=3;state.civilization.technology=120;state.skills.botany=6;state.skills.science=12;state.player.preferences.observe=10;fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.getByRole('button',{name:'探索',exact:true}).click();
+ await page.locator('[data-voyage="spore"]').click();await page.locator('[data-speed="3"]').click();await expect(page.locator('#world')).toHaveAttribute('data-island','spore',{timeout:35000});await page.locator('[data-speed="0"]').click();await expect(page.locator('#flip-island')).toBeDisabled();
+ await page.screenshot({path:'artifacts/star-island-spore.png'});await page.locator('[data-location="home"]').click();await page.locator('#save').click();let saved=await savedState(page);expect(saved.player.island).toBe('spore');expect(saved.viewIsland).toBe('home');
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-location="spore"]').click();await expect(page.locator('#world')).toHaveAttribute('data-island','spore');await page.getByRole('button',{name:'探索',exact:true}).click();await page.locator('[data-voyage="home"]').click();await page.locator('[data-speed="3"]').click();await expect(page.locator('#world')).toHaveAttribute('data-island','home',{timeout:30000});await page.locator('[data-speed="0"]').click();await page.locator('#save').click();saved=await savedState(page);expect(saved.player.island).toBe('home');expect(saved.civilization.visits.spore).toBe(1);expect(errors).toEqual([]);
+});
+
+test('exploration tab shows shared permanent records, preserves scrolling and fits mobile',async({page})=>{
+ const {buyItem}=await import('../src/simulation.js');const state=createGame();state.speed=0;state.wonders={dust:7,archive:3,lastExpeditionDay:1,expeditions:4,cityRecords:[0,2],coauthored:true};const relic=buyItem(state,'relic',0,4).object;relic.wonder.chapter=3;relic.wonder.coauthored=true;buyItem(state,'crystal',3,4);fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.getByRole('button',{name:'探索',exact:true}).click();
+ const panel=page.locator('.exploration-panel');await expect(panel).toContainText('4 次');await expect(panel).toContainText('7 份');await expect(panel).toContainText('2 / 3');await expect(panel).toContainText('已发现双人生态线索');await panel.evaluate(e=>e.scrollTop=100);await expect.poll(()=>panel.evaluate(e=>e.scrollTop)).toBeGreaterThan(0);await page.screenshot({path:'artifacts/exploration-desktop.png'});
+ await page.locator('#save').click();await savedState(page);await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'探索',exact:true}).click();await expect(panel).toContainText('4 次');expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);await page.screenshot({path:'artifacts/exploration-mobile.png'});expect(errors).toEqual([]);
+});
+
+test('crystal can switch from an armed mode without dust and restart charging',async({page})=>{
+ const {buyItem}=await import('../src/simulation.js'),{OrthographicCamera,Vector3}=await import('three');const state=createGame();state.objects=[];state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;const c=buyItem(state,'crystal',0,4).object;c.wonder.charge=100;c.wonder.armed=true;state.wonders.dust=0;fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});const b=await page.locator('#world canvas').boundingBox(),camera=new OrthographicCamera(-14*b.width/b.height,14*b.width/b.height,14,-14,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const p=new Vector3(0,.85,4).project(camera);await page.mouse.click(b.x+(p.x+1)*b.width/2,b.y+(1-p.y)*b.height/2);
+ await expect(page.locator('[data-action="tuneInsight"]')).toBeEnabled();await page.locator('[data-action="tuneInsight"]').click();await page.locator('[data-speed="3"]').click();await expect(page.locator('#queue .queue-action')).toHaveCount(0,{timeout:30000});await page.locator('[data-speed="0"]').click();await page.locator('#save').click();const saved=await savedState(page);expect(saved.objects[0].wonder.mode).toBe('insight');expect(saved.objects[0].wonder.charge).toBeLessThan(10);expect(saved.objects[0].wonder.armed).toBe(false);expect(saved.wonders.dust).toBe(0);
+});
+
+for(const [type,name,action] of [['polelight','星弧高杆灯','lightGrow'],['glowlight','幽辉地灯','releaseBugs'],['relic','虚空遗迹','decodeTogether'],['crystal','极光晶簇','activateCrystal'],['lamp','漂浮光球','passOrb']])test(`wonder ${type} menu, activity and save round-trip`,async({page})=>{
+ const {buyItem}=await import('../src/simulation.js'),{OrthographicCamera,Vector3}=await import('three');const state=createGame();state.objects=[];state.autonomy.enabled=false;state.speed=0;state.player.x=2;state.player.z=4;
+ for(const [i,n] of Object.values(state.npcs).entries()){n.ai.enabled=false;n.x=-3-i*2;n.z=4;}
+ const o=buyItem(state,type,0,4).object;
+ if(['relic','lamp'].includes(type)){const pod=buyItem(state,'pod',-5,-2).object;state.config.actionDurations.sleep=35;state.npcs.nova.queue.push({id:state.nextId++,type:'sleep',targetId:pod.id,target:{x:-5,z:-1,side:'front'},source:'ai',phase:'acting',elapsed:0,path:[]});}
+ state.wonders.dust=3;if(type==='glowlight')o.wonder.bugs=3;if(type==='relic')o.wonder.chapter=1;if(type==='crystal')o.wonder.charge=100;fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/THREE|WebGL|shader/i.test(m.text()))errors.push(m.text());});
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const open=async()=>{const bounds=await page.locator('#world canvas').boundingBox(),camera=new OrthographicCamera(-14*bounds.width/bounds.height,14*bounds.width/bounds.height,14,-14,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const p=new Vector3(0,type==='polelight'?3.68:.85,4).project(camera);await page.mouse.click(bounds.x+(p.x+1)*bounds.width/2,bounds.y+(1-p.y)*bounds.height/2);await expect(page.locator('#context-menu')).toContainText(name);};
+ await open();await expect(page.locator('[data-action="admire"]')).toHaveCount(0);await expect(page.locator('#wonder-status')).toBeVisible();
+ if(['decodeTogether','passOrb'].includes(action)){await expect(page.locator(`[data-action="${action}"]`)).toBeDisabled();await page.locator('#wonder-partner').selectOption('nova');}
+ await expect(page.locator(`[data-action="${action}"]`)).toBeEnabled();await page.screenshot({path:`artifacts/wonder-${type}-menu.png`});await page.locator(`[data-action="${action}"]`).click();await expect(page.locator('#queue')).not.toBeEmpty();
+ if(['decodeTogether','passOrb'].includes(action)){await page.locator('#save').click();const queued=await savedState(page);expect(queued.npcs.nova.queue.map(q=>q.type)).toEqual(['sleep',action]);await page.locator('[data-speed="3"]').click();await expect(page.locator('#queue')).toContainText('等候共同活动');await page.locator('[data-speed="0"]').click();await page.locator('#save').click();const waiting=await savedState(page);expect(waiting.queue[0].elapsed).toBe(0);await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});}
+
+ await page.locator('[data-speed="3"]').click();await expect(page.locator('#queue .queue-action')).toHaveCount(0,{timeout:30000});await page.locator('[data-speed="0"]').click();await page.locator('#save').click();const saved=await savedState(page);const result=saved.objects[0].wonder;
+ if(type==='polelight')expect(result.mode).toBe('grow');if(type==='glowlight')expect(result.showUntil).toBeGreaterThan(0);if(type==='relic'){expect(result.chapter).toBe(2);expect(result.coauthored).toBe(true);}if(type==='crystal')expect(result.armed).toBe(true);if(type==='lamp')expect(saved.relationships.nova).toBe(33);
+ await page.screenshot({path:`artifacts/wonder-${type}-result.png`});await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.setViewportSize({width:390,height:844});await open();await expect(page.locator('#wonder-status')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);const bounds=await page.locator('#context-menu').boundingBox();expect(bounds.y+bounds.height).toBeLessThanOrEqual(844);await page.screenshot({path:`artifacts/wonder-${type}-mobile.png`});expect(errors).toEqual([]);
+});
 
 test('star freckles produce visible glow in resident portraits',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -164,7 +214,7 @@ test('dark reverse face supports building, free gate travel, cooking and reload'
  page.on('console',m=>{if(m.type()==='error'&&/THREE|WebGL|shader/i.test(m.text()))errors.push(m.text());});
  const g=createGame();g.speed=0;g.money=10000;g.skills.cooking=3;
  for(const n of Object.values(g.npcs))n.ai.enabled=false;
- g.objects.push({id:'back-kitchen',type:'stove',side:'back',x:3,z:0,rotation:0},{id:'back-tea',type:'tea',side:'back',x:5,z:0,rotation:0},{id:'back-relic',type:'relic',side:'back',x:6,z:-3,rotation:0},{id:'back-beacon',type:'beacon',side:'back',x:-4,z:-4,rotation:0});
+ g.objects.push({id:'back-kitchen',type:'stove',side:'back',x:3,z:0,rotation:0},{id:'back-tea',type:'tea',side:'back',x:5,z:0,rotation:0},{id:'back-relic',type:'relic',wonder:createWonder('relic'),side:'back',x:6,z:-3,rotation:0},{id:'back-beacon',type:'beacon',side:'back',x:-4,z:-4,rotation:0});
  fixtures.set(page,g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  await page.screenshot({path:'test-results/island-front.png'});
@@ -402,7 +452,7 @@ test('life scrolling survives live updates on desktop and narrow screens',async(
  for(const width of [1440,390]){await page.setViewportSize({width,height:1000});const panel=page.locator('.life-panel');await panel.evaluate(el=>{el.scrollTop=180;});const before=await panel.evaluate(el=>el.scrollTop);expect(before).toBeGreaterThan(100);await page.waitForTimeout(1600);expect(await panel.evaluate(el=>el.scrollTop)).toBe(before);}
 });
 test('automatic save runs once a minute and reload flushes newer progress',async({page})=>{
- const state=createGame();state.skills.botany=CAREERS.botanist.levels[0].skills.botany;
+ const state=createGame();state.autonomy.enabled=false;state.skills.botany=CAREERS.botanist.levels[0].skills.botany;
  await page.clock.install();await page.addInitScript(g=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(g));},state);await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  const initial=(await stores.get(page).store.read()).revision;await page.clock.fastForward(5000);expect((await stores.get(page).store.read()).revision).toBe(initial);
  await page.clock.fastForward(55000);await expect(page.locator('#save-status')).toContainText('已自动保存');const stored=await savedState(page);expect(stored.minute).toBeGreaterThan(510);await expect(page.locator('#save-status')).toContainText('已自动保存');

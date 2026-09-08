@@ -171,7 +171,7 @@ test('prayer outcome follows the placed tree despite viewing the other island fa
 
 test('version 9 gains independent prayer state and version 10 rejects corrupt prayer data',()=>{
  const {g,tree}=setup();g.version=9;for(const p of [g.player,...Object.values(g.npcs)])delete p.prayer;
- const loaded=restore(serialize(g));assert.equal(loaded.version,10);assert.deepEqual(loaded.player.prayer,{radiance:0,nether:0,mutations:[]});
+ const loaded=restore(serialize(g));assert.equal(loaded.version,13);assert.deepEqual(loaded.player.prayer,{radiance:0,nether:0,mutations:[]});
  assert.equal(loaded.money,g.money);assert.ok(loaded.objects.some(o=>o.id===tree.id));
  for(const prayer of [undefined,{nether:-1,mutations:[]},{nether:1.5,mutations:[]},{nether:0,mutations:['unknown']},{nether:0,mutations:['crown','crown']}]){
   const invalid=structuredClone(loaded);invalid.player.prayer=prayer;assert.throws(()=>restore(serialize(invalid)));
