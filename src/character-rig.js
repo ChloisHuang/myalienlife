@@ -1,3 +1,4 @@
+import {createPrayerVisuals} from './prayer-visuals.js';
 import * as THREE from 'three';
 import {appearance,localToWorld,groundHeight,SOFA_SEATS} from './characters.js';
 import {StarToonMaterial} from './npr.js';
@@ -35,26 +36,27 @@ export function createCharacter(source,spec){
  const halo=effectMesh(wash,new THREE.TorusGeometry(.46,.012,8,36),0x9ef9e2,[0,1,0]);halo.rotation.x=Math.PI/2;
  const cradle=new THREE.Group();root.add(cradle);effectMesh(cradle,new THREE.CylinderGeometry(.46,.35,.35,24),0xe1e6d6,[0,.18,0]).scale.z=1.25;effectMesh(cradle,new THREE.SphereGeometry(.4,20,12),0xa1d4bd,[0,.35,0]).scale.set(1,.2,1.3);
  const effects={meal,spoon,wateringCan,wash,cradle};Object.values(effects).forEach(e=>e.visible=false);
- return {root,body,joints,limbs,rest,effects,particles,drops,halo,skinColor:new THREE.Color(spec.color),last:{x:spec.x,z:spec.z},stride:0,profile:null,state:null,initialized:false};
+ const rig={root,body,joints,limbs,rest,effects,particles,drops,halo,skinColor:new THREE.Color(spec.color),last:{x:spec.x,z:spec.z},stride:0,profile:null,state:null,initialized:false};
+ rig.prayerVisuals=createPrayerVisuals(rig);return rig;
 }
 
 export function updateCharacter(rig,{person,action,object,partner,time,delta,config}){
- const look=appearance(person,config?.lifeStages),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}`,state=action?`${action.id}-${action.type}-${action.phase}`:'idle';
+ const look=appearance(person,config?.lifeStages),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}-${JSON.stringify(person.prayer)}`,state=action?`${action.id}-${action.type}-${action.phase}`:'idle';
  if(rig.initialized&&delta===0&&rig.profile===profile&&rig.state===state)return;
  const previousTips=Object.fromEntries(SIDES.map(side=>[side,rig.joints[side+'TendrilTip'].position.clone()])),poseBlend=rig.initialized&&delta>0?1-Math.exp(-delta*12):1;
  for(const [node,rest]of rig.rest){node.scale.copy(rest.scale);node.position.copy(rest.position);node.quaternion.copy(rest.quaternion);}
  const dx=person.x-rig.last.x,dz=person.z-rig.last.z,moving=Math.hypot(dx,dz)>.00001&&action?.phase==='walking';
  const target=new THREE.Vector3(person.x,groundHeight(person.x,person.z,person.side),person.z);
- let yaw=rig.root.rotation.y,tilt=0,roll=0,bob=Math.sin(time*1.8)*.01,compression=1;
+ let kneel=0,yaw=rig.root.rotation.y,tilt=0,roll=0,bob=Math.sin(time*1.8)*.01,compression=1;
  if(moving){yaw=Math.atan2(dx,dz);rig.stride+=Math.hypot(dx,dz)*Math.PI*2/(.72*look.scale);bob=Math.cos(rig.stride*2)*.012;compression=1-Math.sin(rig.stride*2)*.018;}
  else if(partner)yaw=Math.atan2(partner.x-person.x,partner.z-person.z);
  rig.joints.Core.rotation.x=look.stoop;rig.joints.Head.rotation.y=Math.sin(time*.55)*.045;
  const tips={Left:[-.37,-.69,.015],Right:[.37,-.69,.015]};
  for(const [i,side]of SIDES.entries()){tips[side][1]+=Math.sin(time*1.3+i*1.5)*.008;tips[side][2]+=moving?Math.cos(rig.stride+i*Math.PI-.3)*.17:Math.sin(time*.8+i)*.008;}
  Object.values(rig.effects).forEach(e=>e.visible=false);
- const type=action?.phase==='acting'?(action.type==='lounge'?'relax':action.type):null;
+ const type=['acting','celebrating'].includes(action?.phase)?(action.type==='lounge'?'relax':action.type):null;
  if(type){
-  const wave=Math.sin(action.elapsed*3),settle=THREE.MathUtils.smoothstep(action.elapsed,0,.65);
+  const wave=Math.sin(action.elapsed*3),settle=action.phase==='celebrating'?1:THREE.MathUtils.smoothstep(action.elapsed,0,.65);
   if(object){
    let local=[0,0,1.05],facing=Math.PI;
    if(type==='sleep'){local=[0,.99,-.9+1.78*look.scale];facing=0;tilt=-Math.PI/2*settle;bob=0;compression=.98;tips.Left=[-.28,-.54,.075];tips.Right=[.28,-.54,.075];}
@@ -73,12 +75,13 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
    if(type==='dance'){local=[0,0,1.45];facing=0;roll=wave*.13;bob+=Math.sin(action.elapsed*4)*.08;tips.Left=[-.57,.16+wave*.2,.25];tips.Right=[.57,.16-wave*.2,.25];}
    if(type==='observe'){local=[0,-.10,1.02];rig.joints.Core.rotation.x=.25;rig.joints.Head.rotation.x=.12;tips.Left=[-.2,.15,.48];tips.Right=[.2,.15,.48];}
    if(['explore','travel'].includes(type)){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
+   if(type==='pray'){local=[0,0,1.6];kneel=settle;bob=0;rig.joints.Core.rotation.x=0;rig.joints.Head.rotation.x=.22;rig.joints.Head.rotation.y=0;tips.Left=[-.055,-.10,.4];tips.Right=[.055,-.10,.4];}
    if(type==='admire'){local=[0,0,1.25];rig.joints.Head.rotation.x=-.12;tips.Right=[.32,.24,.4];}
-   const p=localToWorld(object,local);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
+   const p=localToWorld(object,local);if(type==='pray')p.y=groundHeight(p.x,p.z,object.side);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
   }else if(type==='care'){rig.joints.Core.rotation.x=.22;target.y-=.1;tips.Left=[-.15,-.30,.46];tips.Right=[.12,-.20+wave*.07,.48];rig.effects.meal.visible=true;
   }else if(['chat','joke','gift','flirt'].includes(type)){tips.Right=[.45,.12+wave*.12,.33];rig.joints.Head.rotation.x=wave*.045;}
  }
- rig.body.rotation.x=look.stage==='infant'?-Math.PI/2:0;rig.body.position.set(0,0,0);
+ rig.body.rotation.x=look.stage==='infant'?-Math.PI/2:0;rig.body.position.set(0,-.55*look.scale*kneel,0);
  if(look.stage==='infant'){rig.effects.cradle.visible=true;rig.body.position.set(0,.43,.35);tips.Left=[-.25,-.1,.2];tips.Right=[.25,-.1,.2];}
  rig.body.scale.setScalar(look.scale);rig.joints.Head.scale.multiply(new THREE.Vector3(person.genome.headWidth,person.genome.headHeight,person.genome.headDepth).multiplyScalar(look.head));
  rig.limbs.LeftLeg.mesh.morphTargetInfluences[rig.limbs.LeftLeg.mesh.morphTargetDictionary.JawTaper]=(person.genome.jaw-1)*5;
@@ -93,6 +96,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
   const elbow=type?base.position.clone().lerp(tip.position,.5).addScaledVector(bendDirection,Math.sqrt(Math.max(0,.54**2-(distance*.5)**2))):new THREE.Vector3(sign*.35,-.19,moving?Math.cos(rig.stride+i*Math.PI)*.065:0);
   if(type==='relax')elbow.set(sign*.39,-.13,.09);
   if(type==='sleep')elbow.set(sign*.30,-.20,.03);
+  if(type==='pray')elbow.set(sign*.32,-.28,.22);
   if(type==='wash')elbow.set(sign*.35,-.18,.06);
   rig.joints[side+'TendrilBend'].position.copy(elbow);
   rig.joints[side+'TendrilGuide'].position.copy(base.position).lerp(elbow,.52);
@@ -107,6 +111,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
   guide.position.set(sign*.14*look.hips,-.48,stride*.25+lift*.25);bend.position.set(legX,-.76,stride*.6+.025+lift*.5);
   ankle.position.set(legX,-.98+lift-bob,stride+.025);toe.position.set(legX,-1.02+lift-bob,stride+.14);
   if(type==='relax'){guide.position.set(legX,-.38,.18);bend.position.set(legX,-.45,.35);ankle.position.set(legX,-.86,.35);toe.position.set(legX,-.90,.465);}
+  if(type==='pray'){guide.position.lerp(new THREE.Vector3(legX,-.22,.18),kneel);bend.position.lerp(new THREE.Vector3(legX,-.48,.4),kneel);ankle.position.lerp(new THREE.Vector3(legX,-.48,.03),kneel);toe.position.lerp(new THREE.Vector3(legX,-.50,-.22),kneel);}
   if(type==='dance'){bend.position.z+=Math.sin(time*3+i)*.10;toe.position.y+=Math.max(0,Math.sin(time*3+i*Math.PI))*.10;}
   rig.joints[side+'Antenna'].scale.y*=look.antenna;rig.joints[side+'Antenna'].rotation.x=(look.stage==='elder'?.35:0)+Math.sin(time*1.3+i)*.06;
   rig.body.getObjectByName(side+'AntennaLight').scale.y/=look.antenna;
@@ -114,7 +119,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
   const jawWidth=1-(person.genome.jaw-1)*1.5*(1-THREE.MathUtils.smoothstep(1.8,1.72,1.86));
   for(const part of ['Eye','Glint']){const feature=rig.body.getObjectByName(side+part);feature.position.x*=jawWidth;feature.scale.x*=jawWidth;}
   const blinkPhase=(time+rig.skinColor.g*7)%5.3,blink=1-.9*Math.max(0,1-Math.abs(blinkPhase-.12)/.12);
-  rig.body.getObjectByName(side+'Eye').scale.y*=type==='sleep'?.12:blink;rig.body.getObjectByName(side+'Glint').visible=type!=='sleep'&&blink>.5;
+  rig.body.getObjectByName(side+'Eye').scale.y*=type==='sleep'?.12:type==='pray'?.25:blink;rig.body.getObjectByName(side+'Glint').visible=type!=='sleep'&&blink>.5;
  }
  if(rig.profile!==profile)rig.body.traverse(n=>{if(n.isMesh&&n.material.name==='Alien skin'){n.material.color.copy(rig.skinColor);if(look.stage==='elder')n.material.color.lerp(new THREE.Color(0xc2c9c0),.4);}});
  const blend=rig.initialized&&delta>0?1-Math.exp(-delta*16):1;rig.joints.Core.position.y+=bob;rig.root.position.lerp(target,blend);
@@ -124,5 +129,6 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  for(const limb of Object.values(rig.limbs))poseSkin(rig,limb);
  const skin=rig.limbs.LeftLeg.mesh;skin.skeleton.update();skin.computeBoundingSphere();
  if(rig.effects.wash.visible){for(let i=0;i<60;i++){const angle=i*2.399;rig.particles[i*3]=Math.cos(angle)*(.4+(i%3)*.035);rig.particles[i*3+1]=(2.2-(time*1.2+i*.13)%2.2)*look.scale;rig.particles[i*3+2]=Math.sin(angle)*(.4+(i%3)*.035);}rig.drops.geometry.attributes.position.needsUpdate=true;rig.halo.position.y=(.4+(Math.sin(time*2)+1)*.65)*look.scale;}
+ rig.prayerVisuals.update(person);
  rig.last={x:person.x,z:person.z};rig.profile=profile;rig.state=state;rig.initialized=true;
 }

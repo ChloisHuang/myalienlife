@@ -1,0 +1,32 @@
+[
+  {
+    "key": "crown",
+    "baseline": 0,
+    "changed": 91291,
+    "extraHaloPixels": 91291
+  },
+  {
+    "key": "spines",
+    "baseline": 0,
+    "changed": 181913,
+    "extraHaloPixels": 181913
+  },
+  {
+    "key": "freckles",
+    "baseline": 0,
+    "changed": 55494,
+    "extraHaloPixels": 55494
+  },
+  {
+    "key": "eyes",
+    "baseline": 0,
+    "changed": 228520,
+    "extraHaloPixels": 228520
+  },
+  {
+    "key": "nether",
+    "baseline": 0,
+    "changed": 25383,
+    "extraHaloPixels": 25383
+  }
+]

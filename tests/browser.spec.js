@@ -1,4 +1,5 @@
 import {test,expect} from '@playwright/test';
+import {prayerFixture} from './helpers/prayer-fixture.js';
 import {createGame,CAREERS} from '../src/simulation.js';
 import {createSaveStore} from '../server/save-store.js';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -20,6 +21,143 @@ test.beforeEach(async({context,page})=>{
 });
 test.afterEach(async({context,page})=>{await context.close();await rm(stores.get(page).directory,{recursive:true,force:true});});
 async function savedState(page){await expect(page.locator('#save-status')).toHaveAttribute('data-state','saved');return(await stores.get(page).store.read()).state;}
+
+test('star freckles produce visible glow in resident portraits',async({page})=>{
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/portrait-preview',route=>route.fulfill({contentType:'text/html',body:'<html><body><div id="world" style="width:320px;height:240px"></div><div id="portraits"></div></body></html>'}));
+ await page.goto('http://127.0.0.1:5173/portrait-preview');
+ const result=await page.evaluate(async()=>{
+  const {createWorld}=await import('/src/world.js'),{createGame}=await import('/src/simulation.js');
+  const game=createGame(),world=await createWorld(document.querySelector('#world'),()=>game,{});
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=160;const context=canvas.getContext('2d',{willReadFrequently:true});
+  async function portrait(mutations,label){
+   game.player.prayer.mutations=mutations;const image=new Image();image.src=world.portrait('player');await image.decode();
+   context.drawImage(image,0,0);const pixels=context.getImageData(0,0,160,160).data;
+   const figure=document.createElement('figure');figure.style.display='inline-block';figure.append(image,document.createTextNode(label));document.querySelector('#portraits').append(figure);return pixels;
+  }
+  const normal=await portrait([],'普通'),mutated=await portrait(['freckles'],'星辉斑');let haloPixels=0;
+  for(let y=45;y<160;y++)for(let x=0;x<160;x++){
+   const i=(y*160+x)*4;
+   if([0,1,2].every(c=>normal[i+c]===normal[c])&&Math.max(...[0,1,2].map(c=>mutated[i+c]-normal[i+c]))>=3)haloPixels++;
+  }
+  return {haloPixels};
+ });
+ await page.locator('#portraits').screenshot({path:'test-results/portrait-freckles.png'});console.log('Portrait mutation glow',result);
+ expect(errors).toEqual([]);expect(result.haloPixels).toBeGreaterThan(30);
+});
+
+test('repeated resident appearance changes reuse graphics contexts and keep the world rendering',async({page})=>{
+ const state=createGame();state.speed=0;fixtures.set(page,state);
+ await page.addInitScript(()=>{
+  const original=HTMLCanvasElement.prototype.getContext,seen=new WeakSet();window.graphics={created:0,mainLost:0};
+  HTMLCanvasElement.prototype.getContext=function(type,...args){
+   const context=original.call(this,type,...args);
+   if(context&&['webgl','webgl2','experimental-webgl'].includes(type)&&!seen.has(this)){
+    seen.add(this);window.graphics.created++;
+    this.addEventListener('webglcontextlost',()=>{if(this.closest('#world'))window.graphics.mainLost++;});
+   }
+   return context;
+  };
+ });
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(/Too many active WebGL|context lost/i.test(m.text()))errors.push(m.text());});
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ const contexts=await page.evaluate(()=>window.graphics.created),portrait=await page.locator('#player-portrait').getAttribute('src');
+ await page.getByRole('button',{name:'人物',exact:true}).click();
+ for(let i=0;i<8;i++){
+  const previous=await page.locator('#player-portrait').getAttribute('src');
+  await page.locator('#randomize-heads').click();await expect(page.locator('#player-portrait')).not.toHaveAttribute('src',previous);
+ }
+ for(const [age,gender]of [[8,'female'],[28,'male'],[68,'female'],[28,'male']]){
+  const previous=await page.locator('#player-portrait').getAttribute('src');
+  await page.locator('#resident-age').fill(String(age));await page.locator('#resident-gender').selectOption(gender);
+  await page.getByRole('button',{name:'应用人物设定',exact:true}).click();await expect(page.locator('#player-portrait')).not.toHaveAttribute('src',previous);
+ }
+ await page.screenshot({path:'test-results/resident-graphics-after-changes.png'});
+ const graphics=await page.evaluate(()=>window.graphics);console.log('Appearance graphics contexts',graphics);
+ expect(graphics.mainLost).toBe(0);expect(graphics.created).toBe(contexts);expect(errors).toEqual([]);
+ await expect(page.locator('#player-portrait')).not.toHaveAttribute('src',portrait);
+ const before=await page.locator('#world canvas').evaluate(c=>c.toDataURL());await page.locator('#zoom-in').click();
+ await expect.poll(()=>page.locator('#world canvas').evaluate(c=>c.toDataURL())).not.toBe(before);
+});
+
+test('elder prayer changes the portrait and age to childhood, celebrates and persists',async({page})=>{
+ const state=prayerFixture('front');state.player.age=68;state.config.prayer.skillChance=0;state.config.prayer.rejuvenationChance=100;
+ state.queue[0].elapsed=state.config.actionDurations.pray-.3;fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(/Too many active WebGL|context lost/i.test(m.text()))errors.push(m.text());});
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ await page.getByRole('button',{name:'人物',exact:true}).click();await expect(page.locator('#resident-age')).toHaveValue('68');
+ const elderPortrait=await page.locator('#player-portrait').getAttribute('src');
+ await page.getByRole('button',{name:'正常速度',exact:true}).click();await expect(page.locator('#journal')).toContainText('返老还童');
+ await page.getByRole('button',{name:'暂停',exact:true}).click();await expect(page.locator('#resident-age')).toHaveValue('3');
+ await expect(page.locator('#resident-summary')).toContainText('儿童');await expect(page.locator('#activity')).toContainText('晴昼赐福');
+ await expect(page.locator('#player-portrait')).not.toHaveAttribute('src',elderPortrait);
+ await page.locator('#focus-player').click();for(let i=0;i<7;i++)await page.locator('#zoom-in').click();
+ await page.screenshot({path:'test-results/prayer-rejuvenation.png'});
+ await page.getByRole('button',{name:'保存游戏',exact:true}).click();const saved=await savedState(page);
+ expect(saved.player.age).toBeGreaterThanOrEqual(3);expect(saved.player.age).toBeLessThan(3.01);expect(saved.queue[0].blessing.rejuvenated).toBe(true);
+ expect(saved.skills).toEqual(state.skills);expect(saved.player.genome).toEqual(state.player.genome);
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});await page.getByRole('button',{name:'人物',exact:true}).click();
+ await expect(page.locator('#resident-age')).toHaveValue('3');await expect(page.locator('#activity')).toContainText('晴昼赐福');expect(errors).toEqual([]);
+});
+
+for(const side of ['front','back'])test(`prayer ${side} blessing and resident traits survive reload without duplicate rewards`,async({page})=>{
+ const state=prayerFixture(side,{success:true});fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/THREE|WebGL|shader/i.test(m.text()))errors.push(m.text());});
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ await expect(page.locator('#activity')).toContainText(side==='front'?'晴昼赐福':'幽冥赐福');
+ await page.getByRole('button',{name:'人物',exact:true}).click();
+ await expect(page.locator('.prayer-status')).toContainText(side==='front'?'幽冥属性 0 / 10':'幽冥族');
+ if(side==='back')for(const name of ['晶冠角','脊晶','星辉斑','异色瞳'])await expect(page.locator('.prayer-status')).toContainText(name);
+ await page.locator('#focus-player').click();for(let i=0;i<7;i++)await page.locator('#zoom-in').click();
+ await page.screenshot({path:`test-results/prayer-${side}-game.png`});
+ await page.getByRole('button',{name:'保存游戏',exact:true}).click();const before=await savedState(page);
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ await expect(page.locator('#activity')).toContainText(side==='front'?'晴昼赐福':'幽冥赐福');
+ await page.getByRole('button',{name:'正常速度',exact:true}).click();await expect(page.locator('#queue [data-cancel]')).toHaveCount(0,{timeout:10000});
+ await page.getByRole('button',{name:'暂停',exact:true}).click();await page.getByRole('button',{name:'保存游戏',exact:true}).click();
+ const after=await savedState(page);expect(after.skills).toEqual(before.skills);expect(after.player.prayer).toEqual(before.player.prayer);
+ await page.getByRole('button',{name:'人物',exact:true}).click();await page.setViewportSize({width:390,height:844});
+ await expect(page.locator('.prayer-status')).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+ await page.screenshot({path:`test-results/prayer-${side}-mobile.png`});expect(errors).toEqual([]);
+});
+
+test('spirit tree interaction menu schedules prayer instead of admire',async({page})=>{
+ const {OrthographicCamera,Vector3}=await import('three');const state=prayerFixture('front');state.queue=[];fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ const bounds=await page.locator('#world canvas').boundingBox(),camera=new OrthographicCamera(-14*bounds.width/bounds.height,14*bounds.width/bounds.height,14,-14,.1,180);
+ camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const p=new Vector3(0,1.3,4).project(camera);
+ await page.mouse.click(bounds.x+(p.x+1)*bounds.width/2,bounds.y+(1-p.y)*bounds.height/2);
+ await expect(page.locator('#context-menu')).toContainText('星灵垂光树');await expect(page.locator('[data-action="admire"]')).toHaveCount(0);
+ await expect(page.locator('#context-menu')).toContainText('10%');await page.locator('[data-action="pray"]').click();
+ await expect(page.locator('#queue')).toContainText('向星灵树祈祷');
+});
+
+test('spirit tree purchase previews, renders on both faces, and survives reload',async({page})=>{
+ const {OrthographicCamera,Vector3}=await import('three');
+ const g=createGame();g.speed=0;for(const n of Object.values(g.npcs))n.ai.enabled=false;fixtures.set(page,g);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ page.on('console',m=>{if(m.type()==='error'&&/THREE|WebGL|shader/i.test(m.text()))errors.push(m.text());});
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ const bounds=await page.locator('#world canvas').first().boundingBox();
+ const camera=new OrthographicCamera(-14*bounds.width/bounds.height,14*bounds.width/bounds.height,14,-14,.1,180);
+ camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();
+ const p=new Vector3(0,.29,5).project(camera),x=bounds.x+(p.x+1)*bounds.width/2,y=bounds.y+(1-p.y)*bounds.height/2;
+ await page.getByRole('button',{name:'物品包',exact:true}).click();await page.locator('[data-pack="孢子花园"]').click();
+ for(const side of ['front','back']){
+  if(side==='back'){await page.getByRole('button',{name:'翻转星岛',exact:true}).click();await expect(page.locator('#world')).toHaveAttribute('data-side','back');await expect(page.locator('#world')).toHaveAttribute('data-flipping','false');}
+  await page.getByRole('button',{name:'购买 星灵垂光树'}).click();await page.mouse.move(x,y);
+  await page.screenshot({path:`test-results/spirit-tree-${side}-preview.png`});
+  await page.mouse.click(x,y);await expect(page.locator('#toast')).toContainText('星灵垂光树已放入家园');
+  await page.getByRole('button',{name:'保存游戏',exact:true}).click();
+  const saved=await savedState(page);expect(saved.objects.filter(o=>o.type==='spiritTree')).toHaveLength(side==='front'?1:2);
+  expect(saved.objects.at(-1).side).toBe(side);
+  await page.screenshot({path:`test-results/spirit-tree-${side}.png`});
+ }
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});
+ await expect(page.locator('#world')).toHaveAttribute('data-side','back');
+ await page.getByRole('button',{name:'保存游戏',exact:true}).click();
+ expect((await savedState(page)).objects.filter(o=>o.type==='spiritTree')).toHaveLength(2);expect(errors).toEqual([]);
+});
 
 test('dark reverse face supports building, free gate travel, cooking and reload',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -133,14 +271,25 @@ test('configuration button opens the detailed parameter dialog',async({page})=>{
  await expect(dialog.locator('[data-config-path="time.starYearDays"]')).toHaveValue('8');await expect(dialog).toContainText('动作时长');await expect(dialog).toContainText('职业门槛');await expect(dialog).toContainText('需求衰减');await expect(dialog).toContainText('作物参数');await expect(dialog).toContainText('工作');
  await expect(dialog.locator('[data-config-path="lifeStages.infantEnd"]')).toHaveValue('3');
  await expect(dialog.locator('[data-config-path="mutationRates.color"]')).toHaveValue('2.4');
+ await expect(dialog).toContainText('星灵树祈祷概率');
+ for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
+ const prayer={skillChance:27.5,netherChance:0,mutationChance:100,rejuvenationChance:.2};
+ for(const [key,value]of Object.entries(prayer))await dialog.locator(`[data-config-path="prayer.${key}"]`).fill(String(value));
  await dialog.locator('[data-config-path="lifeStages.infantEnd"]').fill('4');
  await dialog.locator('[data-config-path="mutationRates.color"]').fill('3.1');
  await dialog.getByRole('button',{name:'应用并保存配置'}).click();
  await expect(dialog.locator('[data-config-path="lifeStages.infantEnd"]')).toHaveValue('4');
  await expect(dialog.locator('[data-config-path="mutationRates.color"]')).toHaveValue('3.1');
  await expect(page.locator('#toast')).toContainText('参数配置已保存');
+ expect((await savedState(page)).config.prayer).toEqual(prayer);
  page.once('dialog',dialogEvent=>dialogEvent.accept());await dialog.getByRole('button',{name:'永久覆盖项目配置',exact:true}).click();await expect.poll(()=>projectConfig?.lifeStages.infantEnd).toBe(4);
+ expect(projectConfig.prayer).toEqual(prayer);
  await dialog.locator('button[aria-label="关闭参数配置"]').click();await expect(dialog).toBeHidden();
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:30000});await page.getByRole('button',{name:'参数配置',exact:true}).click();
+ for(const [key,value]of Object.entries(prayer))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
+ await dialog.locator('[data-config-path="prayer.skillChance"]').scrollIntoViewIfNeeded();await page.screenshot({path:'test-results/prayer-config.png'});
+ await dialog.locator('#config-reset').click();
+ for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
 });
 test('skills and resident appearance have dedicated panels and retain edits after reload',async({page})=>{
  const state=createGame();state.speed=0;state.skills.science=4;

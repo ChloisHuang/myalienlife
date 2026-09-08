@@ -52,10 +52,10 @@ export function stylizeAsset(source,{soft=false}={}){
   node.material=converted.get(original);if(soft){node.material.roughness=original.name==='Obsidian eyes'?.28:.53;node.material.metalness=0;node.material.emissiveIntensity=original.emissiveIntensity;}
  });
 }
-export function createPostProcessing(renderer,scene,camera){
+export function createPostProcessing(renderer,scene,camera,{bloomStrength=.28,bloomRadius=.65}={}){
  const target=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4});
  const composer=new EffectComposer(renderer,target);composer.addPass(new RenderPass(scene,camera));
- const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),.28,.65,1.15);composer.addPass(bloom);composer.addPass(new OutputPass());
+ const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),bloomStrength,bloomRadius,1.15);composer.addPass(bloom);composer.addPass(new OutputPass());
  return composer;
 }
 

@@ -1,4 +1,5 @@
 import {createDarkGroundMaterial} from './dark-ground.js';
+import {createSpiritTree} from './spirit-tree.js';
 import {sideOf} from './island.js';
 import {CROPS,cropVisualScale} from './plants.js';
 import * as THREE from 'three';
@@ -32,6 +33,13 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  const composer=createPostProcessing(renderer,scene,camera);
  const loader=new GLTFLoader();const [alienAsset,mushroomAsset]=await Promise.all(['alien','mushroom'].map(n=>loader.loadAsync(`/assets/${n}.glb`)));
  stylizeAsset(alienAsset.scene,{soft:true});stylizeAsset(mushroomAsset.scene);
+ // Portrait updates share one context for the lifetime of the world.
+ const portraitRenderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});portraitRenderer.setSize(160,160);portraitRenderer.toneMapping=renderer.toneMapping;portraitRenderer.toneMappingExposure=renderer.toneMappingExposure;
+ const portraitScene=new THREE.Scene(),portraitCamera=new THREE.PerspectiveCamera(32,1,.1,10);
+ portraitScene.background=new THREE.Color();portraitScene.add(new THREE.HemisphereLight(0xffffff,0x667788,1.3));
+ const portraitLight=new THREE.DirectionalLight(0xffffff,2.6);portraitLight.position.set(2,3,4);portraitScene.add(portraitLight);
+ // Keep portrait glow local so luminous markings do not obscure facial features.
+ const portraitComposer=createPostProcessing(portraitRenderer,portraitScene,portraitCamera,{bloomStrength:.28,bloomRadius:0});portraitComposer.setSize(160,160);
  function model(source,parent,x,y,z,s=1){const o=source.scene.clone(true),living=new Map();o.position.set(x,y,z);o.scale.setScalar(s);o.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;if(n.material instanceof BiolumeMaterial){if(!living.has(n.material))living.set(n.material,n.material.clone());n.material=living.get(n.material);}}});parent.add(o);return o;}
  const island=new THREE.Group();island.position.y=-1.05;scene.add(island);
  const faces={front:new THREE.Group(),back:new THREE.Group()};faces.front.position.y=1.05;faces.back.position.y=-1.05;faces.back.rotation.x=Math.PI;island.add(faces.front,faces.back);
@@ -91,7 +99,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  for(let i=0;i<20;i++){const a=i/20*Math.PI*2;const r=18+random()*10;const rock=mesh(scene,new THREE.IcosahedronGeometry(1+random()*1.4,0),0x615e7e,[Math.cos(a)*r,-4-random()*4,Math.sin(a)*r*.6],[1.5,1,1]);floating.push({object:rock,y:rock.position.y,phase:i*.73});}
  const planet=sphere(scene,0xb19faf,[-2,-5,-28],[2.5,2.5,2.5]);const orbit=ring(scene,0xd2b5ac,[-2,-5,-28],3.7,.12);orbit.rotation.x=1.1;orbit.rotation.y=.2;
  const interactive=new THREE.Group();faces.front.add(interactive);const backInteractive=new THREE.Group();faces.back.add(backInteractive);const surfaceItems={front:interactive,back:backInteractive};const objectMeshes=new Map();
- function prop(type){const g=new THREE.Group();
+ function prop(type){if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
   if(type==='polelight'){
    cylinder(g,0x48485e,[0,.12,0],.42,.24);cylinder(g,0x7e88a4,[0,1.65,0],.065,3.1,.09);
    for(const y of [.4,2.8]){const collar=ring(g,0xa2bccc,[0,y,0],.13,.03);collar.rotation.x=Math.PI/2;}
@@ -148,12 +156,12 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   if(CROPS[type]){g.userData.cropLight=createBioluminescence(g,{radius:type==='garden'?.8:.65,height:type==='garden'?1.3:1.8,color:0xc9e8e4});for(const crop of g.userData.cropVisual)crop.traverse(n=>{if(n.isMesh){n.material=n.material.clone();n.userData.plantColor=n.material.color.clone();}});for(const crop of g.userData.cropVisual)if(crop.userData.fruit){const fruit=crop.userData.fruit;fruit.material=new BiolumeMaterial({color:fruit.material.color,emissive:0xbce6d9,emissiveIntensity:1});}}
   return g;
  }
- function syncObjects(){const g=getGame();for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.removeFromParent();objectMeshes.delete(id);}for(const o of g.objects){if(!objectMeshes.has(o.id)){const group=prop(o.type);group.position.set(o.x,.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};objectMeshes.set(o.id,group);}surfaceItems[sideOf(o)].add(objectMeshes.get(o.id));}}
+ function syncObjects(){const g=getGame();for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.removeFromParent();objectMeshes.delete(id);}for(const o of g.objects){if(!objectMeshes.has(o.id)){const group=prop(o.type);group.position.set(o.x,o.type==='spiritTree'?groundHeight(o.x,o.z,sideOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};objectMeshes.set(o.id,group);}surfaceItems[sideOf(o)].add(objectMeshes.get(o.id));}}
  const actors=new Map();
  function syncActors(){
   const g=getGame(),residents=[...(g.player.alive?[{id:'player',...g.player}]:[]),...neighbors(g)];
   for(const [id,rig]of actors)if(!residents.some(n=>n.id===id&&n.uid===rig.uid)){
-   rig.root.removeFromParent();rig.root.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();actors.delete(id);
+   rig.root.removeFromParent();rig.prayerVisuals.dispose();rig.root.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();actors.delete(id);
   }
   for(const data of residents)if(!actors.has(data.id)){
    const rig=createCharacter(alienAsset.scene,data);rig.uid=data.uid;rig.root.userData.target={kind:data.id==='player'?'player':'npc',id:data.id};surfaceItems[sideOf(data)].add(rig.root);actors.set(data.id,rig);
@@ -196,6 +204,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
    for(const [id,o]of objectMeshes){if(o.userData.rift){o.userData.rift.material.uniforms.time.value=time;o.userData.riftFrame.position.y=1.5+Math.sin(time*1.4)*.06;}if(o.userData.orb)o.userData.orb.position.y=1.4+Math.sin(time*1.4)*.09;if(o.userData.egg){o.userData.egg.visible=g.incubations.some(b=>b.podId===id);o.userData.egg.position.y=.8+Math.sin(time*1.5)*.06;}if(o.userData.portal){o.userData.portal.material.uniforms.time.value=time;o.userData.glyphs.rotation.z=time*.09;}if(o.userData.cropVisual)for(const [i,crop]of o.userData.cropVisual.entries())crop.rotation.z+=Math.sin(time*.85+i+o.position.x)*.025;}
    atmosphere.update(time,weather,(1+Math.cos(island.rotation.x))/2);weatherEffects.update(time,weather);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
+   const blessings=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].filter(a=>a?.type==='pray'&&a.phase==='celebrating');
+   for(const item of g.objects)if(item.type==='spiritTree'){
+    const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update(time+item.x*.7+item.z,sideOf(item),daylight,weather.wind);
+    tree.updateBlessing(blessings.find(a=>a.targetId===item.id),camera);
+   }
    for(const {facets,phase}of [...crystalLights,...[...objectMeshes.values()].filter(o=>o.userData.crystalLight).map(o=>o.userData.crystalLight)])for(const m of facets){m.bio.time.value=time+phase;m.bio.strength.value=bioStrength*.7;}
    for(const [i,plant]of swaying.entries())plant.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial){n.material.bio.time.value=time+i*.67+(n.material.name==='Pearl stem'?.7:0);n.material.bio.strength.value=bioStrength;}});
    for(const item of g.objects){if(!CROPS[item.type])continue;const group=objectMeshes.get(item.id),health=item.plant.health/100,growth=item.plant.growth;
@@ -210,7 +223,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
    scene.background.set(0x10152e).lerp(new THREE.Color(0x080b1b),dark);scene.fog.color.set(0x171c39).lerp(new THREE.Color(0x15182e),dark);scene.fog.density+=dark*.007;
    controls.update();composer.render();
   },
-  setBuild(type){buildType=type;buildGrid.visible=!!type;ghost.visible=false;if(ghostProp){ghost.remove(ghostProp);ghostProp.traverse(n=>{if(n.isMesh)n.material.dispose();});}if(type){ghostProp=prop(type);ghostProp.traverse(n=>{if(n.isLight)n.visible=false;if(n.isMesh)n.material=new THREE.MeshBasicMaterial({color:0xafffca,transparent:true,opacity:.45,side:n.material.side});});ghost.add(ghostProp);const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const coverage=ring(ghostProp,lighting.color,[0,.025,0],lighting.radius,.025);coverage.rotation.x=-Math.PI/2;coverage.material=new THREE.MeshBasicMaterial({color:lighting.color,transparent:true,opacity:.45,depthWrite:false});}}return type;},
+  setBuild(type){buildType=type;buildGrid.visible=!!type;ghost.visible=false;if(ghostProp){ghost.remove(ghostProp);ghostProp.userData.spiritTree?.dispose();ghostProp.traverse(n=>{if(n.isMesh)n.material.dispose();});}if(type){ghostProp=prop(type);ghostProp.traverse(n=>{if(n.isLight||n.isPoints)n.visible=false;if(n.isMesh)n.material=new THREE.MeshBasicMaterial({color:0xafffca,transparent:true,opacity:.45,side:n.material.side});});ghost.add(ghostProp);const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const coverage=ring(ghostProp,lighting.color,[0,.025,0],lighting.radius,.025);coverage.rotation.x=-Math.PI/2;coverage.material=new THREE.MeshBasicMaterial({color:lighting.color,transparent:true,opacity:.45,depthWrite:false});}}return type;},
   rotateBuild(){buildRotation+=Math.PI/2;ghost.rotation.y=buildRotation;},
   focus(id){const p=id==='home'?{x:-3,z:-1}:id==='garden'?{x:7,z:3}:id==='lab'?{x:6,z:-3}:getGame().player;const dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
   resetCamera(){camera.position.set(23,25,30);controls.target.set(0,0,0);camera.zoom=1;camera.updateProjectionMatrix();},
@@ -218,8 +231,10 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   portrait(id){
     const person=id==='player'?getGame().player:getGame().npcs[id],color=person.color,config=getGame().config;
     const rig=createCharacter(alienAsset.scene,{id,color,...person});updateCharacter(rig,{person:{...person,x:0,z:0},time:0,delta:0,config});rig.root.rotation.set(0,0,0);rig.root.position.set(0,0,0);
-   const portraitScene=new THREE.Scene();portraitScene.background=new THREE.Color(id==='player'?0xc3e6c8:0xd4cde5);portraitScene.add(new THREE.HemisphereLight(0xffffff,0x667788,3));const light=new THREE.DirectionalLight(0xffffff,3);light.position.set(2,3,4);portraitScene.add(light);portraitScene.add(rig.root);
-    const scale=appearance(person,config.lifeStages).scale,cam=new THREE.PerspectiveCamera(32,1,.1,10);cam.position.set(0,1.65*scale,3.3*scale);cam.lookAt(0,1.45*scale,0);const r=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});r.setSize(160,160);r.render(portraitScene,cam);const url=r.domElement.toDataURL();r.dispose();rig.body.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();return url;
+   portraitScene.background.set(id==='player'?0xc3e6c8:0xd4cde5);portraitScene.add(rig.root);
+   const scale=appearance(person,config.lifeStages).scale;portraitCamera.position.set(0,1.65*scale,3.3*scale);portraitCamera.lookAt(0,1.45*scale,0);
+   portraitComposer.render();const url=portraitRenderer.domElement.toDataURL();
+   rig.root.removeFromParent();portraitRenderer.renderLists.dispose();rig.prayerVisuals.dispose();rig.body.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();return url;
   }
  };
 }

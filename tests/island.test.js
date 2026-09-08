@@ -61,7 +61,7 @@ test('both faces and cooking survive save roundtrip; version 8 upgrades explicit
  const old=game();old.version=8;delete old.viewSide;delete old.skills.cooking;old.objects=old.objects.filter(o=>o.type!=='gate');
  for(const p of [old.player,...Object.values(old.npcs)]){delete p.side;if(p.skills)delete p.skills.cooking;}
  for(const o of old.objects)delete o.side;
- const upgraded=restore(serialize(old));assert.equal(upgraded.version,9);assert.equal(upgraded.skills.cooking,0);assert.equal(upgraded.player.side,'front');assert.equal(upgraded.objects.filter(o=>o.type==='gate').length,2);
+ const upgraded=restore(serialize(old));assert.equal(upgraded.version,10);assert.equal(upgraded.skills.cooking,0);assert.equal(upgraded.player.side,'front');assert.equal(upgraded.objects.filter(o=>o.type==='gate').length,2);
  const invalid=structuredClone(loaded);invalid.player.side='void';assert.throws(()=>restore(serialize(invalid)));
 });
 

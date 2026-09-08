@@ -17,10 +17,18 @@ test('radio keeps only the three most recent major events',()=>{
  enqueue(g,'chat','nova');for(let i=0;i<250;i++)tick(g,.1);
  assert.deepEqual(g.majorEvents.map(event=>event.text),['事件四','事件三','事件二']);
 });
-test('plant maturity creates one major event when growth crosses the threshold',()=>{
+test('ordinary crop maturity leaves radio events unchanged',()=>{
  const g=createGame();g.speed=1;for(const n of Object.values(g.npcs))n.ai.enabled=false;
+ g.config.crops.garden.giantChance=0;
  const plant=g.objects.find(o=>o.type==='garden');plant.plant.growth=.99;plant.plant.water=100;
- tick(g,3);assert.equal(g.majorEvents.filter(event=>event.type==='mature').length,1);assert.match(g.majorEvents[0].text,/发光孢子成熟/);
+ recordMajorEvent(g,'保留的事件');const events=structuredClone(g.majorEvents);
+ tick(g,3);assert.equal(plant.plant.growth,1);assert.equal(plant.plant.giant,false);assert.deepEqual(g.majorEvents,events);
+});
+test('giant crop maturity creates one major event when growth crosses the threshold',()=>{
+ const g=createGame();g.speed=1;for(const n of Object.values(g.npcs))n.ai.enabled=false;
+ g.config.crops.garden.giantChance=100;
+ const plant=g.objects.find(o=>o.type==='garden');plant.plant.growth=.99;plant.plant.water=100;
+ tick(g,3);assert.equal(plant.plant.giant,true);assert.equal(g.majorEvents.filter(event=>event.type==='mature').length,1);assert.equal(g.majorEvents[0].text,'巨型发光孢子成熟了，可以收获。');
  tick(g,1);assert.equal(g.majorEvents.filter(event=>event.type==='mature').length,1);
 });
 test('queued eating restores hunger only after arrival and completion',()=>{
