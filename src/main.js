@@ -8,7 +8,7 @@ import {CloudFog,CloudDrizzle,Wind} from 'lucide';
 import './style.css';
 import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins} from 'lucide';
 import {createWorld} from './world.js';
-import {workStationType,NEEDS,neighbors,birthDecision,gameMinutes,takeOver,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,enqueue,cancelAction,buyItem,sellItem,setCareer,setAutonomy,sellHarvest,updateResident,canAffordAction} from './simulation.js';
+import {workStationType,NEEDS,neighbors,birthDecision,gameMinutes,takeOver,switchControl,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,enqueue,cancelAction,buyItem,sellItem,setCareer,setAutonomy,sellHarvest,updateResident,canAffordAction} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,lifeStage,skillProgress} from './characters.js';
 
 const $=s=>document.querySelector(s);
@@ -43,7 +43,7 @@ $('#app').innerHTML=`
  </main>
  <div id="build-hint" hidden>${icon('Move')} 点击地面摆放 <span>R 旋转</span><span>Esc 取消</span><button id="cancel-placement">取消</button></div>
  <section class="dashboard">
-  <div class="profile"><div class="avatar-wrap"><img id="player-portrait" alt="凯伊的外星人头像"/><span class="mood-dot">✦</span></div><div class="profile-copy"><span class="eyebrow" id="player-bio">你的星际居民</span><h2 id="player-name">凯伊 <span>KAÏ</span></h2><span id="mood" class="mood">${icon('Smile')} 心情不错</span></div><div class="profile-traits"><span>${icon('Compass')} 好奇心旺盛</span><span>${icon('Heart')} 热爱生活</span></div><div class="current-activity"><span id="activity">${icon('Coffee')} 享受此刻的宁静</span><button id="autonomy" role="switch" aria-label="自主行为" aria-checked="false" title="自主行为已关闭 · 点击开启">自主</button></div></div>
+  <div class="profile"><div id="character-switcher" class="character-switcher" role="menu" aria-label="选择主控居民" hidden></div><button id="active-character" class="avatar-wrap" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="切换主控居民"><img id="player-portrait" alt="凯伊的外星人头像"/><span class="mood-dot">✦</span></button><div class="profile-copy"><span class="eyebrow" id="player-bio">你的星际居民</span><h2 id="player-name">凯伊 <span>KAÏ</span></h2><span id="mood" class="mood">${icon('Smile')} 心情不错</span></div><div class="profile-traits"><span>${icon('Compass')} 好奇心旺盛</span><span>${icon('Heart')} 热爱生活</span></div><div class="current-activity"><span id="activity">${icon('Coffee')} 享受此刻的宁静</span><button id="autonomy" role="switch" aria-label="自主行为" aria-checked="false" title="自主行为已关闭 · 点击开启">自主</button></div></div>
   <div class="details"><nav class="panel-tabs"><button class="active" data-tab="needs">${icon('HeartPulse')} 需求</button><button data-tab="skills">${icon('Sparkles')} 技能</button><button data-tab="resident">${icon('Smile')} 人物</button><button data-tab="relations">${icon('Users')} 关系</button><button data-tab="career">${icon('BriefcaseBusiness')} 职业</button><button data-tab="life">${icon('Sprout')} 生命</button><button data-tab="items">${icon('PackageOpen')} 物品包</button><span id="panel-tag">一切都刚刚好</span></nav><div id="panel-content"></div></div>
   <div class="neighbors"><div class="card-label">你的邻居 <span>4 位居民</span></div><div id="neighbor-portraits"></div><p>每个星球，都有值得认识的人。</p><button id="all-neighbors">查看关系 ${icon('ArrowUpRight')}</button></div>
  </section>
@@ -81,8 +81,9 @@ if(import.meta.hot)import.meta.hot.on('vite:beforeFullReload',()=>save());
 
 function changeTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));lastPanel='';renderPanel();}
 function relationName(n){return n>=70?'挚友':n>=35?'朋友':'初识';}
-function resident(){return selectedResident==='player'?game.player:game.npcs[selectedResident];}
-function residentPicker(){return `<label class="resident-picker">查看居民 <select id="resident-select">${[{id:'player',name:`${game.player.name}（主控）`},...neighbors(game)].map(n=>`<option value="${n.id}" ${n.id===selectedResident?'selected':''}>${n.name}</option>`).join('')}</select></label>`;}
+function activeResidentId(){return game.controlledId??'player';}
+function resident(){return game.player;}
+function residentPicker(){return '';}
 function careerSkillsText(skills,id,level=1){const requirements=careerDefinition(game,id).levels[level-1]?.skills||{};return Object.entries(requirements).map(([key,required])=>`${SKILLS[key].name} ${Math.floor(skills[key]??0)}/${required}`).join(' · ')||'无';}
 function careerMissingText(skills,id,level=1){return missingCareerSkills(skills,id,level,game.config).map(({key,current,required})=>`${SKILLS[key].name} ${Math.floor(current)}/${required}`).join('、');}
 function careerRequirementsText(id,level=1){const requirements=careerDefinition(game,id).levels[level-1]?.skills||{};return Object.entries(requirements).map(([key,required])=>`${SKILLS[key].name} ${required}`).join(' · ')||'无';}
@@ -108,18 +109,18 @@ function resetConfig(){game.config=normalizeConfig();lastPanel='';refresh();rend
 async function persistProjectConfig(){if(!confirm('将当前参数永久覆盖为项目默认配置，之后新建的星湾会使用这些参数。确定继续吗？'))return;try{await persistence.saveProjectConfig(game.config);toast('当前配置已固化为项目默认配置。');}catch(error){console.error('项目配置保存失败',error);toast('项目配置保存失败，请检查游戏服务。');}}
 async function startNewLife(){try{game=await persistence.createNewGame();selectedResident='player';portraitKey='';lastPanel='';closeContext();refresh();toast('新的星湾已按项目默认配置创建。');}catch(error){console.error('新星湾创建失败',error);toast('新的星湾创建失败，请检查游戏服务。');}}
 function refreshPortraits(){
- if(!world)return;const key=`${JSON.stringify(game.config.lifeStages)}|${[game.player,...Object.values(game.npcs)].map(p=>`${p.uid}-${p.alive}-${p.gender}-${lifeStage(p.age,game.config.lifeStages)}-${JSON.stringify(p.genome)}`).join('|')}`;if(key===portraitKey)return;portraitKey=key;
- portraits=Object.fromEntries(['player',...neighbors(game).map(n=>n.id)].map(id=>[id,world.portrait(id)]));$('#player-portrait').src=portraits.player;$('#player-portrait').alt=`${game.player.name}的外星人头像`;$('#player-name').textContent=game.player.name;$('.profile-traits').innerHTML=game.player.trait.split(' · ').map(t=>`<span>${icon('Sparkles')} ${t}</span>`).join('');$('.neighbors .card-label span').textContent=`${neighbors(game).length} 位居民`;
+ if(!world)return;const activeId=activeResidentId(),entries=[{id:activeId,person:game.player},...neighbors(game).map(n=>({id:n.id,person:game.npcs[n.id]}))],key=`${activeId}|${JSON.stringify(game.config.lifeStages)}|${entries.map(({id,person})=>`${id}-${person.uid}-${person.name}-${person.alive}-${person.gender}-${lifeStage(person.age,game.config.lifeStages)}-${JSON.stringify(person.genome)}`).join('|')}`;if(key===portraitKey)return;portraitKey=key;
+ portraits=Object.fromEntries(entries.map(({id})=>[id,world.portrait(id===activeId?'player':id)]));portraits.player=portraits[activeId];$('#player-portrait').src=portraits[activeId];$('#player-portrait').alt=`${game.player.name}的外星人头像`;$('#player-name').textContent=game.player.name;$('.profile-traits').innerHTML=game.player.trait.split(' · ').map(t=>`<span>${icon('Sparkles')} ${t}</span>`).join('');$('.neighbors .card-label span').textContent=`${neighbors(game).length} 位居民`;
+  $('#character-switcher').innerHTML=neighbors(game).map(n=>`<button type="button" class="character-option" data-character="${n.id}" role="menuitem" aria-label="切换到${n.name}"><img src="${portraits[n.id]}" alt="${n.name}"/><span>${n.name}</span></button>`).join('');$('#active-character').setAttribute('aria-label',`切换主控居民，当前是${game.player.name}`);
   $('#neighbor-portraits').innerHTML=neighbors(game).map(n=>`<button data-npc="${n.id}" title="${n.name} · ${GENDERS[game.npcs[n.id].gender]} · ${STAGES[lifeStage(game.npcs[n.id].age,game.config.lifeStages)]}" aria-label="与${n.name}互动"><img src="${portraits[n.id]}" alt="${n.name}"/><span>${n.name}</span><i></i></button>`).join('');lastPanel='';
 }
 function renderPanel(){
- if(selectedResident!=='player'&&!game.npcs[selectedResident])selectedResident='player';
- const person=resident(),skills=selectedResident==='player'?game.skills:person.skills,funds=selectedResident==='player'?game.money:person.money;
- const signature=tab==='life'?JSON.stringify([selectedResident,person.uid,person.alive,person.familyDesire,game.autonomy.enabled,birthDecision(game,selectedResident).reason,Math.floor(game.minute),game.incubations,game.memorials,game.money,neighbors(game).map(n=>[n.id,Math.floor(n.needs.hunger),Math.floor(n.age)])]):tab==='needs'?Object.values(game.needs).map(Math.floor).join(','):tab==='relations'?JSON.stringify([game.relationships,neighbors(game).map(n=>game.npcs[n.id].activity)]):tab==='career'?JSON.stringify([selectedResident,game.career,person.career,skills]):tab==='skills'?JSON.stringify([selectedResident,skills]):tab==='resident'?`${selectedResident}-${person.gender}-${Math.floor(person.age)}-${Math.floor(funds)}`:`${pack}-${build}`;
+ const activeId=activeResidentId();selectedResident='player';const person=resident(),skills=game.skills,funds=game.money;
+ const signature=tab==='life'?JSON.stringify([activeId,person.uid,person.alive,person.familyDesire,game.autonomy.enabled,birthDecision(game,'player').reason,Math.floor(game.minute),game.incubations,game.memorials,game.money,neighbors(game).map(n=>[n.id,Math.floor(n.needs.hunger),Math.floor(n.age)])]):tab==='needs'?Object.values(game.needs).map(Math.floor).join(','):tab==='relations'?JSON.stringify([game.relationships,neighbors(game).map(n=>game.npcs[n.id].activity)]):tab==='career'?JSON.stringify([activeId,game.career,skills]):tab==='skills'?JSON.stringify([activeId,skills]):tab==='resident'?`${activeId}-${person.gender}-${Math.floor(person.age)}-${Math.floor(funds)}`:`${pack}-${build}`;
  if(signature===lastPanel||tab==='life'&&document.activeElement?.matches('#panel-content select'))return;lastPanel=signature;
   $('#panel-tag').textContent=tab==='needs'?'六种需求 · 一种好生活':tab==='relations'?'友谊也需要悉心照料':tab==='career'?'在银河找到自己的位置':tab==='skills'?'通过实际行动积累经验':tab==='resident'?`每 ${game.config.time.starYearDays} 天增长 1 星岁`:tab==='life'?'新生、陪伴与告别':build?'选择物品 → 点击地面摆放':`3 个主题包 · ${ITEMS.length} 件物品`;
  if(tab==='life'){
-  const decision=birthDecision(game,selectedResident),children=[game.player,...Object.values(game.npcs),...game.memorials].filter(n=>n.parents.some(p=>p.uid===person.uid));
+  const decision=birthDecision(game,'player'),children=[game.player,...neighbors(game),...game.memorials].filter(n=>n.parents.some(p=>p.uid===person.uid));
   if(!$('.life-panel'))$('#panel-content').innerHTML='<div class="life-panel"></div>';
   $('.life-panel').innerHTML=`<div class="life-person">${residentPicker()}<label class="family-label">生育意愿 <select id="family-desire" ${person.alive?'':'disabled'}><option value="0" ${person.familyDesire<.4?'selected':''}>暂不考虑</option><option value="0.7" ${person.familyDesire>=.4&&person.familyDesire<.9?'selected':''}>顺其自然</option><option value="1" ${person.familyDesire>=.9?'selected':''}>期待家人</option></select></label><p id="fertility-reason">${decision.reason}</p><small>${selectedResident==='player'&&!game.autonomy.enabled?'开启「自主」后，主控居民才会自主安排生育。':'本地 AI 会把生育与日常需求一起权衡。'}</small><p class="family-line">亲代：${person.parents.map(p=>p.name).join('、')||'星湾初代'} · 子女：${children.map(p=>p.name).join('、')||'暂无'}</p><p class="family-line">遗传：${person.trait} · ${person.mutations.length?person.mutations.join('、'):'未发现突变'}<br>身高 ${Math.round(person.genome.stature*100)}% · 体型 ${Math.round(person.genome.build*100)}% · 触角 ${Math.round(person.genome.antenna*100)}%</p></div><div class="life-events"><h4>星芽育生 <span>3 天孵育 · 300 星币</span></h4>${game.incubations.length?game.incubations.map(b=>`<p class="birth-entry">${icon('Sprout')}<span>${b.parents.map(p=>p.name).join('与')}的星芽<small>${b.due>gameMinutes(game)?`还有 ${Math.ceil(b.due-gameMinutes(game))} 游戏分钟出生`:'已成熟，等待育生舱旁腾出空地'}</small></span></p>`).join(''):'<p class="life-empty">暂无孕育中的星芽。在物品包购买育生舱，让家园具备迎接新生命的条件。</p>'}<h4>星湾纪念 <span>${game.memorials.length} 位逝者</span></h4>${game.memorials.map(m=>`<p class="memorial-entry">${m.name}<small>${Math.floor(m.age)} 星岁 · 第 ${m.day} 天 · ${m.cause==='old_age'?'寿终':'长期饥饿'}</small></p>`).join('')||'<p class="life-empty">每一段生命，都值得被记住。</p>'}${!game.player.alive?`<div class="successors"><h4>选择继续陪伴的居民</h4>${neighbors(game).filter(n=>n.age>=3).map(n=>`<button data-inherit="${n.id}">接管 ${n.name}</button>`).join('')||'<p class="life-empty">暂无可接管的居民。</p><button id="new-life">重新开始星湾生活</button>'}</div>`:''}</div>`;
  }
@@ -158,6 +159,8 @@ function refresh(){
  renderHarvest();renderPanel();
 }
 function closeContext(){$('#context-menu').hidden=true;context=null;}
+function closeCharacterSwitcher(){const menu=$('#character-switcher');if(!menu)return;menu.hidden=true;$('#active-character')?.setAttribute('aria-expanded','false');}
+function toggleCharacterSwitcher(){const menu=$('#character-switcher');if(!menu)return;const open=menu.hidden;menu.hidden=!open;$('#active-character').setAttribute('aria-expanded',String(open));}
 function showContext(target,x,y){
  if(target.kind==='ground'){closeContext();const result=enqueue(game,'walk',null,target.point);if(!result.ok)toast(result.message);refresh();return;}
  if(target.kind==='npc'&&!game.npcs[target.id])return;
@@ -181,7 +184,9 @@ $('#app').addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.speed!==undefined){game.speed=Number(b.dataset.speed);refresh();}
  if(b.id==='autonomy'){setAutonomy(game,!game.autonomy.enabled);toast(game.autonomy.enabled?'自主行为已开启，手动安排随时优先。':'自主行为已关闭，保留你的手动安排。');refresh();}
+ if(b.id==='active-character')toggleCharacterSwitcher();
  if(b.dataset.tab)changeTab(b.dataset.tab);
+ if(b.dataset.character){const result=switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
  if(b.dataset.inherit){const result=takeOver(game,b.dataset.inherit);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';refresh();save();toast(`现在由你陪伴${game.player.name}生活。`);}else toast(result.message);}
  if(b.id==='new-life'&&confirm('重新开始将覆盖当前存档，确定开始新的星湾生活吗？'))startNewLife();
  if(b.dataset.cancel){cancelAction(game,Number(b.dataset.cancel));refresh();}
@@ -214,15 +219,15 @@ $('#app').addEventListener('click',e=>{
  if(b.id==='context-close')closeContext();if(b.id==='sound')toggleSound();
 });
 $('#app').addEventListener('click',e=>{if(e.target.closest('#randomize-heads')){randomizeHeads(game);refreshPortraits();lastPanel='';refresh();toast('所有居民的头型与触角长度已随机。');}});
-$('#app').addEventListener('change',e=>{if(e.target.id==='family-desire'){e.target.blur();resident().familyDesire=Number(e.target.value);lastPanel='';renderPanel();}if(e.target.id==='resident-select'){e.target.blur();selectedResident=e.target.value;lastPanel='';renderPanel();}});
+$('#app').addEventListener('change',e=>{if(e.target.id==='family-desire'){e.target.blur();resident().familyDesire=Number(e.target.value);lastPanel='';renderPanel();}});
 $('#app').addEventListener('submit',e=>{
  if(e.target.id==='config-form'){applyConfig(e);return;}if(e.target.id!=='resident-form')return;e.preventDefault();
  const headShape=Object.fromEntries(Object.keys(HEAD_SHAPE).map(key=>[key,Number($(`[name="${key}"]`).value)/100]));
  const result=updateResident(game,selectedResident,{gender:$('#resident-gender').value,age:Number($('#resident-age').value),headShape});
  if(!result.ok){toast(result.message);return;}refreshPortraits();lastPanel='';refresh();toast('人物设定已更新，外形已同步。');
 });
-document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();game.speed=game.speed?0:1;refresh();}if(e.key==='1'||e.key==='3'){game.speed=Number(e.key);refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();}});
-document.addEventListener('pointerdown',e=>{if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();});
+document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();game.speed=game.speed?0:1;refresh();}if(e.key==='1'||e.key==='3'){game.speed=Number(e.key);refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();}});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();if(!e.target.closest('#character-switcher')&&!e.target.closest('#active-character'))closeCharacterSwitcher();});
 let audioContext=null,audioOn=false;
 async function toggleSound(){if(!audioContext){audioContext=new AudioContext();const gain=audioContext.createGain();gain.gain.value=.015;gain.connect(audioContext.destination);[130.81,196,261.63,329.63].forEach((f,i)=>{const osc=audioContext.createOscillator();osc.type='sine';osc.frequency.value=f;const volume=audioContext.createGain();volume.gain.value=.28;osc.connect(volume).connect(gain);const lfo=audioContext.createOscillator();lfo.frequency.value=.07+i*.03;const depth=audioContext.createGain();depth.gain.value=.14;lfo.connect(depth).connect(volume.gain);lfo.start();osc.start();});}audioOn=!audioOn;if(audioOn)await audioContext.resume();else await audioContext.suspend();$('#sound').innerHTML=icon(audioOn?'Volume2':'VolumeX');$('#sound').classList.toggle('active',audioOn);}
 
