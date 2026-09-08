@@ -39,5 +39,14 @@ try{
   }
  }
  const nether=prayerFixture('back',{success:true});await page.evaluate(s=>window.drawPrayer(s,null,true),nether);await page.screenshot({path:'artifacts/nether-mutations.png'});
+ const radiant=prayerFixture('front',{success:true});radiant.player.prayer.radiance=10;
+ await page.evaluate(s=>window.drawPrayer(s,null,true),radiant);await page.screenshot({path:'artifacts/radiant-halo.png'});
+ radiant.player.prayer.nether=10;
+ await page.evaluate(s=>window.drawPrayer(s,null,true),radiant);await page.screenshot({path:'artifacts/radiant-nether.png'});
+ radiant.speed=0;
+ await page.route('**/api/save',route=>route.fulfill({json:{state:radiant,revision:1,savedAt:null}}));
+ await page.goto('http://127.0.0.1:5173');await page.locator('#loading').waitFor({state:'hidden',timeout:45000});
+ assert.match(await page.locator('#player-bio').textContent(),/两仪族/);
+ await page.locator('#player-portrait').screenshot({path:'artifacts/dual-race-portrait.png'});
  assert.deepEqual(errors,[]);console.log('Both kneeling poses, animated blessings, nether tattoo and stacked mutations rendered without errors.');
 }finally{await browser.close();}

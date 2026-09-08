@@ -38,6 +38,17 @@ test('nether tattoos and multiple acquired mutations update a paused character w
  assert.equal(rig.prayerVisuals.skinUniforms.freckles.value,1);
  assert.notEqual(rig.body.getObjectByName('LeftEye').material.color.getHex(),other.body.getObjectByName('LeftEye').material.color.getHex());
 });
+test('dawn halo appears at awakening and coexists with nether without changing other residents',async()=>{
+ const {createCharacter,updateCharacter}=await import('../src/character-rig.js');const {createGame}=await import('../src/simulation.js');
+ const person=createGame().player,rig=createCharacter(asset.scene,person),other=createCharacter(asset.scene,person);
+ person.prayer.radiance=9;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.prayerVisuals.dawnHalo.visible,false);
+ person.prayer.radiance=10;person.prayer.nether=10;updateCharacter(rig,{person,time:0,delta:0});
+ assert.equal(rig.prayerVisuals.dawnHalo.visible,true);assert.equal(rig.prayerVisuals.skinUniforms.nether.value,1);
+ assert.equal(rig.prayerVisuals.dawnHalo.parent,rig.joints.Head);assert.equal(other.prayerVisuals.dawnHalo.visible,false);
+ person.prayer.radiance=0;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.prayerVisuals.dawnHalo.visible,false);
+ rig.prayerVisuals.dispose();other.prayerVisuals.dispose();
+});
+
 test('the shipped alien has two skinned legs, colored skin and original antenna bulbs',()=>{
  for(const name of ['Core','Head','BodySkin','LeftTendrilTip','RightTendrilTip','LeftLegTip','RightLegTip'])assert.ok(asset.scene.getObjectByName(name),name);
  const skins=[];asset.scene.traverse(n=>{if(n.isSkinnedMesh)skins.push(n);assert.ok(!n.name.includes('Fin'));});assert.equal(skins.length,1);

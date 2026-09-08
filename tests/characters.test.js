@@ -15,8 +15,24 @@ test('head shape edits persist, inherit and reject invalid values without partia
  const g=sim.createGame(),headShape={headWidth:.85,headHeight:1.2,headDepth:1.1,jaw:1.15};
  assert.equal(sim.updateResident(g,'player',{gender:'male',age:28,headShape}).ok,true);
  const restored=sim.restore(sim.serialize(g));for(const key of Object.keys(HEAD_SHAPE))assert.equal(restored.player.genome[key],headShape[key]);
- const child=sim.inheritTraits([g.player,g.npcs.nova],()=>.9);for(const key of Object.keys(HEAD_SHAPE))assert.equal(child.genome[key],(headShape[key]+g.npcs.nova.genome[key])/2);
+ const child=sim.inheritTraits([g.player,g.npcs.nova],()=>.9);for(const key of Object.keys(HEAD_SHAPE)){const low=Math.min(headShape[key],g.npcs.nova.genome[key]),high=Math.max(headShape[key],g.npcs.nova.genome[key]);assert.ok(child.genome[key]>=low-(high-low)*.2&&child.genome[key]<=high+(high-low)*.2);}
  const before=sim.serialize(g);assert.equal(sim.updateResident(g,'player',{gender:'female',age:18,headShape:{...headShape,headWidth:NaN}}).ok,false);assert.equal(sim.serialize(g),before);
+});
+test('two-parent numeric inheritance samples an extrapolated range instead of collapsing to the midpoint',()=>{
+ const genome=Object.fromEntries(Object.keys(sim.createGame().player.genome).map(key=>[key,.9]));
+ const a={color:'#444444',genome:{...genome},preferences:{research:20},familyDesire:.2,prayer:{radiance:0,nether:0,mutations:[]}};
+ const b={color:'#888888',genome:{...genome,stature:1.1,headWidth:1.1},preferences:{research:40},familyDesire:.8,prayer:{radiance:0,nether:0,mutations:[]}};
+ const rates={color:0,stature:0,build:0,head:0,antenna:0},child=sim.inheritTraits([a,b],()=>0,rates);
+ assert.equal(child.genome.stature,.86);assert.equal(child.color,'#363636');assert.equal(child.preferences.research,16);assert.ok(Math.abs(child.familyDesire-.08)<1e-12);
+ const same=sim.inheritTraits([a,a],()=>.99,rates);assert.ok(same.genome.build>.9);
+});
+test('racial attributes use thirty-percent parent-value baselines with normal variation and separate mutation inheritance',()=>{
+ const g=sim.createGame(),a=structuredClone(g.player),b=structuredClone(g.npcs.nova),rates={color:0,stature:0,build:0,head:0,antenna:0};
+ a.prayer={radiance:20,nether:0,mutations:['crown']};b.prayer={radiance:0,nether:50,mutations:['spines']};
+ const baseline=sim.inheritTraits([a,b],()=>.25,rates);assert.equal(baseline.prayer.radiance,3);assert.equal(baseline.prayer.nether,8);assert.deepEqual(baseline.prayer.mutations,[]);
+ const varied=sim.inheritTraits([a,b],()=>.01,rates);assert.ok(varied.prayer.radiance>3);assert.ok(varied.prayer.nether>8);assert.deepEqual(new Set(varied.prayer.mutations),new Set(['crown','spines']));
+ const configured=sim.inheritTraits([a,b],()=>.25,rates,{racialInheritanceRate:50,racialInheritanceStdDev:0,racialMutationInheritanceChance:100});assert.equal(configured.prayer.radiance,5);assert.equal(configured.prayer.nether,13);assert.deepEqual(new Set(configured.prayer.mutations),new Set(['crown','spines']));
+ const absent=sim.inheritTraits([structuredClone(g.player),structuredClone(g.npcs.nova)],()=>.01,rates);assert.deepEqual(absent.prayer,{radiance:0,nether:0,mutations:[]});
 });
 test('v6 saves gain head shape once while retaining existing appearance and progress',()=>{
  const g=sim.createGame();g.version=6;g.objects=g.objects.filter(o=>o.type!=='gate');g.money=1999;g.player.genome.stature=1.12;

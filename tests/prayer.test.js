@@ -1,7 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,buyItem,enqueue,tick,serialize,restore,cancelAction,takeOver,ITEMS,skillProgress} from '../src/simulation.js';
-import {resolvePrayer,PRAYER_MUTATIONS,validBlessing} from '../src/prayer.js';
+import {resolvePrayer,PRAYER_MUTATIONS,validBlessing,isRadiant,prayerRaceName} from '../src/prayer.js';
+
+test('radiance uses an independent ten-percent front roll and never rewards the back',()=>{
+ for(const [side,roll,expected]of [['front',.0999,true],['front',.1,false],['back',0,false]]){
+  const g=createGame();g.config.prayer.skillChance=g.config.prayer.netherChance=g.config.prayer.mutationChance=0;
+  const result=resolvePrayer(g.player,g.skills,side,g.config.prayer,g.config.lifeStages,()=>roll);
+  assert.equal(result.radiance,expected);assert.equal(g.player.prayer.radiance,expected?1:0);
+ }
+ const g=createGame();g.player.prayer.radiance=1e9;
+ assert.equal(resolvePrayer(g.player,g.skills,'front',g.config.prayer,g.config.lifeStages,()=>0).radiance,false);
+});
+
+test('player and NPC dawn awakening persists without rerolling and coexists with nether',t=>{
+ t.mock.method(Math,'random',()=>.5);
+ for(const npc of [false,true]){
+  const {g,tree}=setup(),person=npc?g.npcs.nova:g.player;
+  person.side='front';person.x=0;person.z=5.6;person.prayer.radiance=9;person.prayer.nether=10;
+  Object.assign(g.config.prayer,{skillChance:0,radianceChance:100});
+  enqueue(g,'pray',tree.id);if(npc){person.queue=g.queue;g.queue=[];}
+  advance(g,()=>(npc?person.queue:g.queue)[0]?.phase==='celebrating');
+  const result=(npc?person.queue:g.queue)[0].blessing;
+  assert.equal(result.radianceTransformed,true);assert.equal(validBlessing(result),true);
+  assert.equal(isRadiant(person),true);assert.equal(prayerRaceName(person),'两仪族');
+  assert.match(g.majorEvents[0].text,/淡金曦轮/);
+  const loaded=restore(serialize(g)),resident=npc?loaded.npcs.nova:loaded.player;
+  advance(loaded,()=>!(npc?resident.queue:loaded.queue).length);assert.equal(resident.prayer.radiance,10);
+  const next=resolvePrayer(resident,npc?resident.skills:loaded.skills,'front',loaded.config.prayer,loaded.config.lifeStages,()=>.5);
+  assert.equal(next.radiance,true);assert.equal(next.radianceTransformed,false);
+ }
+});
+
+test('old saves gain zero radiance, while malformed radiance and wrong-side blessings are rejected',()=>{
+ const g=createGame();for(const person of [g.player,...Object.values(g.npcs)])delete person.prayer.radiance;
+ delete g.config.prayer.radianceChance;
+ const loaded=restore(serialize(g));assert.equal(loaded.player.prayer.radiance,0);assert.equal(loaded.config.prayer.radianceChance,10);
+ for(const value of [-1,.5,'10',null,1e9+1]){const invalid=structuredClone(loaded);invalid.player.prayer.radiance=value;assert.throws(()=>restore(serialize(invalid)));}
+ const blessing={side:'front',skill:null,nether:false,mutation:null,transformed:false,radiance:true,radianceTransformed:true};
+ assert.ok(validBlessing(blessing));assert.equal(validBlessing({...blessing,side:'back'}),false);
+ assert.equal(validBlessing({...blessing,radiance:false}),false);
+});
+
+test('either awakening order converges into the dual race only once',()=>{
+ for(const side of ['front','back']){
+  const g=createGame();g.player.prayer.radiance=side==='front'?9:10;g.player.prayer.nether=side==='back'?9:10;
+  assert.equal(prayerRaceName(g.player),side==='front'?'幽冥族':'曦灵族');
+  const result=resolvePrayer(g.player,g.skills,side,g.config.prayer,g.config.lifeStages,()=>0);
+  assert.equal(result.converged,true);assert.ok(validBlessing(result));assert.equal(prayerRaceName(g.player),'两仪族');
+  assert.equal(resolvePrayer(g.player,g.skills,side,g.config.prayer,g.config.lifeStages,()=>0).converged,false);
+  assert.equal(prayerRaceName(restore(serialize(g)).player),'两仪族');
+ }
+});
 
 function setup(side='front'){
  const g=createGame();for(const n of Object.values(g.npcs))n.ai.enabled=false;
@@ -29,12 +79,12 @@ test('configured prayer percentages control actual player and NPC rewards indepe
 });
 
 test('prayer configuration persists, migrates older saves and rejects invalid percentages',()=>{
- const g=createGame();assert.deepEqual(g.config.prayer,{skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1});
- g.config.prayer={skillChance:27.5,netherChance:0,mutationChance:100,rejuvenationChance:.2};assert.deepEqual(restore(serialize(g)).config.prayer,g.config.prayer);
+ const g=createGame();assert.deepEqual(g.config.prayer,{skillChance:10,radianceChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5});
+ g.config.prayer={skillChance:27.5,radianceChance:10,netherChance:0,mutationChance:100,rejuvenationChance:.2,racialInheritanceRate:42,racialInheritanceStdDev:13,racialMutationInheritanceChance:7};assert.deepEqual(restore(serialize(g)).config.prayer,g.config.prayer);
  for(const key of Object.keys(g.config.prayer))for(const value of [-1,100.1,'10',null]){
   const invalid=structuredClone(g);invalid.config.prayer[key]=value;assert.throws(()=>restore(serialize(invalid)));
  }
- delete g.config.prayer;assert.deepEqual(restore(serialize(g)).config.prayer,{skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1});
+ delete g.config.prayer;assert.deepEqual(restore(serialize(g)).config.prayer,{skillChance:10,radianceChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5});
 });
 
 test('tree offers prayer only and rejects prayer at other furniture',()=>{
@@ -121,7 +171,7 @@ test('prayer outcome follows the placed tree despite viewing the other island fa
 
 test('version 9 gains independent prayer state and version 10 rejects corrupt prayer data',()=>{
  const {g,tree}=setup();g.version=9;for(const p of [g.player,...Object.values(g.npcs)])delete p.prayer;
- const loaded=restore(serialize(g));assert.equal(loaded.version,10);assert.deepEqual(loaded.player.prayer,{nether:0,mutations:[]});
+ const loaded=restore(serialize(g));assert.equal(loaded.version,10);assert.deepEqual(loaded.player.prayer,{radiance:0,nether:0,mutations:[]});
  assert.equal(loaded.money,g.money);assert.ok(loaded.objects.some(o=>o.id===tree.id));
  for(const prayer of [undefined,{nether:-1,mutations:[]},{nether:1.5,mutations:[]},{nether:0,mutations:['unknown']},{nether:0,mutations:['crown','crown']}]){
   const invalid=structuredClone(loaded);invalid.player.prayer=prayer;assert.throws(()=>restore(serialize(invalid)));

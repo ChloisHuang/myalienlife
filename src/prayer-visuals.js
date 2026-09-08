@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {isNether} from './prayer.js';
+import {isNether,isRadiant} from './prayer.js';
 
 export function createPrayerVisuals(rig){
  const skinUniforms={nether:{value:0},freckles:{value:0}};
@@ -34,23 +34,31 @@ export function createPrayerVisuals(rig){
  skin.customProgramCacheKey=()=>originalKey+'-prayer-skin-v2';
  const crystalMaterial=new THREE.MeshStandardMaterial({color:0x9783ce,emissive:0xbca2ff,emissiveIntensity:6,roughness:.3,metalness:.15});
  const crown=new THREE.Group();rig.joints.Head.add(crown);
+ const dawnMaterial=new THREE.MeshStandardMaterial({color:0xffe9ae,emissive:0xffd98a,emissiveIntensity:2.4,roughness:.22,metalness:.1});
+ const dawnHalo=new THREE.Group();dawnHalo.position.set(0,.14,-.24);rig.joints.Head.add(dawnHalo);
+ dawnHalo.add(new THREE.Mesh(new THREE.TorusGeometry(.48,.012,6,64),dawnMaterial));
+ for(let i=0;i<6;i++){
+  const angle=i*Math.PI/3,ray=new THREE.Mesh(new THREE.OctahedronGeometry(.035),dawnMaterial);
+  ray.scale.set(.65,2.2,.45);ray.position.set(Math.cos(angle)*.58,Math.sin(angle)*.58,0);ray.rotation.z=angle-Math.PI/2;dawnHalo.add(ray);
+ }
  for(const sign of [-1,1]){const horn=new THREE.Mesh(new THREE.ConeGeometry(.085,.4,6),crystalMaterial);horn.position.set(sign*.24,.45,-.01);horn.rotation.z=-sign*.3;crown.add(horn);}
  const spines=new THREE.Group();rig.joints.Core.add(spines);
  for(let i=0;i<4;i++){const shard=new THREE.Mesh(new THREE.OctahedronGeometry(.075),crystalMaterial);shard.scale.set(.8,1.1,2.6);shard.position.set(0,.21-i*.14,-.19);spines.add(shard);}
  const eyes=['Left','Right'].map(side=>rig.body.getObjectByName(side+'Eye'));
  const originalEyes=eyes.map(eye=>({color:eye.material.color.clone(),emissive:eye.material.emissive.clone(),intensity:eye.material.emissiveIntensity}));
- crown.visible=spines.visible=false;
- return {skinUniforms,crown,spines,
+ crown.visible=spines.visible=dawnHalo.visible=false;
+ return {skinUniforms,crown,spines,dawnHalo,
   update(person){
    const mutations=person.prayer?.mutations??[];
    skinUniforms.nether.value=isNether(person)?1:0;skinUniforms.freckles.value=mutations.includes('freckles')?1:0;
    crown.visible=mutations.includes('crown');spines.visible=mutations.includes('spines');
+   dawnHalo.visible=isRadiant(person);
    for(const [i,eye]of eyes.entries()){
     const changed=mutations.includes('eyes');eye.material.color.copy(originalEyes[i].color);eye.material.emissive.copy(originalEyes[i].emissive);eye.material.emissiveIntensity=originalEyes[i].intensity;
     if(changed){eye.material.color.set(i?0xb66cff:0x5ef0df);eye.material.emissive.set(i?0xd8a6ff:0x7efff0);eye.material.emissiveIntensity=4.5;}
    }
 
   },
-  dispose(){for(const geometry of new Set([...crown.children,...spines.children].map(o=>o.geometry)))geometry.dispose();crystalMaterial.dispose();}
+  dispose(){for(const geometry of new Set([...crown.children,...spines.children,...dawnHalo.children].map(o=>o.geometry)))geometry.dispose();crystalMaterial.dispose();dawnMaterial.dispose();}
  };
 }

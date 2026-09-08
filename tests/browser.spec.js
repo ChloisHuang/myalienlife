@@ -272,8 +272,8 @@ test('configuration button opens the detailed parameter dialog',async({page})=>{
  await expect(dialog.locator('[data-config-path="lifeStages.infantEnd"]')).toHaveValue('3');
  await expect(dialog.locator('[data-config-path="mutationRates.color"]')).toHaveValue('2.4');
  await expect(dialog).toContainText('星灵树祈祷概率');
- for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
- const prayer={skillChance:27.5,netherChance:0,mutationChance:100,rejuvenationChance:.2};
+ for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
+ const prayer={skillChance:27.5,radianceChance:10,netherChance:0,mutationChance:100,rejuvenationChance:.2,racialInheritanceRate:42,racialInheritanceStdDev:13,racialMutationInheritanceChance:7};
  for(const [key,value]of Object.entries(prayer))await dialog.locator(`[data-config-path="prayer.${key}"]`).fill(String(value));
  await dialog.locator('[data-config-path="lifeStages.infantEnd"]').fill('4');
  await dialog.locator('[data-config-path="mutationRates.color"]').fill('3.1');
@@ -289,7 +289,7 @@ test('configuration button opens the detailed parameter dialog',async({page})=>{
  for(const [key,value]of Object.entries(prayer))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
  await dialog.locator('[data-config-path="prayer.skillChance"]').scrollIntoViewIfNeeded();await page.screenshot({path:'test-results/prayer-config.png'});
  await dialog.locator('#config-reset').click();
- for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
+ for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
 });
 test('skills and resident appearance have dedicated panels and retain edits after reload',async({page})=>{
  const state=createGame();state.speed=0;state.skills.science=4;

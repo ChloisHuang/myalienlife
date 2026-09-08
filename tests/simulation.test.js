@@ -56,7 +56,7 @@ test('government subsidy pays minors and elders once per game day',()=>{
  tick(g,1);assert.equal(g.npcs.nova.money,before.nova);assert.equal(g.npcs.lumi.money,before.lumi+50);
 });
 test('cancelling an action prevents its reward',()=>{
- const g=createGame(); enqueue(g,'work','lab'); const funds=g.money; cancelAction(g,g.queue[0].id); tick(g,60); assert.equal(g.money,funds);
+ const g=createGame();g.autonomy.enabled=false; enqueue(g,'work','lab'); const funds=g.money; cancelAction(g,g.queue[0].id); tick(g,60); assert.equal(g.money,funds);
 });
 test('work earns wages and repeated shifts promote the chosen career',()=>{
  const g=createGame();Object.assign(g.skills,CAREERS.botanist.levels[1].skills);assert.equal(setCareer(g,'botanist'),true); const money=g.money;
