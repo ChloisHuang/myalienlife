@@ -26,7 +26,7 @@
 .character-option:hover{background:#edf5e9;border-color:#a7c59f}
 .character-option:focus-visible{outline:2px solid #76a980;outline-offset:1px}
 .character-option img{width:34px;height:40px;flex:0 0 auto;object-fit:cover;border:2px solid #fff;border-radius:8px}
-.character-option span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.character-option span{display:flex;flex-direction:column;min-width:0;overflow:hidden}.character-option span strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;font-weight:600}.character-option span small{margin-top:2px;color:#8b9d8a;font-size:8px;white-space:nowrap}
 @media(min-width:1650px){.profile{grid-template-rows:85px 1fr 38px}}
 @media(max-width:760px){
  .dashboard{grid-template-rows:58px 242px}

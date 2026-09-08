@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,buyItem,canPlace,enqueue,tick,setCareer,CAREERS,restore,serialize,sellItem} from '../src/simulation.js';
 
-function game(){const g=createGame();for(const n of Object.values(g.npcs))n.ai.enabled=false;return g;}
+function game(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;return g;}
 function run(g,seconds=60){for(let i=0;i<seconds*10;i++)tick(g,.1);}
 
 test('new games place the default teleport gates in the open southwest clearing',()=>{

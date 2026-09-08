@@ -23,12 +23,12 @@ test('an NPC without meal money removes eating from its autonomous choices',()=>
  assert.notEqual(n.queue[0]?.type,'eat');assert.notEqual(n.queue[0]?.targetId,'food');
 });
 test('a working NPC earns personal wages without changing player funds',()=>{
- const g=sim.createGame(),n=g.npcs.zig;Object.assign(n.needs,healthy());Object.assign(n.skills,sim.CAREERS.scientist.levels[0].skills);n.money=0;const householdMoney=g.money;
+ const g=sim.createGame(),n=g.npcs.zig;sim.setAutonomy(g,false);Object.assign(n.needs,healthy());Object.assign(n.skills,sim.CAREERS.scientist.levels[0].skills);n.money=0;const householdMoney=g.money;
  run(g,1);assert.equal(n.queue[0]?.type,'work');
  run(g,40);assert.ok(n.money>0);assert.equal(g.money,householdMoney);
 });
 test('an autonomous NPC trains before taking a career whose entry skills are missing',()=>{
- const g=sim.createGame(),n=g.npcs.zig;Object.assign(n.needs,healthy());n.money=0;n.skills.science=0;
+ const g=sim.createGame(),n=g.npcs.zig;sim.setAutonomy(g,false);Object.assign(n.needs,healthy());n.money=0;n.skills.science=0;
  run(g,1);assert.notEqual(n.queue[0]?.type,'work');
  n.queue=[];n.ai.cooldown=0;n.skills.science=sim.CAREERS.scientist.levels[0].skills.science;run(g,1);
  assert.equal(n.queue[0]?.type,'work');
@@ -57,10 +57,10 @@ test('AI reserves furniture and does not choose absent or unreachable food',()=>
  const h=sim.createGame();h.objects=h.objects.filter(o=>o.type!=='food');h.npcs.nova.needs={...healthy(),hunger:5};run(h,1);assert.notEqual(h.npcs.nova.queue[0]?.type,'eat');
  const k=sim.createGame();k.npcs.nova.needs={...healthy(),hunger:5};k.objects.push({id:'block',type:'crystal',x:1,z:-3,rotation:0});run(k,1);assert.notEqual(k.npcs.nova.queue[0]?.type,'eat');
 });
-test('player AI remains off by default, can be enabled, and stops when disabled',()=>{
- const g=sim.createGame();g.needs={...healthy(),hunger:5};run(g,1);assert.equal(g.queue.length,0);
- assert.equal(typeof sim.setAutonomy,'function');sim.setAutonomy(g,true);run(g,.1);assert.equal(g.queue[0]?.type,'eat');assert.equal(g.queue[0].source,'ai');
- sim.setAutonomy(g,false);assert.equal(g.queue.length,0);run(g,5);assert.equal(g.queue.length,0);
+test('player AI is enabled by default, can be disabled, and can be re-enabled',()=>{
+ const g=sim.createGame();g.needs={...healthy(),hunger:5};assert.equal(g.autonomy.enabled,true);run(g,.1);assert.equal(g.queue[0]?.type,'eat');assert.equal(g.queue[0].source,'ai');
+ assert.equal(typeof sim.setAutonomy,'function');sim.setAutonomy(g,false);assert.equal(g.queue.length,0);run(g,5);assert.equal(g.queue.length,0);
+ sim.setAutonomy(g,true);run(g,.1);assert.equal(g.queue[0]?.type,'eat');assert.equal(g.queue[0].source,'ai');
 });
 test('manual orders interrupt autonomous actions and AI does not interrupt queued manual orders',()=>{
  const g=sim.createGame();assert.equal(typeof sim.setAutonomy,'function');sim.setAutonomy(g,true);g.needs={...healthy(),energy:5};run(g,.1);assert.equal(g.queue[0]?.type,'sleep');

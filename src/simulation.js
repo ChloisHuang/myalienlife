@@ -141,7 +141,7 @@ const controlledResidentId=g=>g.controlledId??'player';
 export const neighbors=g=>Object.entries(g.npcs).filter(([id])=>id!==controlledResidentId(g)).map(([id,n])=>({id,...n}));
 const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),career:createCareer(n.id),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
 export function createGame(config){return {
- version:10,viewSide:'front',controlledId:'player',config:normalizeConfig(config),harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(false),
+ version:10,viewSide:'front',controlledId:'player',config:normalizeConfig(config),harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(true),
  npcs:Object.fromEntries(NPCS.map(n=>[n.id,createNeighbor(n)])),
  needs:{hunger:76,energy:88,social:62,fun:72,hygiene:85,comfort:79},relationships:{nova:15,zig:12,lumi:20,pip:8},
  career:{id:'scientist',level:1,shifts:0},skills:{...createSkills(),science:CAREERS.scientist.levels[0].skills.science},queue:[],nextId:1,
@@ -185,7 +185,7 @@ function syncControlledResident(g){
 }
 function activateControlledResident(g,id){
  const target=g.npcs[id];g.player=target;g.controlledId=id;g.money=target.money;g.harvest=target.inventory;
- g.viewSide=sideOf(target);g.needs=target.needs;g.skills=target.skills;g.career=target.career;g.queue=target.queue;g.autonomy={...target.ai,enabled:false,cooldown:0,reason:'等待你的安排'};g.relationships={...target.relationships};delete g.relationships[id];
+ g.viewSide=sideOf(target);g.needs=target.needs;g.skills=target.skills;g.career=target.career;g.queue=target.queue;g.autonomy={...target.ai,enabled:true,cooldown:0,reason:'正在观察需求和周围环境'};g.relationships={...target.relationships};delete g.relationships[id];
  target.needs=g.needs;target.skills=g.skills;target.career=g.career;target.queue=g.queue;target.ai=g.autonomy;target.relationships=g.relationships;target.inventory=g.harvest;
 }
 export function switchControl(g,id){
@@ -524,7 +524,7 @@ export function takeOver(g,id){
   const n=g.npcs[id];if(g.player.alive||!n||isInfant(g,n.age))return{ok:false,message:`主控居民离世后，可接管 ${stageConfig(g).infantEnd} 星岁以上的居民。`};
  const {needs,skills,relationships,queue,ai,activity,money,inventory,career,...profile}=n;
  g.money+=money;for(const key of Object.keys(g.harvest))g.harvest[key]+=inventory[key];
- g.player=profile;g.controlledId='player';g.viewSide=sideOf(profile);g.needs=needs;g.skills=skills;g.relationships={...relationships};delete g.relationships[id];g.queue=[];g.autonomy={...ai,enabled:false,cooldown:0,reason:'等待你的安排'};g.career=career||{id:'scientist',level:1,shifts:0};
+ g.player=profile;g.controlledId='player';g.viewSide=sideOf(profile);g.needs=needs;g.skills=skills;g.relationships={...relationships};delete g.relationships[id];g.queue=[];g.autonomy={...ai,enabled:true,cooldown:0,reason:'正在观察需求和周围环境'};g.career=career||{id:'scientist',level:1,shifts:0};
  delete g.npcs[id];for(const other of Object.values(g.npcs)){delete other.relationships[id];other.queue=other.queue.filter(q=>q.targetId!==id&&q.partnerId!==id);}
  g.speed=0;g.log.unshift({text:`从现在起，你将陪伴${g.player.name}继续星湾的生活。`,at:g.minute});return{ok:true};
 }

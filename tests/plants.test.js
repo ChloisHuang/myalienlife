@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as sim from '../src/simulation.js';
 const step=(g,n)=>{for(let i=0;i<n;i++)sim.tick(g,1);};
-const quiet=()=>{const g=sim.createGame();for(const n of Object.values(g.npcs))n.ai.enabled=false;return g;};
+const quiet=()=>{const g=sim.createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;return g;};
 test('giant crops render at double their mature size',async()=>{const {cropVisualScale}=await import('../src/plants.js');assert.equal(typeof cropVisualScale,'function');assert.equal(cropVisualScale(1,false),1);assert.equal(cropVisualScale(1,true),2);});
 test('cultivated plants grow with water, stop while dry, and freeze on pause',()=>{const g=quiet(),o=g.objects.find(o=>o.type==='garden');assert.ok(o.plant);const before=o.plant.growth;step(g,10);assert.ok(o.plant.growth>before);o.plant.water=0;const growth=o.plant.growth,health=o.plant.health;step(g,10);assert.equal(o.plant.growth,growth);assert.ok(o.plant.health<health);g.speed=0;const saved=JSON.stringify(o.plant);step(g,20);assert.equal(JSON.stringify(o.plant),saved);});
 test('watering changes plant condition; mature harvest goes to inventory once then regrows',()=>{const g=quiet(),o=g.objects.find(o=>o.type==='garden');assert.ok(o.plant);o.plant.water=5;sim.enqueue(g,'garden',o.id);step(g,25);assert.ok(o.plant.water>60);o.plant.growth=1;sim.enqueue(g,'harvest',o.id);sim.enqueue(g,'harvest',o.id);step(g,25);assert.equal(g.harvest.spores,3);assert.ok(o.plant.growth<.2);assert.equal(g.money,2400);});
