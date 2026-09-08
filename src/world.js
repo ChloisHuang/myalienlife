@@ -1,4 +1,6 @@
-import {createDarkGroundMaterial} from './dark-ground.js';
+import {createFrontGroundMaterial,createGlassPlatform} from './front-ground.js';
+import {GLASS_PLATFORMS} from './glass-platforms.js';
+import {createCreamGround,createReverseGround,creamEdgeOffset,ISLAND_FACE_OFFSET} from './cream-ground.js';
 import {createSpiritTree} from './spirit-tree.js';
 import {sideOf} from './island.js';
 import {CROPS,cropVisualScale} from './plants.js';
@@ -32,7 +34,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  const rim=new THREE.DirectionalLight(0xdacbff,1.2);rim.position.set(12,6,-16);scene.add(rim);
  const composer=createPostProcessing(renderer,scene,camera);
  const loader=new GLTFLoader();const [alienAsset,mushroomAsset]=await Promise.all(['alien','mushroom'].map(n=>loader.loadAsync(`/assets/${n}.glb`)));
- stylizeAsset(alienAsset.scene,{soft:true});stylizeAsset(mushroomAsset.scene);
+ stylizeAsset(alienAsset.scene,{character:true});stylizeAsset(mushroomAsset.scene);
  // Portrait updates share one context for the lifetime of the world.
  const portraitRenderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});portraitRenderer.setSize(160,160);portraitRenderer.toneMapping=renderer.toneMapping;portraitRenderer.toneMappingExposure=renderer.toneMappingExposure;
  const portraitScene=new THREE.Scene(),portraitCamera=new THREE.PerspectiveCamera(32,1,.1,10);
@@ -41,8 +43,8 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  // Keep portrait glow local so luminous markings do not obscure facial features.
  const portraitComposer=createPostProcessing(portraitRenderer,portraitScene,portraitCamera,{bloomStrength:.28,bloomRadius:0});portraitComposer.setSize(160,160);
  function model(source,parent,x,y,z,s=1){const o=source.scene.clone(true),living=new Map();o.position.set(x,y,z);o.scale.setScalar(s);o.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;if(n.material instanceof BiolumeMaterial){if(!living.has(n.material))living.set(n.material,n.material.clone());n.material=living.get(n.material);}}});parent.add(o);return o;}
- const island=new THREE.Group();island.position.y=-1.05;scene.add(island);
- const faces={front:new THREE.Group(),back:new THREE.Group()};faces.front.position.y=1.05;faces.back.position.y=-1.05;faces.back.rotation.x=Math.PI;island.add(faces.front,faces.back);
+ const island=new THREE.Group();island.position.y=-ISLAND_FACE_OFFSET;scene.add(island);
+ const faces={front:new THREE.Group(),back:new THREE.Group()};faces.front.position.y=ISLAND_FACE_OFFSET;faces.back.position.y=-ISLAND_FACE_OFFSET;faces.back.rotation.x=Math.PI;island.add(faces.front,faces.back);
  const terrain=new THREE.Group();faces.front.add(terrain);
  const darkTerrain=new THREE.Group();faces.back.add(darkTerrain);
  const moonGlow=new THREE.PointLight(0x9c9bea,18,28,2);moonGlow.position.set(0,5,0);darkTerrain.add(moonGlow);
@@ -50,8 +52,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   const glow=new THREE.PointLight(color,9,12,2);glow.position.set(x,1.8,z);darkTerrain.add(glow);
  }
 
- const darkLand=cylinder(darkTerrain,0x24243e,[0,-.38,0],14.9,1.3);darkLand.scale.z=.72;
- const darkSoil=cylinder(darkTerrain,0x9384ac,[0,.17,0],14.8,.24);darkSoil.scale.z=.72;darkSoil.material=createDarkGroundMaterial();
+ darkTerrain.add(createReverseGround());
  for(let i=0;i<18;i++){const angle=i*Math.PI/9,x=Math.cos(angle)*13,z=Math.sin(angle)*9.2;
   const shard=mesh(darkTerrain,new THREE.OctahedronGeometry(.5),i%2?0x8872b9:0x56cabb,[x,.7+(i%4)*.2,z],[.55+(i%3)*.13,1.3+(i%4)*.5,.7],.35);shard.rotation.z=Math.sin(i)*.25;
   const glyph=ring(darkTerrain,0x619796,[x,.34,z],.7,.02);glyph.rotation.x=-Math.PI/2;
@@ -61,26 +62,24 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   for(let i=0;i<5;i++){const a=i*1.256,stone=mesh(darkTerrain,new THREE.DodecahedronGeometry(.24),0x6e658a,[x+Math.cos(a)*1.65,.27,z+Math.sin(a)*1.65],[1,.18,1.2]);stone.rotation.y=a;}
  }
 
- const land=cylinder(terrain,0x987b91,[0,-1.05,0],15,1.6,14.9);land.scale.z=.72;
- const grass=cylinder(terrain,0xc7b9b0,[0,-.22,0],14.9,.28);grass.scale.z=.72;
+ terrain.add(createCreamGround());
+ for(const platform of GLASS_PLATFORMS)terrain.add(createGlassPlatform(platform));
  const random=seedRandom(28);
  const atmosphere=createAtmosphere(scene,camera,seedRandom(91)),swaying=[],floating=[],ripples=[],crystalLights=[];
  const weatherEffects=createWeatherEffects(scene,seedRandom(137));
  for(let i=0;i<12;i++){const a=i*Math.PI/6;const shard=mesh(terrain,new THREE.OctahedronGeometry(.3),0x82e4db,[Math.cos(a)*14,-1.7,Math.sin(a)*10], [1,2.6,1],.65);floating.push({object:shard,y:shard.position.y,phase:i});}
- for(let i=0;i<65;i++){const a=random()*Math.PI*2,r=14+random();mesh(terrain,new THREE.DodecahedronGeometry(.45+random()*.65),[0x9a809d,0xb298af,0x6e6d88][i%3],[Math.cos(a)*r,-.8-random(),Math.sin(a)*r*.71],[1,1,1]);}
+ for(let i=0;i<65;i++){const a=random()*Math.PI*2,r=14+random()+creamEdgeOffset(a);mesh(terrain,new THREE.DodecahedronGeometry(.45+random()*.65),[0x9a809d,0xb298af,0x6e6d88][i%3],[Math.cos(a)*r,-1.15-random()*.25,Math.sin(a)*r*.71],[.65,.32,.65]);}
  // Open-front habitat: three rooms share a clear, navigable central aisle.
  box(terrain,colors.ivory,[-2,.02,-2.5],[12.8,.28,7.5]);
  box(terrain,0xcfd4c7,[-2,1.4,-6.1],[12.9,2.8,.22]);
  box(terrain,0x839fa0,[-8.4,.85,-2.5],[.22,1.6,7.5]);
  box(terrain,0xedc5c2,[-2,.21,-2.5],[.14,.1,7.4]);
- box(terrain,0xbda6ba,[-5.2,.21,-2.5],[6.1,.08,7.3]);
- box(terrain,0xbce0d4,[1.1,.21,-2.5],[6,.08,7.3]);
- for(let x=-8;x<4;x+=.8)box(terrain,0xffffff,[x,.255,-2.5],[.013,.008,7.2]);
+ const bedroomFloor=box(terrain,0xbda6ba,[-5.2,.21,-2.5],[6.1,.08,7.3]);bedroomFloor.material=createFrontGroundMaterial(0xbda6ba);
+ const livingFloor=box(terrain,0xbce0d4,[1.1,.21,-2.5],[6,.08,7.3]);livingFloor.material=createFrontGroundMaterial(0xbce0d4);
  for(let x=-6;x<=2;x+=4){box(terrain,0x789e9c,[x,1.65,-5.94],[2.2,1.45,.08]);box(terrain,0xa5dad9,[x,1.7,-5.87],[1.98,1.2,.05]);box(terrain,0xf3eee0,[x,1.7,-5.81],[.055,1.2,.06]);}
  for(let x=-7;x<5;x+=2)box(terrain,colors.ivory,[x,.09,2.0],[1.6,.12,.85]);
  const rug=cylinder(terrain,0xe4bdab,[-4,.3,.2],2,.025);rug.scale.z=.62;
  // Outdoor research deck, garden pond, and distant alien landscape.
- cylinder(terrain,0xb3a2b7,[7,.06,-3.5],3.6,.25);
  const pond=cylinder(terrain,0x768da5,[7,.03,4.7],2.3,.17);pond.scale.z=.65;
  const water=cylinder(terrain,0x79cdd0,[7,.15,4.7],2.07,.05);water.scale.z=.65;
  water.material=material(0x79cdd0,.15);
@@ -218,8 +217,13 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
    swaying.forEach((o,i)=>{o.rotation.z=Math.sin(time*.42+i*1.7)*.018*(1+weather.wind);o.rotation.x=Math.cos(time*.31+i)*.012*(1+weather.wind);});
    floating.forEach(({object,y,phase})=>{object.position.y=y+Math.sin(time*.27+phase)*.18;object.rotation.y=Math.sin(time*.1+phase)*.08;});
    ripples.forEach((o,i)=>{const phase=(time*.12+i/3)%1,r=.3+phase*1.7;o.scale.set(r,r*.65,1);o.material.opacity=Math.sin(phase*Math.PI)*.5;});
-   sun.intensity=(.65+daylight*1.95)*(1-weather.weights.rain*.22-weather.weights.mist*.12);ambient.intensity=.85+daylight*.45;rim.intensity=1.2+(1-daylight)*.25;scene.fog.density=.006+weather.weights.mist*.003+weather.weights.rain*.001;const dark=(1-Math.cos(island.rotation.x))/2;
-   sun.intensity*=1-dark*.75;sun.color.set(dark>.5?0x8895df:0xffe5d0);ambient.intensity*=1-dark*.32;ambient.color.set(dark>.5?0x8194c8:0xe2eaff);rim.color.set(dark>.5?0x60bfc6:0xdacbff);rim.intensity*=1+dark*.25;
+   const dark=(1-Math.cos(island.rotation.x))/2;
+   sun.intensity=(.65+daylight*1.95)*(1-dark*.75)*(1-weather.weights.rain*.22-weather.weights.mist*.12);
+   ambient.intensity=(.85+daylight*.45)*(1-dark*.32);
+   rim.intensity=(1.2+(1-daylight)*.25)*(1+dark*.25);
+   sun.color.set(0xffe5d0).lerp(new THREE.Color(0x8895df),dark);ambient.color.set(0xe2eaff).lerp(new THREE.Color(0x8194c8),dark);
+   ambient.groundColor.set(0x70526e);rim.color.set(0xdacbff).lerp(new THREE.Color(0x60bfc6),dark);
+   scene.fog.density=.006+weather.weights.mist*.003+weather.weights.rain*.001;
    scene.background.set(0x10152e).lerp(new THREE.Color(0x080b1b),dark);scene.fog.color.set(0x171c39).lerp(new THREE.Color(0x15182e),dark);scene.fog.density+=dark*.007;
    controls.update();composer.render();
   },

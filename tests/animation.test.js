@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {Vector3,Box3} from 'three';
+import {groundHeight} from '../src/characters.js';
 
 const bytes=await readFile(new URL('../public/assets/alien.glb',import.meta.url));
 const asset=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
@@ -12,17 +13,17 @@ test('prayer kneels on both knees, joins hands and keeps the pose through blessi
  for(const side of ['front','back'])for(const age of [8,28,68]){
   const person={...createGame().player,age,x:0,z:5.6,side};const rig=createCharacter(asset.scene,person);
   const object={type:'spiritTree',x:0,z:4,side,rotation:Math.PI/2};
-  updateCharacter(rig,{person,time:0,delta:0});const standing=rig.joints.Head.getWorldPosition(new Vector3()).y;
+  updateCharacter(rig,{person,time:0,delta:0});const standing=rig.joints.Head.getWorldPosition(new Vector3()).y-groundHeight(person.x,person.z,side);
   const action={id:1,type:'pray',phase:'acting',elapsed:3};updateCharacter(rig,{person,object,action,time:3,delta:1});
-  const floor=side==='front'?-.08:.29;
-  assert.ok(rig.joints.Head.getWorldPosition(new Vector3()).y<standing-.25);
+  const floor=groundHeight(rig.root.position.x,rig.root.position.z,side);
+  assert.ok(rig.joints.Head.getWorldPosition(new Vector3()).y-floor<standing-.25);
   for(const name of ['LeftLegBend','RightLegBend']){const y=rig.joints[name].getWorldPosition(new Vector3()).y;assert.ok(y>=floor-.06&&y<floor+.2,`${age} ${side} knee at ${y}`);}
   assert.ok(rig.joints.LeftTendrilTip.getWorldPosition(new Vector3()).distanceTo(rig.joints.RightTendrilTip.getWorldPosition(new Vector3()))<.16);
   const skin=skinnedVertices(rig.limbs.LeftLeg.mesh);assert.ok(skin.every(Number.isFinite));
   updateCharacter(rig,{person,object,action,time:3,delta:0});assert.deepEqual(skinnedVertices(rig.limbs.LeftLeg.mesh),skin);
   action.phase='celebrating';action.elapsed=1;action.blessing={side,skill:side==='front'?'science':null,nether:side==='back',mutation:null,transformed:false};
   updateCharacter(rig,{person,object,action,time:4,delta:1});
-  assert.ok(rig.joints.Head.getWorldPosition(new Vector3()).y<standing-.25);
+  assert.ok(rig.joints.Head.getWorldPosition(new Vector3()).y-floor<standing-.25);
  }
 });
 

@@ -2,31 +2,31 @@
   {
     "key": "crown",
     "baseline": 0,
-    "changed": 91291,
-    "extraHaloPixels": 91291
+    "changed": 91621,
+    "extraHaloPixels": 91621
   },
   {
     "key": "spines",
     "baseline": 0,
-    "changed": 181913,
-    "extraHaloPixels": 181913
+    "changed": 182977,
+    "extraHaloPixels": 182977
   },
   {
     "key": "freckles",
     "baseline": 0,
-    "changed": 55494,
-    "extraHaloPixels": 55494
+    "changed": 62217,
+    "extraHaloPixels": 62217
   },
   {
     "key": "eyes",
     "baseline": 0,
-    "changed": 228520,
-    "extraHaloPixels": 228520
+    "changed": 240747,
+    "extraHaloPixels": 240747
   },
   {
     "key": "nether",
     "baseline": 0,
-    "changed": 25383,
-    "extraHaloPixels": 25383
+    "changed": 26667,
+    "extraHaloPixels": 26667
   }
 ]

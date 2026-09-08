@@ -15,7 +15,7 @@ try{
   const {createGame}=await import('/src/simulation.js');
   const {stylizeAsset,createPostProcessing}=await import('/src/npr.js');
   const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(1000,900);renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
-  const asset=await new GLTFLoader().loadAsync('/assets/alien.glb');stylizeAsset(asset.scene,{soft:true});
+  const asset=await new GLTFLoader().loadAsync('/assets/alien.glb');stylizeAsset(asset.scene,{character:true});
   const scene=new THREE.Scene();scene.background=new THREE.Color(0x0c1426);scene.add(new THREE.HemisphereLight(0xc5deff,0x42374b,1.5));
   const light=new THREE.DirectionalLight(0xffe6cf,2);light.position.set(-3,5,4);scene.add(light);
   const camera=new THREE.PerspectiveCamera(36,1000/900,.1,60);

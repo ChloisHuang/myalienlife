@@ -295,7 +295,12 @@ function ensureNpcCareer(g,person){
  person.position.career={id,level:1,shifts:0};
  return true;
 }
-function decide(g,person){
+function chooseWeighted(candidates,random){
+ const ordered=[...candidates].sort((a,b)=>b.score-a.score),total=ordered.reduce((sum,candidate)=>sum+candidate.score,0);
+ let roll=Math.max(0,Math.min(1-Number.EPSILON,random()))*total;
+ return ordered.find(candidate=>{roll-=candidate.score;return roll<0;})||ordered[ordered.length-1];
+}
+function decide(g,person,random=Math.random){
  const candidates=g.objects.filter(o=>!ACTIONS[ITEMS.find(i=>i.id===o.type).action].manualOnly).map(o=>({type:CROPS[o.type]?(o.plant.health<=0?'replant':o.plant.growth>=1?'harvest':'garden'):ITEMS.find(i=>i.id===o.type).action,targetId:o.id}));
  if(person.position.age>=adultStart(g))for(const n of neighbors(g))if(isInfant(g,n.age))candidates.push({type:'care',targetId:n.id});
  // Births share the household budget and must pass resource and caregiver checks.
@@ -307,7 +312,7 @@ function decide(g,person){
  const fertility=birthDecision(g,person.id);if(fertility.ready)candidates.push({type:'incubate',targetId:fertility.podId,partnerId:fertility.partnerId});
  const active=allActors(g).flatMap(a=>a.queue.slice(0,1));
  const weights={hunger:1.8,energy:1.6,social:1.3,fun:1,hygiene:1.4,comfort:.8};
- let best=null;
+ const scored=[];
   for(const candidate of candidates){
    if(candidate.type==='relax'){if(freeSofaSeat(g,candidate.targetId)<0)continue;}else if(active.some(q=>q.targetId===candidate.targetId))continue;
    const action=ACTIONS[candidate.type],cost=actionCost(g,candidate.type);if(cost&&!canAfford(g,person,cost))continue;const target=destination(g,candidate.targetId);
@@ -324,12 +329,13 @@ function decide(g,person){
   if(candidate.type==='incubate')score+=25+person.position.familyDesire*30;if(candidate.type==='care'){const baby=g.npcs[candidate.targetId];score+=(100-baby.needs.hunger)*2+(baby.starvation>0?300:0);if(baby.needs.hunger>70)continue;}if(candidate.type==='work')score+=availableMoney(g,person)<500?55:28;
   score-=Math.hypot(person.position.x-target.x,person.position.z-target.z)*.35;
   if(person.ai.lastAction===candidate.type)score-=14;
-  if(score<8||best&&score<=best.score)continue;
+  if(score<=0)continue;
   const path=findPath(g,person.position,target);if(!path)continue;
   const reason=candidate.type==='harvest'?'植物成熟了，先把收成带回家':candidate.type==='replant'?'清理枯萎植物，重新播种':candidate.type==='garden'?'给植物补水，让它健康生长':candidate.type==='incubate'?'生活稳定、照料人手充足，想迎接新的家人':candidate.type==='care'?'幼体需要喂养，先照料小居民':candidate.type==='work'?'状态良好，工作赚取星币':largest>preference&&dominant?`${NEEDS[dominant][0]}需要补充`:'想做一件自己喜欢的事';
-  best={...candidate,target,path,score,reason};
+  scored.push({...candidate,target,path,score,reason});
  }
- if(!best){person.ai.reason='暂时没有合适的行动，休息观察';person.ai.cooldown=3;return;}
+ if(!scored.length){person.ai.reason='暂时没有合适的行动，休息观察';person.ai.cooldown=3;return;}
+ const best=chooseWeighted(scored,random);
  const q=makeAction(g,best.type,best.targetId,best.target,'ai');q.path=best.path;if(best.type==='incubate')q.partnerId=best.partnerId;
  person.queue.push(q);person.ai.reason=best.reason;
 }
@@ -410,7 +416,7 @@ function advanceAction(g,person,dt){
  q.phase='acting';q.elapsed+=dt;if(q.elapsed>=actionDuration(g,q.type))finishAction(g,person,q);
 }
 
-export function tick(g,seconds){
+export function tick(g,seconds,random=Math.random){
  if(!g.speed)return;const dt=seconds*g.speed,time=g.config?.time||{gameMinutesPerRealSecond:2,starYearDays:8},gameMinutesPerSecond=time.gameMinutesPerRealSecond;g.minute+=dt*gameMinutesPerSecond;while(g.minute>=1440){g.minute-=1440;g.day++;payGovernmentSubsidy(g);}
  const crops=cropDefinitions(g),previousGrowth=new Map(g.objects.filter(o=>crops[o.type]).map(o=>[o.id,o.plant.growth]));advancePlants(g.objects,dt*gameMinutesPerSecond,crops);
   for(const o of g.objects)if(crops[o.type]&&o.plant.giant&&previousGrowth.get(o.id)<1&&o.plant.growth>=1)recordMajorEvent(g,`巨型${crops[o.type].name}成熟了，可以收获。`,'mature');
@@ -430,7 +436,7 @@ export function tick(g,seconds){
   const partner=conversationWith(g,person.id);
   if(partner){if(person.id!=='player')person.position.activity=partner.id==='player'?`和${g.player.name}交谈`:`和${g.npcs[partner.id].name}交谈`;continue;}
   person.ai.cooldown=Math.max(0,person.ai.cooldown-dt);
-  if(person.ai.enabled&&!person.queue.length&&person.ai.cooldown===0)decide(g,person);
+  if(person.ai.enabled&&!person.queue.length&&person.ai.cooldown===0)decide(g,person,random);
   advanceAction(g,person,dt);
   if(person.id!=='player'){const q=person.queue[0];person.position.activity=q?`${q.phase==='walking'?'前往 · ':q.phase==='waiting'?'等候 · ':''}${ACTIONS[q.type].name}`:'享受星湾的微风';}
  }

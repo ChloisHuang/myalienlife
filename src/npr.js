@@ -4,18 +4,43 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
-// A shared four-band ramp keeps procedural props and Blender assets in one style.
-const ramp=new THREE.DataTexture(new Uint8Array([55,118,190,255]),4,1,THREE.RedFormat);
-ramp.minFilter=ramp.magFilter=THREE.NearestFilter;ramp.needsUpdate=true;
+// Quantize the combined lighting once so fill/rim lights cannot wash out the cel bands.
+// Characters, props and living tissue share this three-band cel shader.
 export class StarToonMaterial extends THREE.MeshToonMaterial{
- constructor(parameters={}){super({gradientMap:ramp,...parameters});}
  onBeforeCompile(shader){
+  shader.fragmentShader=shader.fragmentShader.replace('#include <gradientmap_pars_fragment>',`
+   vec3 getGradientIrradiance(vec3 normal,vec3 lightDirection){return vec3(max(dot(normal,lightDirection),0.0));}`);
+  shader.fragmentShader=shader.fragmentShader.replace('#include <lights_toon_pars_fragment>',
+   THREE.ShaderChunk.lights_toon_pars_fragment.replaceAll('BRDF_Lambert( material.diffuseColor )','vec3( RECIPROCAL_PI )'));
   shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
-   float edge = pow(1.0 - max(dot(normal, normalize(vViewPosition)), 0.0), 3.5);
-   outgoingLight += vec3(0.18, 0.14, 0.20) * edge;
+   vec3 illumination=reflectedLight.directDiffuse+reflectedLight.indirectDiffuse;
+   const vec3 luma=vec3(.2126,.7152,.0722);
+   // Relative lighting selects cel bands; absolute energy and light color still shade them.
+   float keyLight=0.0;
+   #if NUM_DIR_LIGHTS > 0
+    for(int i=0;i<NUM_DIR_LIGHTS;i++)keyLight=max(keyLight,dot(directionalLights[i].color,luma));
+   #endif
+   float lightBudget=dot(ambientLightColor,luma)+keyLight;
+   #if NUM_HEMI_LIGHTS > 0
+    for(int i=0;i<NUM_HEMI_LIGHTS;i++)lightBudget+=max(dot(hemisphereLights[i].skyColor,luma),dot(hemisphereLights[i].groundColor,luma));
+   #endif
+   lightBudget=max(lightBudget*RECIPROCAL_PI,.001);
+   float luminance=dot(illumination,luma);
+   float lightLevel=luminance/lightBudget;
+   float aa=max(fwidth(lightLevel),.006);
+   float mid=smoothstep(.38-aa,.38+aa,lightLevel);
+   float lit=smoothstep(.78-aa,.78+aa,lightLevel);
+   vec3 shade=mix(vec3(.30,.34,.48),vec3(.60,.65,.76),mid);
+   shade=mix(shade,vec3(1.0,.97,.94),lit);
+   shade*=illumination/max(luminance,.001);
+   shade*=min(max(lightBudget,luminance),1.0);
+   // A narrow ink edge follows the original surface; no outline geometry is added.
+   float facing=max(dot(normal,normalize(vViewPosition)),0.0);
+   float ink=1.0-smoothstep(.04,.14,facing);
+   outgoingLight=diffuseColor.rgb*shade*mix(1.0,.32,ink)+totalEmissiveRadiance;
    #include <opaque_fragment>`);
  }
- customProgramCacheKey(){return 'star-toon-v1';}
+ customProgramCacheKey(){return 'star-cel-v2';}
 }
 export class BiolumeMaterial extends StarToonMaterial{
  constructor(parameters={}){super(parameters);this.bio={time:{value:0},strength:{value:.2}};}
@@ -37,19 +62,19 @@ export class BiolumeMaterial extends StarToonMaterial{
    float pulse=front*.85+wake*.35;
    totalEmissiveRadiance*=bioStrength*(.025+tissue*(.035+veins*(.06+pulse*1.1)));`);
  }
- customProgramCacheKey(){return 'living-tissue-v1';}
+ customProgramCacheKey(){return 'living-tissue-cel-v3';}
 }
-export function stylizeAsset(source,{soft=false}={}){
+export function stylizeAsset(source,{character=false}={}){
  const converted=new Map();
  source.traverse(node=>{if(!node.isMesh)return;
   const original=node.material;
-  const Material=soft?THREE.MeshStandardMaterial:['Nebula mushroom','Luminous gills','Pearl stem'].includes(original.name)?BiolumeMaterial:StarToonMaterial;
+  const Material=['Nebula mushroom','Luminous gills','Pearl stem'].includes(original.name)?BiolumeMaterial:StarToonMaterial;
   if(!converted.has(original))converted.set(original,new Material({
-   name:original.name,color:original.color,map:original.map,
-   emissive:Material===BiolumeMaterial?new THREE.Color(original.name==='Nebula mushroom'?0xdc9fc9:0xaedbd8):original.emissive,emissiveIntensity:Material===BiolumeMaterial?1:original.name==='Bioluminescence'?.22:original.emissiveIntensity,
+   name:original.name,color:original.name==='Nebula mushroom'?new THREE.Color(0xd99bc5):original.color,map:original.map,
+   emissive:Material===BiolumeMaterial?new THREE.Color(original.name==='Nebula mushroom'?0xe8cddd:0xaedbd8):original.emissive,emissiveIntensity:Material===BiolumeMaterial?1:!character&&original.name==='Bioluminescence'?.22:original.emissiveIntensity,
    transparent:original.transparent,opacity:original.opacity,side:original.side,
   }));
-  node.material=converted.get(original);if(soft){node.material.roughness=original.name==='Obsidian eyes'?.28:.53;node.material.metalness=0;node.material.emissiveIntensity=original.emissiveIntensity;}
+  node.material=converted.get(original);
  });
 }
 export function createPostProcessing(renderer,scene,camera,{bloomStrength=.28,bloomRadius=.65}={}){
@@ -102,23 +127,37 @@ export function createBioluminescence(parent,{radius,height,color,count=7}){
 }
 
 export function createAtmosphere(scene,camera,random){
- const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},skyBrightness={value:.28};
- // The sky is camera-relative; world-space stars still provide parallax while orbiting.
- const sky=new THREE.Mesh(new THREE.PlaneGeometry(140,100),new THREE.ShaderMaterial({
-  uniforms:{time,cloudCover,skyBrightness},depthWrite:false,depthTest:false,vertexShader:uvVertex,
-  fragmentShader:`uniform float time,cloudCover,skyBrightness;varying vec2 vUv;${noiseGLSL}
-   void main(){vec2 p=vUv*vec2(7.0,5.0);float n=mist(p+vec2(time*.003,0));
-    float band=exp(-pow((vUv.y-.52-(vUv.x-.5)*.35+sin(vUv.x*9.0)*.06)*9.0,2.0));
-    vec3 color=vec3(.008,.012,.035)+vec3(.048,.025,.105)*n;
-    color+=band*pow(n,2.0)*vec3(.10,.15,.20);
-    color+=vec3(.012,.065,.06)*pow(mist(p*1.7+5.0),3.0);
-    float clouds=smoothstep(.28,.78,mist(p*1.6+vec2(time*.012,0)));
-    color=mix(color,vec3(.14,.125,.18),clouds*cloudCover*.7);
-    gl_FragColor=vec4(color*skyBrightness,1.0);
+ const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1};
+ // Fill the viewport directly so zooming cannot crop away the nebula's detail.
+ const sky=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
+  uniforms:{time,cloudCover,front,aspect},depthWrite:false,depthTest:false,
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
+  fragmentShader:`uniform float time,cloudCover,front,aspect;varying vec2 vUv;${noiseGLSL}
+   void main(){
+    vec2 p=(vUv-.5)*vec2(aspect,1.0);
+    vec3 upper=mix(vec3(.010,.014,.036),vec3(.035,.10,.28),front);
+    vec3 lower=mix(vec3(.020,.036,.063),vec3(.23,.195,.30),front);
+    vec3 color=mix(lower,upper,smoothstep(.0,.95,vUv.y));
+    float arc=p.y+.17+.10*cos(p.x*2.0+time*.0007);
+    float veil=exp(-pow(arc*mix(8.0,3.0,front),2.0));
+    float cloud=mist(p*3.0+vec2(time*.0005,0.0));
+    color+=veil*(.85+.15*cloud)*mix(vec3(.007,.019,.030),vec3(.045,.037,.025),front);
+    float sunlight=exp(-dot((p-vec2(-.55,.35))*vec2(2.0,4.0),(p-vec2(-.55,.35))*vec2(2.0,4.0)));
+    color+=front*sunlight*vec3(.095,.055,.060)*(1.0-cloudCover*.7);
+    // Small distant stars complement the existing world-space parallax stars.
+    vec2 starGrid=p*90.0,cell=floor(starGrid);
+    vec2 starOffset=vec2(hash(cell),hash(cell+37.2))*.7+.15;
+    float starDistance=length(fract(starGrid)-starOffset);
+    float starAA=length(fwidth(starGrid))*.65;
+    float star=(1.0-smoothstep(.025,.025+starAA,starDistance))*step(mix(.988,.996,front),hash(cell+71.0));
+    color+=star*vec3(.65,.80,1.0)*mix(.8,.30,front)*(.85+.15*sin(time*.35+hash(cell)*24.0))*(1.0-cloudCover*.65);
+    color=mix(color,mix(vec3(.026,.038,.060),vec3(.15,.16,.195),front),cloudCover*.20);
+    color*=1.0-.10*smoothstep(.35,1.1,length(p));
+    gl_FragColor=vec4(color,1.0);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
    }`}));
- sky.position.z=-115;sky.renderOrder=-100;camera.add(sky);scene.add(camera);
+ sky.frustumCulled=false;sky.renderOrder=-100;camera.add(sky);scene.add(camera);
  function particles(count,local){
   const positions=[],phases=[],sizes=[];
   for(let i=0;i<count;i++){
@@ -142,5 +181,5 @@ export function createAtmosphere(scene,camera,random){
   const points=new THREE.Points(geometry,material);points.frustumCulled=false;scene.add(points);
  }
  particles(850,false);particles(100,true);
- return {update(t,weather,frontAmount){time.value=t;skyBrightness.value=.28+.12*frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
+ return {update(t,weather,frontAmount){time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
 }

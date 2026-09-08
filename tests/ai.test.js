@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as sim from '../src/simulation.js';
 
-const run=(g,seconds)=>{for(let i=0;i<seconds*10;i++)sim.tick(g,.1);};
+const run=(g,seconds,random=()=>0)=>{for(let i=0;i<seconds*10;i++)sim.tick(g,.1,random);};
 const healthy=()=>({hunger:90,energy:90,social:90,fun:90,hygiene:90,comfort:90});
 
 test('a hungry NPC chooses available food and restores its own hunger without spending player funds',()=>{
@@ -40,6 +40,16 @@ test('urgent needs override a characters hobby preference',()=>{
 test('equal needs lead to different hobbies for botanist and musician',()=>{
  const g=sim.createGame();for(const n of Object.values(g.npcs))n.needs=healthy();
  run(g,1);assert.equal(g.npcs.nova.queue[0]?.type,'garden');assert.equal(g.npcs.pip.queue[0]?.type,'dance');
+});
+test('autonomous choices give lower-benefit actions a chance instead of always taking the top score',()=>{
+ const selected=new Set();
+ for(let i=0;i<100;i++){
+  const g=sim.createGame();g.objects=g.objects.filter(o=>o.type==='gate');
+  g.objects.push({id:'tree',type:'spiritTree',x:0,z:4,rotation:0,side:'front'},{id:'sofa-test',type:'sofa',x:0,z:2,rotation:0,side:'front'});
+  g.npcs.nova.needs={hunger:100,energy:100,social:100,fun:20,hygiene:100,comfort:20};
+  sim.tick(g,.1,()=>i/100);selected.add(g.npcs.nova.queue[0]?.type);
+ }
+ assert.ok(selected.has('relax'));assert.ok(selected.has('pray'));
 });
 test('AI reserves furniture and does not choose absent or unreachable food',()=>{
  const g=sim.createGame();g.npcs.nova.needs={...healthy(),hunger:5};g.npcs.zig.needs={...healthy(),hunger:5};run(g,1);

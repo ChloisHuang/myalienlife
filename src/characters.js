@@ -1,3 +1,4 @@
+import {glassPlatformHeight} from './glass-platforms.js';
 export const GENDERS={male:'男性',female:'女性',nonbinary:'非二元'};
 export const RESIDENTS={player:{gender:'male',age:28},nova:{gender:'female',age:32},zig:{gender:'male',age:68},lumi:{gender:'female',age:24},pip:{gender:'nonbinary',age:10}};
 export const SKILLS={cooking:{name:'烹饪',icon:'Utensils',hint:'在星釜灶台烹制异星料理'},science:{name:'科学',icon:'Atom',hint:'研究晶体、观测星系'},botany:{name:'园艺',icon:'Sprout',hint:'照料发光孢子'},social:{name:'社交',icon:'MessagesSquare',hint:'交谈、讲笑话'},music:{name:'音乐',icon:'Music2',hint:'随星云音乐起舞'}};
@@ -18,8 +19,8 @@ export const APPROACHES={spiritTree:[0,0,1.6],polelight:[0,0,1.1],glowlight:[0,0
 export function groundHeight(x,z,side='front'){
  if(side==='back')return .29;
  if(x>=-8.4&&x<=4.4&&z>=-6.2&&z<=1.25)return .29;
+ const platformHeight=glassPlatformHeight(x,z);if(platformHeight!==null)return platformHeight;
  if(x>=-7.8&&x<=3.8&&z>=1.55&&z<=2.45)return .15;
- if(Math.hypot(x-7,z+3.5)<3.6)return .19;
  return -.08;
 }
 export function localToWorld(object,[x,y,z]){const c=Math.cos(object.rotation),s=Math.sin(object.rotation);return{x:object.x+x*c+z*s,y:.29+y,z:object.z-x*s+z*c};}

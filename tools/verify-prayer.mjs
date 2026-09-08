@@ -15,7 +15,7 @@ try{
   const {createCharacter,updateCharacter}=await import('/src/character-rig.js');
   const {stylizeAsset,createPostProcessing}=await import('/src/npr.js');
   const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(1100,900);renderer.toneMapping=THREE.ACESFilmicToneMapping;document.body.append(renderer.domElement);
-  const asset=await new GLTFLoader().loadAsync('/assets/alien.glb');stylizeAsset(asset.scene,{soft:true});
+  const asset=await new GLTFLoader().loadAsync('/assets/alien.glb');stylizeAsset(asset.scene,{character:true});
   const scene=new THREE.Scene();scene.background=new THREE.Color(0x101829);scene.add(new THREE.HemisphereLight(0xc5deff,0x42374b,2));
   const light=new THREE.DirectionalLight(0xffe6cf,3);light.position.set(-3,5,-4);scene.add(light);
   const camera=new THREE.PerspectiveCamera(36,1100/900,.1,60);camera.position.set(2.7,1.85,3.5);camera.lookAt(0,.85,0);
