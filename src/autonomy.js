@@ -5,6 +5,8 @@ const interests={starVoyage:'explore',buildUfo1:'research',buildUfo2:'research',
 const specialties={starVoyage:'science',buildUfo1:'science',buildUfo2:'science',buildUfo3:'science',prepareRations:'cooking',spaceResearch:'science',voyage:'science',lightGrow:'botany',catchBugs:'botany',releaseBugs:'botany',traceRelic:'science',decodeRelic:'science',decodeTogether:'science',restoreMemory:'science',memoryExpedition:'science',tuneInsight:'science',tuneSleep:'science',activateCrystal:'science',passOrb:'social',lounge:'social',sootheOrb:'social',gift:'social',flirt:'social',travel:'science'};
 export function actionPreference(p,type){return p.position.preferences[type]??(p.position.preferences[interests[type]]||0)*.65;}
 const near=(a,b,r)=>sameSide(a,b)&&Math.hypot(a.x-b.x,a.z-b.z)<=r;
+const residentsOn=(people,island)=>people.filter(person=>islandOf(person.position)===island).length;
+const hasSettlementEssentials=(g,position)=>['food','pod','shower'].every(type=>g.objects.some(o=>sameSide(o,position)&&o.type===type));
 export function autonomyBonus(g,p,c,people){
  const o=g.objects.find(o=>o.id===c.targetId),type=c.type,now=(g.day-1)*1440+g.minute;
  let bonus=specialties[type]?Math.min(10,p.skills[specialties[type]]*.3):0;
@@ -23,7 +25,18 @@ export function autonomyBonus(g,p,c,people){
  if(type==='prepareRations'){if((g.space.provisions[islandOf(p.position)]??0)>=24)return null;bonus+=15;}
  if(type.startsWith('buildUfo')){const tier=Number(type.at(-1));if(g.space.ships.some(s=>s.island===islandOf(p.position)&&s.tier>=tier)||people.some(n=>n!==p&&n.queue.some(q=>q.type===type)))return null;bonus+=10;}
  if(type==='memoryExpedition')bonus+=14;
- if(type==='voyage'||type==='starVoyage'){if(p.queue.some(q=>['voyage','boardUfo'].includes(q.type))||['voyage','starVoyage'].includes(p.ai.lastAction))return null;if(c.destinationId==='home')bonus+=Math.min(...Object.values(p.needs))<50?30:2;else {if(Math.min(...Object.values(p.needs))<55)return null;bonus+=5;}}
+ if(type==='voyage'||type==='starVoyage'){
+  const lowestNeed=Math.min(...Object.values(p.needs)),remote=islandOf(p.position)!=='home';
+  if(p.queue.some(q=>['voyage','boardUfo'].includes(q.type))||['voyage','starVoyage'].includes(p.ai.lastAction))return null;
+  if(c.destinationId==='home'){
+   if(remote&&hasSettlementEssentials(g,p.position)){if(lowestNeed>=12)return null;bonus+=36;}
+   else bonus+=lowestNeed<25?36:12;
+  }else{
+   if(remote)return null;
+   if(lowestNeed<55)return null;
+   const residents=residentsOn(people,c.destinationId);bonus+=residents===0?28:residents<2?18:8;
+  }
+ }
  if(['passOrb','decodeTogether'].includes(type))bonus+=6;
  if(type==='lounge'&&!people.some(n=>n.id!==p.id&&sameSide(n.position,p.position)&&n.position.age>=g.config.lifeStages.infantEnd&&n.queue.length<6&&autonomousCooperationReady(g,n)))return null;
  if(type==='travel'){const target=g.objects.find(x=>x.id===c.destinationId);if(!sameSide(o,p.position))return null;if(p.ai.lastAction==='travel')return null;bonus+=people.some(n=>n.id!==p.id&&sameSide(n.position,target)&&n.needs.social<60)?8:1;}

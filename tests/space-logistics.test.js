@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchControl,autonomousCandidates} from '../src/simulation.js';
 import {backDiscovered} from '../src/space-logistics.js';
+import {autonomyBonus} from '../src/autonomy.js';
 const run=(g,seconds=80)=>{for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.5);};
 function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const key in g.config.needDecay)g.config.needDecay[key]=0;g.civilization.technology=240;g.civilization.observations=3;g.skills.science=18;g.money=10000;return g;}
 function equip(g,tier=2){g.space.ships.push({id:'ship-a',tier,island:'home',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.home=24;}
@@ -42,6 +43,22 @@ test('a flight and an earlier shared task cannot keep each other waiting in a cy
 });
 test('autonomous voyage chooses its action first and only then draws occasional passengers',()=>{
  const g=setup();equip(g);g.player.preferences.voyage=10000;g.autonomy.enabled=true;for(const n of Object.values(g.npcs))n.preferences.explore=10;let draws=0;tick(g,.1,()=>{draws++;return 0;});assert.equal(g.queue[0].type,'voyage');assert.equal(g.queue[0].passengerUids.length,2);assert.equal(draws,4);assert.equal(Object.values(g.npcs).filter(n=>n.queue.some(q=>q.type==='boardUfo')).length,2);
+});
+test('autonomous settlements attract residents and keep them local until a need is critical',()=>{
+ const g=setup(),person={id:'nova',position:g.npcs.nova,skills:g.npcs.nova.skills,needs:g.npcs.nova.needs,queue:[],ai:g.npcs.nova.ai};g.objects=[{id:'home-portal',type:'portal',island:'home',side:'front',x:0,z:0,rotation:0},{id:'city-portal',type:'portal',island:'city',side:'front',x:0,z:0,rotation:0},{id:'city-food',type:'food',island:'city',side:'front',x:2,z:0,rotation:0},{id:'city-pod',type:'pod',island:'city',side:'front',x:4,z:0,rotation:0},{id:'city-shower',type:'shower',island:'city',side:'front',x:6,z:0,rotation:0}];g.civilization.visits.city=1;
+ for(const key in person.needs)person.needs[key]=80;const empty=autonomyBonus(g,person,{type:'voyage',targetId:'home-portal',destinationId:'city'},[person]);assert.ok(empty>10);
+ person.position.island='city';for(const key in person.needs)person.needs[key]=40;const healthyReturn=autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person]);assert.equal(healthyReturn,null);
+ for(const key in person.needs)person.needs[key]=80;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'spore'},[person]),null);
+ for(const key in person.needs)person.needs[key]=20;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person]),null);
+ for(const key in person.needs)person.needs[key]=10;assert.ok(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person])>0);
+});
+test('autonomous residents use a local UFO before taking a direct star-gate route',()=>{
+ const g=setup();equip(g,2);g.skills.science=135;const candidates=autonomousCandidates(g,'player');assert.ok(candidates.some(q=>q.type==='voyage'&&q.destinationId==='spore'));assert.equal(candidates.some(q=>q.type==='starVoyage'&&q.destinationId==='spore'),false);
+});
+test('a visited island receives local social and leisure facilities',()=>{
+ const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);
+ const legacy=structuredClone(g);legacy.objects=legacy.objects.filter(o=>!(o.island==='spore'&&['sofa','music'].includes(o.type)));const loaded=restore(serialize(legacy));
+ const remote=loaded.objects.filter(o=>o.island==='spore');assert.ok(remote.some(o=>o.type==='sofa'&&o.fixed));assert.ok(remote.some(o=>o.type==='music'&&o.fixed));
 });
 
 test('only quantum scientists with science level ten can travel by portal without ships or food',()=>{

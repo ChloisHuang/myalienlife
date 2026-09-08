@@ -366,7 +366,11 @@ export function autonomousCandidates(g,id){
   if(o.type==='sofa')types=autonomousCooperationReady(g,person)?['relax','lounge']:['relax'];if(o.type==='lab')types=['research','spaceResearch','buildUfo1','buildUfo2','buildUfo3'];if(o.type==='stove')types=['cook','prepareRations'];if(o.type==='beacon')types=['observe'];if(o.type==='portal')types=['explore','memoryExpedition','voyage','starVoyage'];
   for(const type of types){
    if(type==='incubate')continue;
-   if(type==='voyage'||type==='starVoyage'){for(const id of Object.keys(islandCatalog(g)))if(!civilizationError(g,type,o,person.position,person.skills,id))candidates.push({type,targetId:o.id,destinationId:id});}
+   if(type==='voyage'||type==='starVoyage')for(const id of Object.keys(islandCatalog(g))){
+    const localShip=availableUfo(g,person.position,islandDefinition(g,id).level,1,id==='home');
+    if(type==='starVoyage'&&localShip)continue;
+    if(!civilizationError(g,type,o,person.position,person.skills,id))candidates.push({type,targetId:o.id,destinationId:id});
+   }
    else if(type==='travel'){for(const gate of g.objects)if(gate.type==='gate'&&gate.id!==o.id&&travelDestination(g,o,gate.id))candidates.push({type,targetId:o.id,destinationId:gate.id});}
    else if(WONDER_ACTIONS[type]?.paired){if(cooperationPartners(g,person,type,o).length)candidates.push({type,targetId:o.id});}
    else candidates.push({type,targetId:o.id});
@@ -452,9 +456,16 @@ function inviteFlight(g,host,q,passengers,shipId=null){
 function cancelFlight(g,q){const id=q.hostActionId??q.id;for(const p of allActors(g))for(let i=p.queue.length-1;i>=0;i--)if(p.queue[i].id===id||p.queue[i].hostActionId===id)p.queue.splice(i,1);for(const ship of g.space.ships)if(ship.reservedBy===id)ship.reservedBy=null;}
 
 function ensureStarIsland(g,id){
- if(id==='home'||g.objects.some(o=>islandOf(o)===id))return;
- const blueprint=islandDefinition(g,id),layout=blueprint.layout??[['portal',0,0],['pod',-5,-3],['food',-2,-3],['shower',2,-3],['lab',5,-3],[id==='spore'?'garden':'relic',5,2]].map(([type,x,z])=>({type,x,z,rotation:0}));
- for(const {type,x,z,rotation} of layout){const o={id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation,fixed:true};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);}
+ if(id==='home')return;
+ if(!g.objects.some(o=>islandOf(o)===id)){
+  const blueprint=islandDefinition(g,id),layout=blueprint.layout??[['portal',0,0],['pod',-5,-3],['food',-2,-3],['shower',2,-3],['lab',5,-3],[id==='spore'?'garden':'relic',5,2]].map(([type,x,z])=>({type,x,z,rotation:0}));
+  for(const {type,x,z,rotation} of layout){const o={id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation,fixed:true};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);}
+ }
+ for(const [type,spots] of [['sofa',[[-8,-3],[-8,3],[-7,4],[7,4],[-7,0]]],['music',[[8,5],[-8,5],[7,5],[-7,5],[8,-5]]]]){
+  if(g.objects.some(o=>islandOf(o)===id&&o.type===type))continue;
+  const spot=spots.find(([x,z])=>canPlace(g,x,z,'front',id));if(!spot)continue;
+  const [x,z]=spot;g.objects.push({id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation:0,fixed:true});
+ }
 }
 
 function finishAction(g,person,q){
@@ -770,6 +781,7 @@ export function restore(raw){
  migrateResidentNames(g);
  g.config=normalizeConfig(g.config);
  for(const o of g.objects||[])if(CROPS[o.type]&&o.plant?.giant===undefined)o.plant.giant=false;
+ for(const id of Object.keys(islandCatalog(g)))if(id!=='home'&&g.civilization.visits[id]>0&&g.objects.some(o=>islandOf(o)===id))ensureStarIsland(g,id);
  if(g.majorEvents===undefined)g.majorEvents=[];
  for(const q of [g.queue,...Object.values(g.npcs||{}).map(n=>n.queue)].flat())if(seatedAction(q)&&q.seat===undefined){q.seat=null;q.phase='walking';q.path=null;}
  for(const [id,n] of Object.entries(g.npcs||{})){if(n.money===undefined)n.money=n.age>=18?600:0;n.inventory={...createInventory(),...(n.inventory||{})};if(!n.career)n.career=createCareer(id);}

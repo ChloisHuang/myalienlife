@@ -13,13 +13,13 @@ import {CROPS,plantStatus,plantActionError} from './plants.js';
 import {getWeather} from './weather.js';
 import {ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind} from 'lucide';
 import './style.css';
-import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins} from 'lucide';
+import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins} from 'lucide';
 import {createWorld} from './world.js';
 import {interactionError,workStationType,NEEDS,neighbors,birthDecision,gameMinutes,takeOver,switchControl,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,enqueue,cancelAction,buyItem,sellItem,setCareer,setAutonomy,sellHarvest,updateResident,canAffordAction} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,lifeStage,skillProgress} from './characters.js';
 
 const $=s=>document.querySelector(s);
-const icons={ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins};
+const icons={ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins};
 const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('class',`icon ${cls}`);el.setAttribute('aria-hidden','true');return el.outerHTML;};
 const persistence=createPersistence();let game;
 $('#app').innerHTML='<div id="loading"><h2>正在读取星湾存档</h2><p>从服务器恢复你的生活进度…</p></div>';
@@ -43,7 +43,6 @@ $('#app').innerHTML=`
  <main class="scene-ui">
   <div class="location"><span class="eyebrow">KEPLER–186F / 居住区 07</span><h1>露米纳星湾<span class="live-dot"></span></h1><p id="weather" aria-label="当前天气"></p></div>
   <div class="locations" aria-label="星岛导航"></div>
-  <aside class="aspiration"><div class="card-label">${icon('Sparkles')} 今日小心愿 <span>01</span></div><h3 id="wish-title">宇宙这么大，先交个朋友</h3><p id="wish-desc">点击一位邻居，聊聊彼此的母星。</p><div class="wish-progress"><span id="wish-bar"></span></div><small id="wish-count">认识你的星际邻居 · 0 / 1</small></aside>
   <aside id="life-alert" hidden></aside><aside id="journal" class="journal"><div class="card-label">${icon('Radio')} 星湾电台 <span class="live-dot"></span></div><div id="journal-text"></div><small id="journal-time">最近重大事件</small></aside>
   <div id="queue-wrap"><div class="queue-label"><span>行动队列</span><small>点击 × 取消</small></div><div id="queue"></div><p id="autonomy-reason" hidden></p></div>
   <div class="camera-controls"><div class="island-tools"><span id="island-side"></span><button id="flip-island" aria-label="翻转星岛">${icon('Orbit')} 翻转星岛</button><button id="travel-menu" aria-label="选择星门目的地">${icon('Compass')} 星门航路</button></div><div class="view-tools">${buttons([['拉近视角','Plus','id="zoom-in"'],['拉远视角','Minus','id="zoom-out"'],['重置视角','Scan','id="reset-view"'],['跟随凯伊','LocateFixed','id="focus-player"'],['环境音乐','VolumeX','id="sound"']])}</div></div>
@@ -51,7 +50,7 @@ $('#app').innerHTML=`
  </main>
  <div id="build-hint" hidden>${icon('Move')} 点击地面摆放 <span>R 旋转</span><span>Esc 取消</span><button id="cancel-placement">取消</button></div>
  <section class="dashboard">
- <div class="profile"><div id="character-switcher" class="character-switcher" role="menu" aria-label="选择主控居民" hidden></div><button id="active-character" class="avatar-wrap" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="切换主控居民"><img id="player-portrait" alt="凯伊的外星人头像"/><span class="mood-dot">✦</span></button><div class="profile-copy"><span class="eyebrow" id="player-bio">你的星际居民</span><h2 id="player-name">凯伊 <span>KAÏ</span></h2><span id="mood" class="mood">${icon('Smile')} 心情不错</span></div><div class="profile-traits"><span>${icon('Compass')} 好奇心旺盛</span><span>${icon('Heart')} 热爱生活</span></div><div class="current-activity"><span id="activity">${icon('Coffee')} 享受此刻的宁静</span><button id="autonomy" role="switch" aria-label="自主行为" aria-checked="true" title="自主行为已开启 · 点击关闭">自主</button></div></div>
+ <div id="dashboard-resize-handle" class="dashboard-resize-handle" role="separator" aria-orientation="vertical" aria-valuemin="300" aria-valuemax="760" aria-valuenow="380" aria-label="调整人物资料卡宽度" title="拖动调整人物资料卡宽度">${icon('GripVertical')}</div><div class="profile"><div id="character-switcher" class="character-switcher" role="menu" aria-label="选择主控居民" hidden></div><button id="active-character" class="avatar-wrap" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="切换主控居民"><img id="player-portrait" alt="凯伊的外星人头像"/><span class="mood-dot">✦</span></button><div class="profile-copy"><span class="eyebrow" id="player-bio">你的星际居民</span><h2 id="player-name">凯伊 <span>KAÏ</span></h2><span id="mood" class="mood">${icon('Smile')} 心情不错</span></div><div class="profile-traits"><span>${icon('Compass')} 好奇心旺盛</span><span>${icon('Heart')} 热爱生活</span></div><div class="current-activity"><span id="activity">${icon('Coffee')} 享受此刻的宁静</span><button id="autonomy" role="switch" aria-label="自主行为" aria-checked="true" title="自主行为已开启 · 点击关闭">自主</button></div></div>
   <div class="details"><nav class="panel-tabs"><button class="active" data-tab="needs">${icon('HeartPulse')} 需求</button><button data-tab="skills">${icon('Sparkles')} 技能</button><button data-tab="resident">${icon('Smile')} 人物</button><button data-tab="relations">${icon('Users')} 关系</button><button data-tab="career">${icon('BriefcaseBusiness')} 职业</button><button data-tab="life">${icon('Sprout')} 生命</button><button data-tab="exploration">${icon('Compass')} 探索</button><button data-tab="items">${icon('PackageOpen')} 物品包</button><span id="panel-tag">一切都刚刚好</span></nav><div id="panel-content"></div></div>
   <div class="neighbors"><div class="card-label">你的邻居 <span>4 位居民</span></div><div id="neighbor-portraits"></div><p>每个星球，都有值得认识的人。</p><button id="all-neighbors">查看关系 ${icon('ArrowUpRight')}</button></div>
  </section>
@@ -186,7 +185,6 @@ function refresh(){
  if(context?.kind==='npc'&&$('#npc-status')){const n=game.npcs[context.id];$('#npc-status').textContent=`${n.activity} · ${n.ai.reason}`;}
   $('#queue').innerHTML=game.queue.length?game.queue.map((q,i)=>`<div class="queue-action ${i===0?'current':''}" style="--progress:${q.phase==='celebrating'?Math.min(100,q.elapsed/PRAYER_RULES.celebrationSeconds*100):q.phase==='acting'?Math.min(100,q.elapsed/Math.max(.1,game.config.actionDurations[q.type])*100):0}%">${icon(ACTIONS[q.type].icon)}<span>${q.phase==='celebrating'?(q.blessing.side==='front'?'晴昼赐福':'幽冥赐福'):`${WONDER_ACTIONS[q.type]?.paired&&q.phase==='waiting'?'等候共同活动 · ':''}${actionLabel(q.type)}`}</span>${q.source==='ai'?'<small class="ai-badge">自主</small>':''}<button data-cancel="${q.id}" aria-label="取消${actionLabel(q.type)}">${icon('X')}</button></div>`).join(''):`<span class="queue-empty">${icon('MousePointer2')} ${game.autonomy.enabled?'正在考虑下一件小事':'给今天安排一点小事吧'}</span>`;
  const majorEvents=game.majorEvents||[],majorSignature=JSON.stringify(majorEvents);$('#journal').hidden=!majorEvents.length;if(majorSignature!==lastMajorEvents){lastMajorEvents=majorSignature;$('#journal-text').innerHTML=majorEvents.slice(0,3).map(event=>`<p class="journal-entry"><span>${event.text}</span><small>第 ${event.day} 天</small></p>`).join('');$('#journal-time').textContent=`最近 ${Math.min(3,majorEvents.length)} 条重大事件`;}
- const friends=Object.values(game.relationships).some(n=>n>=30);$('#wish-count').textContent=friends?'认识你的星际邻居 · 已完成':'认识你的星际邻居 · 0 / 1';$('#wish-bar').style.width=friends?'100%':'12%';if(friends){$('#wish-title').textContent='你在这颗星球，有朋友了';$('#wish-desc').textContent='继续交谈、讲笑话，让初识成为挚友。';}
  refreshWonderMenu();
  if(context?.kind==='object'){const o=game.objects.find(o=>o.id===context.id);if(!o)closeContext();else if(CROPS[o.type]&&$('#plant-status')){$('#plant-status').innerHTML=plantDetails(o);for(const b of document.querySelectorAll('#context-menu [data-action]')){const error=plantActionError(o,b.dataset.action);b.disabled=!!error;b.title=error||'';}}}
  renderHarvest();renderPanel();
@@ -231,6 +229,20 @@ function showContext(target,x,y){
 function selectItem(id){selectedItem=id;if(!build){speedBeforeBuild=game.speed;game.speed=0;}build=true;$('#build-button').classList.add('active');world.setBuild(id);$('#build-hint').hidden=false;lastPanel='';renderPanel();closeContext();toast(`已选择${ITEMS.find(i=>i.id===id).name}，点击地面摆放。`);}
 function cancelPlacement(){selectedItem=null;world.setBuild(null);$('#build-hint').hidden=true;lastPanel='';renderPanel();}
 function toggleBuild(){build=!build;$('#build-button').classList.toggle('active',build);if(build){speedBeforeBuild=game.speed;game.speed=0;}else{cancelPlacement();game.speed=speedBeforeBuild;}changeTab(build?'items':'needs');closeContext();refresh();}
+const DASHBOARD_MIN_WIDTH=300,DASHBOARD_MAX_WIDTH=760;
+function setDashboardWidth(width){
+ const dashboard=$('.dashboard'),handle=$('#dashboard-resize-handle');if(!dashboard||!handle)return;
+ const next=Math.round(Math.max(DASHBOARD_MIN_WIDTH,Math.min(DASHBOARD_MAX_WIDTH,width)));dashboard.style.setProperty('--dashboard-width',`${next}px`);document.documentElement.style.setProperty('--dashboard-width',`${next}px`);handle.setAttribute('aria-valuenow',String(next));
+}
+function setupDashboardResize(){
+ const handle=$('#dashboard-resize-handle'),dashboard=$('.dashboard');if(!handle||!dashboard)return;
+ let start=null;
+ const stop=event=>{if(!start)return;start=null;dashboard.removeAttribute('data-resizing');if(event.pointerId!==undefined&&handle.hasPointerCapture(event.pointerId))handle.releasePointerCapture(event.pointerId);};
+ handle.addEventListener('pointerdown',event=>{if(event.button!==0)return;const width=dashboard.getBoundingClientRect().width;start={x:event.clientX,width};dashboard.dataset.resizing='true';handle.setPointerCapture(event.pointerId);event.preventDefault();});
+ handle.addEventListener('pointermove',event=>{if(start)setDashboardWidth(start.width+start.x-event.clientX);});
+ handle.addEventListener('pointerup',stop);handle.addEventListener('pointercancel',stop);handle.addEventListener('lostpointercapture',()=>stop({}));
+ handle.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const current=dashboard.getBoundingClientRect().width;const next=event.key==='Home'?DASHBOARD_MIN_WIDTH:event.key==='End'?DASHBOARD_MAX_WIDTH:current+(event.key==='ArrowLeft'?16:-16);setDashboardWidth(next);event.preventDefault();});
+}
 $('#app').addEventListener('click',e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.speed!==undefined){game.speed=Number(b.dataset.speed);refresh();}
@@ -284,6 +296,7 @@ $('#app').addEventListener('submit',e=>{
 });
 document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();game.speed=game.speed?0:1;refresh();}if(e.key==='1'||e.key==='3'){game.speed=Number(e.key);refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();if(!e.target.closest('#character-switcher')&&!e.target.closest('#active-character'))closeCharacterSwitcher();});
+setupDashboardResize();
 let audioContext=null,audioOn=false;
 async function toggleSound(){if(!audioContext){audioContext=new AudioContext();const gain=audioContext.createGain();gain.gain.value=.015;gain.connect(audioContext.destination);[130.81,196,261.63,329.63].forEach((f,i)=>{const osc=audioContext.createOscillator();osc.type='sine';osc.frequency.value=f;const volume=audioContext.createGain();volume.gain.value=.28;osc.connect(volume).connect(gain);const lfo=audioContext.createOscillator();lfo.frequency.value=.07+i*.03;const depth=audioContext.createGain();depth.gain.value=.14;lfo.connect(depth).connect(volume.gain);lfo.start();osc.start();});}audioOn=!audioOn;if(audioOn)await audioContext.resume();else await audioContext.suspend();$('#sound').innerHTML=icon(audioOn?'Volume2':'VolumeX');$('#sound').classList.toggle('active',audioOn);}
 

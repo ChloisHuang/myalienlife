@@ -24,6 +24,7 @@ import {getWeather} from './weather.js';
 import {createWeatherEffects} from './weather-effects.js';
 
 const colors={ivory:0xe9e5d5,mint:0x93cbbb,pink:0xe8a1bc,purple:0x82789f,dark:0x34495b,gold:0xf6cd83,glow:0xb4ffe0};
+const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
 const materials=new Map();
 function material(color,glow=0){const key=`${color}-${glow}`;if(!materials.has(key))materials.set(key,new StarToonMaterial({color,emissive:color,emissiveIntensity:glow}));return materials.get(key);}
 function mesh(parent,geo,color,pos,scale,glow=0){const o=new THREE.Mesh(geo,material(color,glow));o.position.set(...pos);if(scale)o.scale.set(...scale);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;}
@@ -37,8 +38,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x10152e);scene.fog=new THREE.FogExp2(0x171c39,.006);
  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
  const createCrystalMesh=createCrystalFactory(renderer);
- const camera=new THREE.OrthographicCamera(-20,20,15,-15,.1,180);camera.position.set(23,25,30);
+ const cameraStart=new THREE.Vector3(23,25,30),camera=new THREE.OrthographicCamera(-20,20,15,-15,.1,180);camera.position.copy(cameraStart);
  const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,0,0);controls.enableDamping=true;controls.minZoom=.65;controls.maxZoom=2.5;controls.minPolarAngle=.25;controls.maxPolarAngle=1.25;controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
+ camera.lookAt(controls.target);camera.updateMatrixWorld();const cameraOffset=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0).multiplyScalar(CAMERA_PAN_RIGHT);
+ function resetView(){camera.position.copy(cameraStart).add(cameraOffset);controls.target.copy(cameraOffset);camera.zoom=CAMERA_ZOOM;camera.lookAt(controls.target);camera.updateProjectionMatrix();}
+ resetView();
  const ambient=new THREE.HemisphereLight(0xe2eaff,0x70526e,1.3);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffe5d0,2.6);sun.position.set(-10,24,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,far:70});sun.shadow.normalBias=.09;sun.shadow.bias=-.00015;scene.add(sun);
  const rim=new THREE.DirectionalLight(0xdacbff,1.2);rim.position.set(12,6,-16);scene.add(rim);
  const composer=createPostProcessing(renderer,scene,camera);
@@ -284,7 +288,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   rotateBuild(){buildRotation+=Math.PI/2;ghost.rotation.y=buildRotation;},
   focus(id){const p=id==='home'?{x:-3,z:-1}:id==='garden'?{x:7,z:3}:id==='lab'?{x:6,z:-3}:getGame().player;const dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
   focusUfo(id){const g=getGame(),ship=g.space.ships.find(s=>s.id===id);if(!ship)return;const p=ufoDock(g,ship),dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
-  resetCamera(){camera.position.set(23,25,30);controls.target.set(0,0,0);camera.zoom=1;camera.updateProjectionMatrix();},
+  resetCamera(){resetView();},
   zoom(delta){camera.zoom=THREE.MathUtils.clamp(camera.zoom+delta,.65,2.5);camera.updateProjectionMatrix();},
   portrait(id){
     const person=id==='player'?getGame().player:getGame().npcs[id],color=person.color,config=getGame().config;
