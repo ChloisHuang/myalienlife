@@ -38,3 +38,15 @@ function readyFamily(){const g=sim.createGame();g.objects.push({id:'nursery',typ
 test('autonomous birth prioritizes the most friendly eligible second parent and permits single parent only without one',()=>{const g=readyFamily();assert.equal(sim.birthDecision(g,'player').partnerId,null);g.relationships.nova=60;g.relationships.zig=80;assert.equal(sim.birthDecision(g,'player').partnerId,'zig');g.npcs.zig.lastBirthDay=g.day;assert.equal(sim.birthDecision(g,'player').partnerId,'nova');g.npcs.nova.parents=[{uid:g.player.uid,name:g.player.name}];assert.equal(sim.birthDecision(g,'player').partnerId,null);});
 test('NPC autonomous birth can choose the controlled resident and preserves that parent after a control switch',()=>{let g=readyFamily();g.relationships.nova=75;assert.equal(sim.birthDecision(g,'nova').partnerId,g.player.uid);sim.switchControl(g,'nova');assert.equal(sim.enqueue(g,'incubate','nursery',undefined,'kai').ok,true);g.queue[0].source='ai';sim.switchControl(g,'kai');g=sim.restore(sim.serialize(g));g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.npcs.zig.ai.enabled=true;g.npcs.lumi.ai.enabled=true;step(g,25,()=>.5);assert.equal(g.incubations.length,1);assert.deepEqual(g.incubations[0].parents.map(p=>p.uid),['nova','kai']);});
 test('queued autonomous single-parent birth upgrades to two parents when an eligible partner becomes available',()=>{const g=readyFamily();assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);g.queue[0].source='ai';g.relationships.nova=75;g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.npcs.zig.ai.enabled=true;g.npcs.lumi.ai.enabled=true;step(g,25,()=>.5);assert.equal(g.incubations.length,1);assert.deepEqual(g.incubations[0].parents.map(p=>p.uid),['kai','nova']);assert.match(g.log.map(l=>l.text).join(' '),/与诺瓦共同自主决定/);});
+
+test('population capacity grows only with landed islands and both birth paths respect it',async()=>{
+ const {populationCapacity}=await import('../src/civilization.js');const g=readyFamily();
+ for(let i=0;i<3;i++){const p=structuredClone(g.npcs.pip);p.uid=`extra-${i}`;g.npcs[p.uid]=p;}
+ assert.equal(populationCapacity(g),8);assert.match(sim.birthDecision(g,'player').reason,/人口上限 8/);assert.equal(sim.enqueue(g,'incubate','nursery').ok,false);
+ g.civilization.observations=3;g.wonders.archive=3;assert.equal(populationCapacity(g),8);
+ g.civilization.visits.spore=1;assert.equal(populationCapacity(g),16);assert.equal(sim.birthDecision(g,'player').ready,true);assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);g.queue=[];
+ g.space.backs.spore=true;g.civilization.visits.spore=20;assert.equal(populationCapacity(g),16);g.civilization.visits.city=1;assert.equal(populationCapacity(g),24);
+ for(let i=3;i<11;i++){const p=structuredClone(g.npcs.pip);p.uid=`extra-${i}`;g.npcs[p.uid]=p;}
+ for(const id of Object.keys(g.npcs)){g.relationships[id]??=0;for(const [other,n]of Object.entries(g.npcs))if(other!==id)n.relationships[id]??=0;}
+ assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);assert.equal(populationCapacity(sim.restore(sim.serialize(g))),24);
+});

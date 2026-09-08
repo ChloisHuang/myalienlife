@@ -13,6 +13,7 @@ export const STAR_ISLANDS={
 export const SPACE_LEVELS=Array.from({length:19},(_,level)=>({name:['地表时代','近星航行','深空跃迁'][level]??`星域航行 ${level-2} 阶`,points:20*level*(level+1)}));
 const MAX_TECH=SPACE_LEVELS.at(-1).points;
 export const islandCatalog=g=>({...STAR_ISLANDS,...g.civilization.islands});
+export const populationCapacity=g=>Object.keys(islandCatalog(g)).filter(id=>id==='home'||g.civilization.visits[id]>0).length*8;
 export const islandDefinition=(g,id)=>STAR_ISLANDS[id]??g.civilization.islands[id];
 export const SKILL_NAMES={science:'科学',botany:'植物学',social:'社交'};
 export const ISLAND_DISCOVERY_CHANCE=1/48;
