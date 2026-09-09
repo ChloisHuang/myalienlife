@@ -70,7 +70,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
      tips[side]=new THREE.Vector3(sign*.36,-.66,.04).lerp(new THREE.Vector3(-sign*.08,.025+wave*.04,.24),active).toArray();}
    }
    if(['eat','taste','brew'].includes(type)){local=[0,0,1.1];facing=0;tips.Left=[-.15,.18,.40];tips.Right=[.09,.32+wave*.08,.34];rig.joints.Head.rotation.x=.08;rig.effects.meal.visible=rig.effects.spoon.visible=true;}
-   if(['research','work','incubate','cook'].includes(type)){local=[0,0,.95];rig.joints.Core.rotation.x=.10;tips.Left=[-.24,.06+wave*.025,.51];tips.Right=[.24,.06-wave*.025,.51];}
+   if(['research','work','incubate','cook','developBlueprint','constructIsland','extractMaterials'].includes(type)){local=[0,0,.95];rig.joints.Core.rotation.x=.10;tips.Left=[-.24,.06+wave*.025,.51];tips.Right=[.24,.06-wave*.025,.51];}
    if(['garden','harvest','replant'].includes(type)){local=[0,-.05,1.0];rig.joints.Core.rotation.x=.22;tips.Left=[-.28,-.35,.55];tips.Right=[.24,-.48+wave*.06,.65];rig.effects.wateringCan.visible=type==='garden';rig.effects.meal.visible=type==='harvest';}
    if(type==='dance'){local=[0,0,1.45];facing=0;roll=wave*.13;bob+=Math.sin(action.elapsed*4)*.08;tips.Left=[-.57,.16+wave*.2,.25];tips.Right=[.57,.16-wave*.2,.25];}
    if(type==='observe'){local=[0,-.10,1.02];rig.joints.Core.rotation.x=.25;rig.joints.Head.rotation.x=.12;tips.Left=[-.2,.15,.48];tips.Right=[.2,.15,.48];}

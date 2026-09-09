@@ -192,6 +192,10 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
     container.dataset.blinking=String([...actors.values()].filter(r=>r.blinkVisual.root.visible).length);
     marker.visible=selected.visible=!g.queue[0]?.blinkTransit&&g.player.alive&&!onboard.has(g.player.uid)&&islandOf(g.player)===g.viewIsland&&sideOf(g.player)===g.viewSide;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player,g.config.lifeStages).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z,sideOf(g.player),islandOf(g.player))+.025,main.z);
    for(const [id,o]of objectMeshes){if(o.userData.rift){o.userData.rift.material.uniforms.time.value=time;o.userData.riftFrame.position.y=1.5+Math.sin(time*1.4)*.06;}if(o.userData.orb)o.userData.orb.position.y=1.4+Math.sin(time*1.4)*.09;if(o.userData.egg){o.userData.egg.visible=g.incubations.some(b=>b.podId===id);o.userData.egg.position.y=.8+Math.sin(time*1.5)*.06;}if(o.userData.portal){o.userData.portal.material.uniforms.time.value=time;o.userData.glyphs.rotation.z=time*.09;}if(o.userData.cropVisual)for(const [i,crop]of o.userData.cropVisual.entries())crop.rotation.z+=Math.sin(time*.85+i+o.position.x)*.025;}
+   for(const item of g.objects){const group=objectMeshes.get(item.id);
+    if(group.userData.materialBars)group.userData.materialBars.forEach((m,i)=>{m.visible=(g.space.materials[islandOf(item)]??0)>i*10;});
+    if(group.userData.extractionRotor&&[g.queue[0],...Object.values(g.npcs).map(p=>p.queue[0])].some(q=>q?.type==='extractMaterials'&&q.targetId===item.id&&q.phase==='acting'))group.userData.extractionRotor.rotation.y=time*2;
+   }
    atmosphere.update(time,weather,(1+Math.cos(island.rotation.x))/2);weatherEffects.update(time,weather);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
    if(g.viewIsland!=='home'&&remoteTerrain)for(const t of Object.values(remoteTerrain))t.update(time,weather.wind,1-daylight);

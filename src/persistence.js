@@ -30,6 +30,6 @@ export function createPersistence(){
   return game;
  }
  async function saveProjectConfig(config){return requestProjectConfig({method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({config})});}
- async function createNewGame(){const project=await requestProjectConfig();const game=createGame(project.config);lastSnapshot='';await save(game);return game;}
+ async function createNewGame(){await Promise.all([...pending.values()]);const project=await requestProjectConfig();const game=createGame(project.config);lastSnapshot='';await save(game);return game;}
  return{load,save,saveProjectConfig,createNewGame};
 }

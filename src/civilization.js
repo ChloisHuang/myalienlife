@@ -5,6 +5,7 @@ import {spaceResearchYield} from './action-access.js';
 import {generateIsland,validIslandBlueprint} from './island-generator.js';
 import {islandOf} from './island.js';
 import {createProject,projectError,validProjects} from './settlements.js';
+import {materialSource,plantActionError} from './plants.js';
 
 export const STAR_ISLANDS={
  home:{name:'露米纳星湾',level:0,color:0xbce0d4,skill:null,required:0,interests:[]},
@@ -42,6 +43,7 @@ function destinationError(g,p,id){
 export function starVoyageError(g,p,skills,id){const career=p===g.player?g.career:p.career;return destinationError(g,p,id)||(career?.id!=='scientist'||skillProgress(skills.science).level<10?'需要量子科学职业且科学满级（10 级），才能独自通过星门航行。':null);}
 export function voyageError(g,p,skills,id,count=1,actionId=null,shipId=null){return destinationError(g,p,id)||equipmentError(g,p,islandDefinition(g,id).level,count,id==='home',actionId,shipId);}
 export function civilizationError(g,type,o,p,skills,id,count=1,actionId=null,shipId=null){
+ if(type==='extractMaterials')return plantActionError(materialSource(g.objects,o),type);
  const issue=projectError(g,type,o,p);if(issue)return issue;
  if(type==='prepareRations')return o?.type!=='stove'?'请使用孢火星釜储备食物。':null;
  const ufo=UFOS.find(d=>type===`buildUfo${d.tier}`);if(ufo)return o?.type!=='lab'?'请在全息研究台制造 UFO。':spaceLevel(g)<ufo.technology?`需要太空科技 ${ufo.technology} 级才能制造。`:fleetBuildError(g,actionId);

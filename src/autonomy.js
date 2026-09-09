@@ -23,6 +23,7 @@ export function autonomyBonus(g,p,c,people){
  if(type==='activateCrystal'){if(!g.objects.some(x=>x.type===(o.wonder.mode==='sleep'?'pod':'lab')&&near(x,o,5)))return null;bonus+=18;}
  if(type==='releaseBugs'){if(g.wonders.dust<2)bonus-=12;bonus+=people.filter(n=>near(n.position,o,6)&&n.needs.fun<70).length*3;}
  if(type==='prepareRations'){if((g.space.provisions[islandOf(p.position)]??0)>=24)return null;bonus+=15;}
+ if(type==='extractMaterials'){if((g.space.materials[islandOf(p.position)]??0)>=120)return null;bonus+=70;}
  if(type.startsWith('buildUfo')){const tier=Number(type.at(-1));if(g.space.ships.some(s=>s.island===islandOf(p.position)&&s.tier>=tier)||people.some(n=>n!==p&&n.queue.some(q=>q.type===type)))return null;bonus+=10;}
  if(type==='memoryExpedition')bonus+=14;
  if(type==='developBlueprint'||type==='constructIsland'){if(Math.min(p.needs.energy,p.needs.hunger)<40)return null;bonus+=22;}

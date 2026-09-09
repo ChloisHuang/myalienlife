@@ -1,4 +1,9 @@
-export const CROPS={garden:{key:'spores',name:'发光孢子',minutes:360,yield:3,price:18,giantChance:3},mushroom:{key:'mushrooms',name:'星伞菇',minutes:720,yield:2,price:25,giantChance:3}};
+import {sameSide} from './island.js';
+export const CROPS={garden:{key:'spores',name:'发光孢子',minutes:360,yield:3,price:18,giantChance:3},mushroom:{key:'mushrooms',name:'星伞菇',minutes:720,yield:2,price:25,giantChance:3},cultivator:{key:'spores',name:'发光孢子',minutes:240,yield:4,price:18,giantChance:3}};
+export function materialSource(objects,target){
+ if(target?.type!=='extractor')return target;
+ return objects.filter(o=>CROPS[o.type]&&sameSide(o,target)&&o.plant.health>0&&o.plant.growth>=1&&Math.hypot(o.x-target.x,o.z-target.z)<=6).sort((a,b)=>Math.hypot(a.x-target.x,a.z-target.z)-Math.hypot(b.x-target.x,b.z-target.z))[0];
+}
 export const cropVisualScale=(growth,giant)=> (.3+growth*.7)*(giant?2:1);
 export const createPlant=()=>({growth:.15,water:75,health:100,harvests:0,giant:false});
 export function plantStatus(o){const p=o.plant;return p.health<=0?'枯萎':p.growth>=1?(p.giant?'巨型成熟可收获':'成熟可收获'):p.water<25?'缺水':p.growth<.35?'幼苗':p.growth<.75?'生长中':'开花结实';}
@@ -9,7 +14,7 @@ export function plantActionError(o,type){
  if(!o||!CROPS[o.type])return '请选择可栽培的植物。';
  if(type==='replant')return o.plant.health>0?'这株植物仍在生长，无需补种。':null;
  if(o.plant.health<=0)return '植物已枯萎，请先补种。';
- if(type==='harvest'&&o.plant.growth<1)return '植物尚未成熟。';
+ if(['harvest','extractMaterials'].includes(type)&&o.plant.growth<1)return '植物尚未成熟。';
  return null;
 }
 export function tendPlant(o){o.plant.water=Math.min(100,o.plant.water+65);o.plant.health=Math.min(100,o.plant.health+20);}

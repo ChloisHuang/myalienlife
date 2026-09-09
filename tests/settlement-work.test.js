@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createGame,enqueue,tick,restore,serialize,cancelAction} from '../src/simulation.js';
 import {PROJECT_WORK} from '../src/settlements.js';
 import {autonomyBonus} from '../src/autonomy.js';
-function setup(){const g=createGame();g.autonomy.enabled=false;for(const p of Object.values(g.npcs))p.ai.enabled=false;g.player.island=g.viewIsland='spore';g.civilization.visits.spore=1;g.civilization.discoveryPath=['home','spore'];for(const k in g.config.needDecay)g.config.needDecay[k]=0;g.objects.push({id:'bench',type:'lab',island:'spore',side:'front',x:0,z:0,rotation:0});return g;}
+function setup(){const g=createGame();g.career.id='architect';g.space.materials.spore=60;g.autonomy.enabled=false;for(const p of Object.values(g.npcs))p.ai.enabled=false;g.player.island=g.viewIsland='spore';g.civilization.visits.spore=1;g.civilization.discoveryPath=['home','spore'];for(const k in g.config.needDecay)g.config.needDecay[k]=0;g.objects.push({id:'bench',type:'lab',island:'spore',side:'front',x:0,z:0,rotation:0});return g;}
 test('construction is locked until shared blueprint work is complete',()=>{
  const g=setup();assert.equal(enqueue(g,'constructIsland','bench').ok,false);
  assert.equal(enqueue(g,'developBlueprint','bench').ok,true);for(let i=0;i<150;i++)tick(g,.1,()=>1);
@@ -26,9 +26,9 @@ test('canceling blueprint work preserves only the seconds actually worked',()=>{
  const progress=g.civilization.projects.spore.blueprint;assert.ok(progress>0&&progress<30);cancelAction(g,g.queue[0].id);
  for(let i=0;i<100;i++)tick(g,.1,()=>1);assert.equal(g.civilization.projects.spore.blueprint,progress);
 });
-test('either workbench works without profession or scientific level; settlement requires completion',()=>{
- const g=setup();g.skills.science=0;g.career.id='diplomat';g.objects.find(o=>o.id==='bench').type='stove';
+test('architects can use either workbench; settlement itself has no profession restriction',()=>{
+ const g=setup();g.skills.science=0;g.objects.find(o=>o.id==='bench').type='stove';
  assert.equal(enqueue(g,'developBlueprint','bench').ok,true);g.queue=[];
- assert.equal(enqueue(g,'settleIsland','bench').ok,false);Object.assign(g.civilization.projects.spore,PROJECT_WORK);
+ assert.equal(enqueue(g,'settleIsland','bench').ok,false);Object.assign(g.civilization.projects.spore,PROJECT_WORK);g.career.id='diplomat';
  assert.equal(enqueue(g,'settleIsland','bench').ok,true);for(let i=0;i<100;i++)tick(g,.1,()=>1);assert.equal(g.player.homeIsland,'spore');
 });

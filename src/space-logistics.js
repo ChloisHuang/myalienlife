@@ -1,14 +1,14 @@
 import {islandOf,sideOf,sameSide} from './island.js';
 export const UFOS=[
- {tier:1,name:'萤舟 UFO',technology:1,range:1,seats:2,price:600},
- {tier:2,name:'星梭 UFO',technology:2,range:2,seats:5,price:1400},
- {tier:3,name:'方舟 UFO',technology:3,range:18,seats:12,price:2600}
+ {tier:1,name:'萤舟 UFO',technology:1,range:1,seats:2,cargoCapacity:20,price:600},
+ {tier:2,name:'星梭 UFO',technology:2,range:2,seats:5,cargoCapacity:60,price:1400},
+ {tier:3,name:'方舟 UFO',technology:3,range:18,seats:12,cargoCapacity:120,price:2600}
 ];
 export const UFO_WEAR_PER_FLIGHT=10;
 export function fleetLimit(g){return Math.floor(new Set([g.player,...Object.values(g.npcs)].filter(p=>p.alive).map(p=>p.uid)).size*2/3);}
 export function fleetBuildError(g,actionId=null){const pending=new Set([g.queue,...Object.values(g.npcs).map(p=>p.queue)].flat().filter(q=>/^buildUfo[123]$/.test(q.type)&&q.id!==actionId).map(q=>q.id)).size;return g.space.ships.length+pending>=fleetLimit(g)?`UFO 数量上限 ${fleetLimit(g)} 艘（存活人数的 2/3，向下取整），含已排队制造。`:null;}
-export function retireUfo(g,ship,reason){const refund=Math.floor(ufoDefinition(ship).price*.5*ship.durability/100);g.space.provisions[ship.island]=(g.space.provisions[ship.island]??0)+ship.food;g.money+=refund;g.space.ships.splice(g.space.ships.indexOf(ship),1);g.log.unshift({text:`${ufoDefinition(ship).name}因${reason}回收，返还 ${refund} 星币及 ${ship.food} 份食物。`,at:g.minute});}
-export const createSpaceLogistics=()=>({backs:{home:true},ships:[],provisions:{}});
+export function retireUfo(g,ship,reason){depositShipCargo(g,ship);const refund=Math.floor(ufoDefinition(ship).price*.5*ship.durability/100);g.space.provisions[ship.island]=(g.space.provisions[ship.island]??0)+ship.food;g.money+=refund;g.space.ships.splice(g.space.ships.indexOf(ship),1);g.log.unshift({text:`${ufoDefinition(ship).name}因${reason}回收，返还 ${refund} 星币及 ${ship.food} 份食物。`,at:g.minute});}
+export const createSpaceLogistics=()=>({backs:{home:true},ships:[],provisions:{},materials:{},cargo:{}});
 export const backDiscovered=(g,id)=>id==='home'||g.space.backs[id]===true;
 export const ufoDefinition=ship=>UFOS[ship.tier-1];
 export function hasLocalChef(g,island){return (g.player.alive&&islandOf(g.player)===island&&g.career.id==='chef')||Object.entries(g.npcs).some(([id,p])=>id!==g.controlledId&&p.uid!==g.player.uid&&p.alive&&islandOf(p)===island&&p.career.id==='chef');}
@@ -32,6 +32,7 @@ export function finishLogistics(g,type,p,career,nextId,actionId=null){
 }
 export function validSpaceLogistics(s,catalog){
  const count=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9;
+ if(!s?.materials||!s.cargo||!Object.entries(s.materials).every(([id,n])=>Object.hasOwn(catalog,id)&&count(n))||!Object.entries(s.cargo).every(([id,n])=>{const ship=s.ships?.find(ship=>ship.id===id);return ship&&count(n)&&n<=(UFOS[ship.tier-1]?.cargoCapacity??0);}))return false;
  return s&&s.backs?.home===true&&Object.entries(s.backs).every(([id,v])=>Object.hasOwn(catalog,id)&&v===true)&&s.provisions&&Object.entries(s.provisions).every(([id,n])=>Object.hasOwn(catalog,id)&&count(n))&&Array.isArray(s.ships)&&s.ships.length<=128&&new Set(s.ships.map(s=>s.id)).size===s.ships.length&&s.ships.every(s=>typeof s.id==='string'&&UFOS.some(d=>d.tier===s.tier)&&Object.hasOwn(catalog,s.island)&&['front','back'].includes(s.side)&&count(s.food)&&count(s.durability)&&s.durability<=100&&(s.reservedBy===null||count(s.reservedBy)));
 }
 
@@ -42,6 +43,27 @@ export function loadShipFood(g,id){
  const amount=Math.min(shipFoodStatus(ship).capacity-ship.food,g.space.provisions[ship.island]??0);
  if(amount<=0)return {ok:false,message:shipFoodStatus(ship).full?'飞船补给已满。':'岛上没有航行食物，请先让星厨储备。'};
  ship.food+=amount;g.space.provisions[ship.island]-=amount;return {ok:true,message:`已装入 ${amount} 份食物，舱内 ${ship.food} / ${shipFoodStatus(ship).capacity} 份。`};
+}
+
+export function loadShipMaterials(g,id,amount){
+ const ship=g.space.ships.find(s=>s.id===id);
+ if(!ship||!sameSide(ship,g.player))return {ok:false,message:'请先来到飞船所在岛面。'};
+ if(ship.reservedBy!==null)return {ok:false,message:'飞船已预留航行，不能改变货物。'};
+ const stock=g.space.materials[ship.island]??0,loaded=g.space.cargo[id]??0;
+ if(!Number.isSafeInteger(amount)||amount<=0||amount>stock||amount+loaded>ufoDefinition(ship).cargoCapacity)return {ok:false,message:'请填写库存和剩余载货量以内的正整数。'};
+ g.space.materials[ship.island]=stock-amount;g.space.cargo[id]=loaded+amount;
+ return {ok:true,message:`已装载 ${amount} 份植生复材，抵达后自动卸入目标星岛仓库。`};
+}
+export function depositShipCargo(g,ship){
+ const amount=g.space.cargo[ship.id]??0;
+ if(amount)g.space.materials[ship.island]=(g.space.materials[ship.island]??0)+amount;
+ delete g.space.cargo[ship.id];return amount;
+}
+export function unloadShipMaterials(g,id){
+ const ship=g.space.ships.find(s=>s.id===id);
+ if(!ship||!sameSide(ship,g.player))return {ok:false,message:'请先来到飞船所在岛面。'};
+ if(ship.reservedBy!==null)return {ok:false,message:'飞船已预留航行，不能改变货物。'};
+ const amount=depositShipCargo(g,ship);return {ok:amount>0,message:amount?`已卸下 ${amount} 份植生复材。`:'货舱为空。'};
 }
 
 export function ufoLandingSpot(g,id){return [[0,2],[2,2],[-2,2],[0,4],[4,4],[-4,4]].map(([x,z])=>({x,z,island:id,side:'front'})).find(p=>!g.objects.some(o=>sameSide(o,p)&&Math.hypot(o.x-p.x,o.z-p.z)<1.1));}

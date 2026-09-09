@@ -9,6 +9,36 @@ import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
 
+test('professional packs render six devices and expose construction, extraction and shared cargo controls',async({page})=>{
+ const renderedColors=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{const gl=document.querySelector('#world canvas').getContext('webgl2'),pixels=new Uint8Array(128*128*4);gl.readPixels(Math.floor(gl.drawingBufferWidth/2)-64,Math.floor(gl.drawingBufferHeight/2)-64,128,128,gl.RGBA,gl.UNSIGNED_BYTE,pixels);const colors=new Set();for(let i=0;i<pixels.length;i+=16)colors.add(`${pixels[i]},${pixels[i+1]},${pixels[i+2]}`);resolve(colors.size);})));
+ const state=createGame();state.speed=0;state.autonomy.enabled=false;state.career.id='architect';state.player.x=-8;state.player.z=5;state.space.materials.home=24;
+ const types=['blueprintTable','constructionTerminal','cultivator','extractor','materialCabinet','loadingPlatform'];state.objects=types.map((type,i)=>({id:type,type,x:(i%3-1)*5,z:i<3?-3:3,island:'home',side:'front',rotation:0,...(type==='cultivator'?{plant:{growth:1,water:75,health:100,harvests:0,giant:false}}:{})}));
+ state.space.ships.push({id:'pack-ship',tier:1,island:'home',side:'front',food:4,durability:100,reservedBy:null});fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.locator('[data-tab="items"]').click();for(const pack of ['星穹营造','植生工坊','星港货运']){await page.locator(`[data-pack="${pack}"]`).click();await expect(page.locator('.item-card')).toHaveCount(2);}
+ expect(await renderedColors()).toBeGreaterThan(8);await page.screenshot({path:'artifacts/profession-packs-desktop.png'});
+ const clickAt=async(x,y,z)=>{const bounds=await page.locator('#world').boundingBox(),p=new Vector3(x,y,z).project(sceneCamera(bounds));await page.mouse.click(bounds.x+(p.x+1)*bounds.width/2,bounds.y+(1-p.y)*bounds.height/2);};
+ await clickAt(0,1.35,3.4);expect(errors).toEqual([]);await expect(page.locator('#profession-status')).toContainText('植生复材 24 份');await page.locator('#profession-status [data-ufo="pack-ship"]').click();await expect(page.locator('.cargo-controls')).toContainText('本岛库存 24');await page.locator('.ufo-dialog .dialog-close').click();
+ await expect(page.locator('#context-menu')).toBeHidden();await page.setViewportSize({width:390,height:844});await page.locator('#reset-view').click();await page.locator('[data-tab="items"]').click();await page.locator('[data-pack="星穹营造"]').click();await expect(page.locator('.item-card')).toHaveCount(2);expect(await renderedColors()).toBeGreaterThan(8);await page.screenshot({path:'artifacts/profession-packs-mobile.png'});expect(errors).toEqual([]);
+});
+
+test('restart epoch requires confirmation and persists a clean first day',async({page})=>{
+ const state=createGame();state.day=40;state.money=50000;state.speed=0;state.space.materials.home=80;state.civilization.discoveryPath=['home','spore'];fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden();await page.locator('#config').click();
+ page.once('dialog',d=>d.dismiss());await page.locator('#restart-epoch').click();await expect(page.locator('#day')).toContainText('40');
+ await page.screenshot({path:'artifacts/restart-epoch.png'});await page.setViewportSize({width:390,height:844});await page.locator('#restart-epoch').scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/restart-epoch-mobile.png'});page.once('dialog',d=>d.accept());await page.locator('#restart-epoch').click();await expect(page.locator('#config-dialog')).toBeHidden();await expect(page.locator('#day')).toContainText('1');
+ await expect.poll(async()=> (await savedState(page))?.day).toBe(1);const saved=await savedState(page);expect(saved.civilization.discoveryPath).toEqual(['home']);expect(saved.money).toBe(2400);expect(saved.space.materials).toEqual({});expect(saved.space.ships).toEqual([]);
+ await page.reload();await expect(page.locator('#loading')).toBeHidden();await expect(page.locator('#day')).toContainText('1');expect(errors).toEqual([]);
+});
+
+test('cargo dialog loads and unloads local materials within ship capacity',async({page})=>{
+ const state=createGame();state.speed=0;state.space.materials.home=30;state.space.ships.push({id:'cargo-ui',tier:1,island:'home',side:'front',food:4,durability:100,reservedBy:null});fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden();await page.locator('[data-tab="exploration"]').click();await page.locator('[data-ufo="cargo-ui"]').click();
+ await page.locator('#cargo-amount').fill('12');await page.locator('[data-load-materials="cargo-ui"]').click();await expect(page.locator('.cargo-controls')).toContainText('已装 12 / 20');await expect(page.locator('.cargo-controls')).toContainText('本岛库存 18');await page.screenshot({path:'artifacts/cargo-desktop.png'});
+ await page.setViewportSize({width:390,height:844});await page.locator('#cargo-amount').scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/cargo-mobile.png'});
+ await page.locator('[data-unload-materials="cargo-ui"]').click();await expect(page.locator('.cargo-controls')).toContainText('已装 0 / 20');await expect(page.locator('.cargo-controls')).toContainText('本岛库存 30');expect(errors).toEqual([]);
+});
+
 test('resident profile shows each residents settled island rather than the island being visited',async({page})=>{
  const state=createGame();state.speed=0;state.civilization.discoveryPath=['home','spore','city'];state.civilization.visits.spore=1;state.player.island=state.viewIsland='spore';state.player.homeIsland='city';state.npcs.nova.homeIsland='spore';fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="resident"]').click();
@@ -32,7 +62,7 @@ test('destroy island confirms, evacuates, preserves the next island and survives
 
 test('settlement workbench gates construction behind blueprints and persists construction work',async({page})=>{
  const state=createGame();state.civilization.discoveryPath=['home','spore'];state.civilization.visits.spore=1;state.player.island=state.viewIsland='spore';state.player.x=-2;state.player.z=1.2;state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;
- state.objects.push({id:'settlement-bench',type:'lab',x:0,z:0,island:'spore',side:'front',rotation:0});state.civilization.projects.spore.blueprint=299;fixtures.set(page,state);
+ state.career.id='architect';state.space.materials.spore=60;state.objects.push({id:'settlement-bench',type:'lab',x:0,z:0,island:'spore',side:'front',rotation:0});state.civilization.projects.spore.blueprint=299;fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  const clickBench=async()=>{const bounds=await page.locator('#world').boundingBox(),point=new Vector3(.55,1.9,-.3).project(sceneCamera(bounds));await page.mouse.click(bounds.x+(point.x+1)*bounds.width/2,bounds.y+(1-point.y)*bounds.height/2);};
  await clickBench();expect(errors).toEqual([]);await expect(page.locator('[data-action="constructIsland"]')).toBeDisabled();await expect(page.locator('[data-action="developBlueprint"]')).toBeEnabled();

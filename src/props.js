@@ -19,6 +19,42 @@ export {material,mesh,box,sphere,cylinder,ring};
 
 export function createPropFactory({mushroomAsset,model,crystal}){
  function prop(type){if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
+  if(type==='blueprintTable'){
+   for(const x of [-.6,.6])box(g,0x96aaa1,[x,.5,0],[.15,1,.85]);
+   const desk=new THREE.Group();desk.position.y=1.02;desk.rotation.x=.22;g.add(desk);
+   box(desk,0xd8e3dc,[0,0,0],[1.65,.12,1.05]);box(desk,0x769eab,[0,.08,0],[1.25,.025,.8]);
+   for(const x of [-.4,0,.4])box(desk,0xc8e2df,[x,.1,0],[.016,.014,.7]);
+   for(const z of [-.24,.1])box(desk,0xc8e2df,[0,.1,z],[1.1,.014,.016]);
+   box(desk,0xe5ede6,[-.18,.18,-.16],[.4,.12,.25]);box(desk,0xb2c7b7,[.26,.25,.13],[.28,.27,.32]);
+   const scroll=cylinder(desk,0xdddcd0,[.72,.15,0],.06,.85);scroll.rotation.x=Math.PI/2;
+  }
+  if(type==='constructionTerminal'){
+   box(g,0x708c87,[0,.13,0],[1.1,.26,.9]);box(g,0xd3dfd8,[0,.7,0],[.65,1.1,.55]);
+   const screen=box(g,0x77929c,[0,1.42,0],[1.12,.72,.16]);screen.rotation.x=-.2;
+   for(let i=0;i<3;i++)box(g,[0xbad4c0,0xd6c49e,0xb4ccd1][i],[-.22,1.58-i*.16,.13],[.5+i*.12,.065,.04]);
+   box(g,0xc9d9ce,[0,1.0,.42],[1,.09,.45]);for(const x of [-.25,0,.25])sphere(g,0xb7cba9,[x,1.08,.44],[.06,.035,.06]);
+  }
+  if(type==='extractor'){
+   box(g,0xcbdcd1,[0,.17,0],[1.55,.34,1]);box(g,0x73998c,[-.4,.85,0],[.65,1.15,.72]);
+   cylinder(g,0xacc9b6,[.42,.67,0],.32,.85);cylinder(g,0xd1ded1,[.42,1.13,0],.4,.14);
+   const mouth=cylinder(g,0x597c6e,[.42,1.23,0],.2,.08,.31);box(g,0x96b0a6,[0,1.05,0],[.55,.16,.23]);
+   for(let i=0;i<3;i++)box(g,0xc6dcc6,[-.4,.62+i*.2,.39],[.35,.08,.045]);
+   box(g,0x667d7a,[.4,.44,.58],[.7,.08,.45]);box(g,0xd2c69e,[.4,.55,.6],[.32,.18,.26]);
+   for(let i=0;i<3;i++){const a=i*Math.PI*2/3,fin=box(mouth,0xc1d7bd,[Math.cos(a)*.13,.05,Math.sin(a)*.13],[.15,.025,.045]);fin.rotation.y=-a;}
+   g.userData.extractionRotor=mouth;
+  }
+  if(type==='materialCabinet'){
+   box(g,0xcbd7ce,[0,.78,0],[1.28,1.56,.65]);box(g,0x637d78,[0,.8,.36],[1.05,1.26,.04]);
+   g.userData.materialBars=[];for(let i=0;i<6;i++){const y=.3+Math.floor(i/2)*.42,x=i%2? .27:-.27;box(g,0xb8cbbd,[0,y-.1,.46],[1.13,.045,.32]);g.userData.materialBars.push(box(g,0xc7c39a,[x,y+.05,.49],[.4,.25,.26]));}
+   box(g,0xabcaca,[0,1.68,0],[.55,.19,.08]);
+  }
+  if(type==='loadingPlatform'){
+   box(g,0xa2b7b0,[0,.12,0],[1.7,.24,1.4]);
+   for(let i=0;i<5;i++){const roller=cylinder(g,0xd8e1d9,[-.6+i*.3,.3,0],.08,1);roller.rotation.x=Math.PI/2;}
+   for(const x of [-.73,.73]){box(g,0x6f8987,[x,1,-.48],[.1,1.7,.1]);box(g,0xc7be98,[x,.6,-.48],[.14,.16,.14]);}
+   box(g,0x6f8987,[0,1.83,-.48],[1.57,.12,.12]);box(g,0xa8bfc4,[.62,1.08,.45],[.32,.44,.13]);
+   box(g,0xbed4cb,[.62,1.1,.53],[.22,.23,.02]);
+  }
   if(type==='polelight'){
    cylinder(g,0x48485e,[0,.12,0],.42,.24);cylinder(g,0x7e88a4,[0,1.65,0],.065,3.1,.09);
    for(const y of [.4,2.8]){const collar=ring(g,0xa2bccc,[0,y,0],.13,.03);collar.rotation.x=Math.PI/2;}
@@ -65,9 +101,14 @@ export function createPropFactory({mushroomAsset,model,crystal}){
    for(const y of [.2,2.8])mesh(g,new THREE.OctahedronGeometry(.15),0xa69bea,[0,y,0],[1,1.4,1],.7);
   }
   if(type==='telescope'){for(let i=0;i<3;i++){const leg=cylinder(g,colors.ivory,[Math.cos(i*2.09)*.22,.5,Math.sin(i*2.09)*.22],.055,1);leg.rotation.z=(i-1)*.35;}const body=cylinder(g,colors.purple,[0,1.3,0],.2,1.15);body.rotation.x=.9;sphere(g,colors.mint,[0,1.64,-.46],[.18,.1,.1],.5);}
-  if(type==='garden'){box(g,colors.ivory,[0,.2,0],[1.6,.35,1.2]);box(g,0x695d72,[0,.39,0],[1.4,.05,1]);g.userData.cropVisual=[];for(let i=0;i<5;i++){const stalk=new THREE.Group();stalk.position.set((i%3-.8)*.42,.41,Math.floor(i/3)*.5-.22);g.add(stalk);const stem=cylinder(stalk,colors.mint,[0,.25,0],.035,.5);stem.material=new BiolumeMaterial({color:colors.mint,emissive:0xb5e5d6,emissiveIntensity:1});
+  if(type==='garden'||type==='cultivator'){box(g,colors.ivory,[0,.2,0],[1.6,.35,1.2]);box(g,0x695d72,[0,.39,0],[1.4,.05,1]);g.userData.cropVisual=[];for(let i=0;i<5;i++){const stalk=new THREE.Group();stalk.position.set((i%3-.8)*.42,.41,Math.floor(i/3)*.5-.22);g.add(stalk);const stem=cylinder(stalk,colors.mint,[0,.25,0],.035,.5);stem.material=new BiolumeMaterial({color:colors.mint,emissive:0xb5e5d6,emissiveIntensity:1});
    for(const side of [-1,1]){const leaf=sphere(stalk,colors.mint,[side*.11,.26,0],[.17,.035,.075]);leaf.rotation.z=side*.45;leaf.material=new BiolumeMaterial({color:colors.mint,emissive:0xb5e5d6,emissiveIntensity:1});}
    const fruit=sphere(stalk,[colors.pink,colors.mint,colors.gold][i%3],[0,.55,0],[.22,.18,.22],.25);stalk.userData.fruit=fruit;g.userData.cropVisual.push(stalk);}}
+  if(type==='cultivator'){
+   for(const x of [-.72,.72])box(g,0x7b9d8e,[x,.58,0],[.09,1.15,1.1]);
+   box(g,0xc3d9cc,[0,1.2,-.4],[1.55,.1,.12]);box(g,0xc3d9cc,[0,1.2,.4],[1.55,.1,.12]);
+   box(g,0x799c9d,[0,.35,.67],[.52,.3,.12]);for(const x of [-.13,.13])sphere(g,0xbde1c7,[x,.38,.75],[.035,.035,.02],.3);
+  }
   if(type==='crystal')g.userData.crystalLight=crystal(g,0,0,1).userData.crystalLight;
   if(type==='mushroom'){const crop=new THREE.Group();g.add(crop);model(mushroomAsset,crop,0,0,0,.65);g.userData.cropVisual=[crop];}
   if(type==='lamp'){cylinder(g,colors.ivory,[0,.15,0],.35,.3);cylinder(g,colors.purple,[0,.7,0],.045,1);g.userData.playOrb=sphere(g,colors.gold,[0,1.4,0],[.35,.35,.35],.7);ring(g,colors.ivory,[0,1.4,0],.48,.035).rotation.x=1.1;}

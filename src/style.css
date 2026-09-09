@@ -73,6 +73,7 @@
 
 .locations{max-width:55vw;overflow:auto}.island-launch{display:block;margin:8px 0 14px;padding:7px 10px;border:1px solid #c5d5c0;border-radius:8px;background:#eef4e8;color:#526b51;cursor:pointer}.island-launch:disabled{opacity:.5;cursor:default}
 .island-destroy{color:#963e48;border-color:#d9b7bb;background:#faf0f1}.island-destroy:hover{background:#f2dfe2}.island-destroy:focus-visible{outline:2px solid #963e48;outline-offset:2px}
+.cargo-controls{margin:16px 0;padding:12px 0;border-block:1px solid #dce4d8}.cargo-controls h3{font-size:15px}.cargo-controls label{display:flex;align-items:center;gap:12px}.cargo-controls input{width:90px;min-width:0;padding:7px;border:1px solid #bacbb8;border-radius:4px}.cargo-controls>div{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.cargo-controls button{padding:7px 12px;border:1px solid #bacbb8;border-radius:4px;background:#eef4e8;color:#526b51}.cargo-controls button:disabled{opacity:.5}.cargo-controls small{display:block;line-height:1.6}
 
 .locations select{color:#e3eee7;background:#26364a;border:0;border-radius:6px;min-width:100px;max-width:200px;padding:8px;font:inherit;font-size:11px;outline-offset:2px}.locations button:disabled{opacity:.3;cursor:default}@media(max-width:700px){.locations{max-width:60vw}.locations select{min-width:0;max-width:140px;width:33vw;font-size:10px}.locations button{padding:5px}}
 
@@ -112,7 +113,7 @@
 .dashboard .career-options button>small{grid-column:2/-1;white-space:normal;line-height:1.45}
 .dashboard .career-options .icon:last-child{display:block;grid-column:3;grid-row:1/3;width:15px;height:15px}
 .dashboard .catalog{height:100%;min-height:100%;display:flex;flex-direction:column}
-.dashboard .item-grid{display:grid;grid-template-columns:1fr;gap:9px;height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;padding:4px 2px 16px}
+.dashboard .item-grid{display:grid;grid-template-columns:1fr;align-content:start;gap:9px;height:100%;min-height:0;overflow-x:hidden;overflow-y:auto;padding:4px 2px 16px}
 .dashboard .item-card{width:100%;min-width:0;min-height:78px;display:grid;grid-template-columns:44px minmax(0,1fr);grid-template-rows:auto 1fr;align-items:start;gap:3px 9px;padding:10px}
 .dashboard .item-card strong{white-space:normal;line-height:1.4}
 .dashboard .item-card small{margin-top:3px}
