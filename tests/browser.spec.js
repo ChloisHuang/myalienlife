@@ -9,6 +9,17 @@ import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
 
+test('left outer UFO fleet renders on desktop and mobile without blocking the rooms',async({page})=>{
+ const state=createGame();state.speed=0;state.space.ships=[1,2,3].map(tier=>({id:`left-fleet-${tier}`,tier,island:'home',side:'front',food:4,durability:100,reservedBy:null}));fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#world')).toHaveAttribute('data-ufo-count','3');
+ for(const [name,width,height] of [['desktop',1440,1000],['mobile',390,844]]){
+  await page.setViewportSize({width,height});await page.locator('#reset-view').click();
+  const colors=await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{const gl=document.querySelector('#world canvas').getContext('webgl2'),pixels=new Uint8Array(128*128*4);gl.readPixels(Math.floor(gl.drawingBufferWidth/2)-64,Math.floor(gl.drawingBufferHeight/2)-64,128,128,gl.RGBA,gl.UNSIGNED_BYTE,pixels);const colors=new Set();for(let i=0;i<pixels.length;i+=16)colors.add(`${pixels[i]},${pixels[i+1]},${pixels[i+2]}`);resolve(colors.size);})));expect(colors).toBeGreaterThan(8);
+  await page.screenshot({path:`artifacts/ufo-left-${name}.png`});
+ }
+ expect(errors).toEqual([]);
+});
+
 test('professional packs render six devices and expose construction, extraction and shared cargo controls',async({page})=>{
  const renderedColors=()=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{const gl=document.querySelector('#world canvas').getContext('webgl2'),pixels=new Uint8Array(128*128*4);gl.readPixels(Math.floor(gl.drawingBufferWidth/2)-64,Math.floor(gl.drawingBufferHeight/2)-64,128,128,gl.RGBA,gl.UNSIGNED_BYTE,pixels);const colors=new Set();for(let i=0;i<pixels.length;i+=16)colors.add(`${pixels[i]},${pixels[i+1]},${pixels[i+2]}`);resolve(colors.size);})));
  const state=createGame();state.speed=0;state.autonomy.enabled=false;state.career.id='architect';state.player.x=-8;state.player.z=5;state.space.materials.home=24;

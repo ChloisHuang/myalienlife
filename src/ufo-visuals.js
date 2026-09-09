@@ -14,7 +14,7 @@ export function ufoDock(g,ship){
   const angle=(.05+shipRandom(vessel.id,'angle')*.4)*Math.PI,jitter=shipRandom(vessel.id,vessel.island)*.3,radius=1.58*(.85+vessel.tier*.18);
   let spot;
   for(let layer=0;!spot;layer++)for(let slot=0;slot<4;slot++){
-   const heading=slot===0?angle:(.07+(slot-1)*.18)*Math.PI;
+   const heading=Math.PI-(slot===0?angle:(.07+(slot-1)*.18)*Math.PI);
    const candidate={x:Math.cos(heading)*(rx+.7+jitter),y:UFO_HOVER_HEIGHT+shipRandom(vessel.id,'height')*.8+layer*3.4,z:Math.sin(heading)*(rz+.7+jitter)};
    if(parked.every(p=>Math.abs(candidate.y-p.y)>=2.6||Math.hypot(candidate.x-p.x,candidate.z-p.z)>=radius+p.radius+.8)){spot=candidate;break;}
   }
@@ -119,4 +119,3 @@ export function createUfoVisual(tier){
   engine.scale.y=1+Math.sin(seconds*1.4)*.025;
  },dispose(){root.removeFromParent();for(const g of geometry)g.dispose();for(const m of materials)m.dispose();}};
 }
-

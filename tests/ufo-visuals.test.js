@@ -1,8 +1,17 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame} from '../src/simulation.js';
+import {islandDefinition} from '../src/civilization.js';
 import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,UFO_HOVER_HEIGHT,ufoPassengerPresentation,createUfoTransferBeam} from '../src/ufo-visuals.js';
 function fixture(){const g=createGame();g.space.ships=[{id:'flight-test',tier:2,island:'home',side:'front',food:4,durability:100,reservedBy:99}];g.queue=[{id:99,type:'voyage',phase:'acting',elapsed:0,destinationId:'spore',passengerUids:[]}];return g;}
+test('all dock slots stay on the screen-left outer arc on either island face',()=>{
+ const g=createGame();
+ for(const island of ['home','spore','city'])for(const side of ['front','back']){
+  g.space.ships=Array.from({length:24},(_,i)=>({id:`left-dock-${i}`,tier:i%3+1,island,side}));
+  const outline=islandDefinition(g,island).outline,rx=outline?Math.max(...outline.map(p=>Math.abs(p.x))):15.4,rz=outline?Math.max(...outline.map(p=>Math.abs(p.z))):10.9;
+  for(const ship of g.space.ships){const dock=ufoDock(g,ship);assert.ok(dock.x<0&&dock.z>0,`${island}/${side}: ${dock.x}, ${dock.z}`);assert.ok((dock.x/rx)**2+(dock.z/rz)**2>1);}
+ }
+});
 test('UFO flight rises and recedes, then approaches the destination and docks without a position jump',()=>{
  const g=fixture(),ship=g.space.ships[0],duration=g.config.actionDurations.voyage;
  const start=ufoFlightPresentation(g,ship);assert.equal(start.y,ufoDock(g,ship).y);assert.equal(start.scale,1);
