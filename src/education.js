@@ -1,4 +1,3 @@
-import {workbench} from './settlements.js';
 import {DEFAULT_LIFE_STAGES,SKILLS,skillProgress} from './characters.js';
 export const EDUCATION_LEVELS=[
  {name:'幼儿园',credits:0,multiplier:.65},{name:'小学',credits:6,multiplier:.75},
@@ -49,6 +48,10 @@ export function migrateEducation(person){
 }
 export function studyError(person,stages,station){
  if(person.age<stages.infantEnd)return '幼体长大后才能开始学习。';
- if(!workbench(station))return '请在工作台学习。';
+ if(!studyFacilitySkill(station))return '这里没有对应的学习活动。';
+ if(station.uid&&(station.uid===person.uid||!station.alive||station.age<stages.infantEnd))return '请选择其他能够交流的居民。';
+ if(station.plant?.health<=0)return '请先恢复植物的健康再学习。';
  return null;
 }
+export const studyFacilitySkill=target=>target?.uid?'social':({music:'music',garden:'botany',mushroom:'botany',cultivator:'botany',lab:'science',stove:'cooking'})[target?.type];
+export const STUDY_LOCATIONS={music:'音乐机',botany:'植物或种植设施',science:'研究台',cooking:'灶台',social:'可以交流的居民'};

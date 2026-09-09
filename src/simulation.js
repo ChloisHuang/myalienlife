@@ -1,4 +1,4 @@
-import {createEducation,validEducation,educationWage,studySubject,studyName,completeStudy,migrateEducation,studyInterest,studyError} from './education.js';
+import {createEducation,validEducation,educationWage,studyFacilitySkill,STUDY_LOCATIONS,studyName,completeStudy,migrateEducation,studyInterest,studyError} from './education.js';
 import {canBlinkTo,BLINK_SECONDS,undiscoveredBackTarget} from './nether-blink.js';
 import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
@@ -237,8 +237,17 @@ export function switchControl(g,id){
 export function randomizeHeads(g,random=Math.random){
  const people=[g.player,...Object.keys(g.npcs).filter(id=>id!==controlledResidentId(g)).map(id=>g.npcs[id])];for(const person of people)for(const key of [...Object.keys(HEAD_SHAPE),'antenna'])person.genome[key]=Math.round((.8+random()*.4)*100)/100;
 }
+const studyTarget=(g,id)=>g.npcs[id]??g.objects.find(o=>o.id===id);
+export function enqueueStudy(g,random=Math.random){
+ const candidates=[...g.objects,...Object.entries(g.npcs).map(([id,n])=>({...n,id}))].filter(o=>sameSide(o,g.player)&&!studyError(g.player,stageConfig(g),o)&&(!o.uid||!o.queue.length&&!conversationWith(g,o.id))&&(!g.player.education.focus||studyFacilitySkill(o)===g.player.education.focus)&&findPath(g,g.player,destination(g,o.id)));
+ const subjects=[...new Set(candidates.map(studyFacilitySkill))];
+ if(!subjects.length)return{ok:false,message:`当前岛面没有可用的${STUDY_LOCATIONS[g.player.education.focus]??'学习地点'}。`};
+ const skill=chooseWeighted(subjects.map(skill=>({skill,score:10+studyInterest(g.player,skill)+(g.player.education.major===skill?40:0)})),random).skill;
+ const target=candidates.filter(o=>studyFacilitySkill(o)===skill).sort((a,b)=>Math.hypot(a.x-g.player.x,a.z-g.player.z)-Math.hypot(b.x-g.player.x,b.z-g.player.z))[0];
+ return enqueue(g,'study',target.id);
+}
 export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,passengerIds=[],shipId=null){
- if(type==='study'){const error=studyError(g.player,stageConfig(g),g.objects.find(o=>o.id===targetId));if(error)return{ok:false,message:error};}
+ if(type==='study'){const error=studyError(g.player,stageConfig(g),studyTarget(g,targetId));if(error)return{ok:false,message:error};if(g.npcs[targetId]&&(g.npcs[targetId].queue.length||conversationWith(g,targetId)||!sameSide(g.player,g.npcs[targetId])))return{ok:false,message:'请选择同岛面空闲的居民交流学习。'};}
  if(!g.player.alive)return{ok:false,message:'这段生命已结束，请在生命页选择接管居民。'};
  if(isInfant(g,g.player.age))return{ok:false,message:`幼体需要照料，${stageConfig(g).infantEnd} 星岁后开始自主活动。`};
  if(type==='pray'&&!g.objects.some(o=>o.id===targetId&&o.type==='spiritTree'))return{ok:false,message:'请选择星灵垂光树祈祷。'};
@@ -266,7 +275,7 @@ export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,
  if(['cook','brew','taste'].includes(type)&&ITEMS.find(i=>i.id===g.objects.find(o=>o.id===targetId)?.type)?.action!==type)return{ok:false,message:'请选择对应的料理设备。'};
  if(!target)return{ok:false,message:'请先放置需要的物品。'};
  g.queue=g.queue.filter(q=>q.source!=='ai');const q=makeAction(g,type,targetId,target,'manual');if(type==='incubate'||WONDER_ACTIONS[type]?.paired)q.partnerId=partnerId;if(['travel','voyage','starVoyage'].includes(type))q.destinationId=destinationId;g.queue.push(q);if(type==='voyage')inviteFlight(g,actor(g,'player'),q,passengers,shipId);if(WONDER_ACTIONS[type]?.paired)invitePaired(g,actor(g,'player'),q);
- if(type==='study')q.studySkill=studySubject(g.player);
+ if(type==='study'){q.studySkill=studyFacilitySkill(studyTarget(g,targetId));q.studyVersion=2;}
  if(g.autonomy){g.autonomy.cooldown=3;g.autonomy.reason='优先执行你的安排';}return{ok:true};
 }
 export function cancelAction(g,id){const q=g.queue.find(a=>a.id===id);if(q?.type==='voyage'||q?.type==='boardUfo')cancelFlight(g,q);if(WONDER_ACTIONS[q?.type]?.paired)cancelPaired(g,q);g.queue=g.queue.filter(a=>a.id!==id);g.autonomy.cooldown=5;g.autonomy.reason='稍作休息，再决定下一步';}
@@ -363,7 +372,7 @@ function expensePayers(g,person){const parents=person.position.age<adultStart(g)
 function canAfford(g,person,amount){const payers=expensePayers(g,person),share=amount/payers.length;return payers.every(payer=>availableMoney(g,payer)>=share);}
 function changeMoney(g,person,amount){if(amount<0){const payers=expensePayers(g,person),share=amount/payers.length;for(const payer of payers){if(payer.id==='player')g.money+=share;else payer.position.money+=share;}return;}if(person.id==='player')g.money+=amount;else person.position.money+=amount;}
 export function canAffordAction(g,id,type){const action=ACTIONS[type],cost=actionCost(g,type);return !!action&&(!cost||canAfford(g,actor(g,id),cost));}
-function conversationWith(g,id){return allActors(g).find(a=>a.id!==id&&a.queue[0]?.targetId===id&&ACTIONS[a.queue[0].type].relation);}
+function conversationWith(g,id){return allActors(g).find(a=>a.id!==id&&a.queue[0]?.targetId===id&&(ACTIONS[a.queue[0].type].relation||a.queue[0].type==='study'&&a.queue[0].studySkill==='social'));}
 function surfacePath(g,start,end){
  if(!sameSide(start,end))return null;
  const key=(x,z)=>`${x},${z}`,sx=Math.round(start.x),sz=Math.round(start.z),ex=Math.round(end.x),ez=Math.round(end.z);
@@ -427,12 +436,13 @@ export function autonomousCandidates(g,id){
    }
    else if(type==='travel'){for(const gate of g.objects)if(gate.type==='gate'&&gate.id!==o.id&&travelDestination(g,o,gate.id))candidates.push({type,targetId:o.id,destinationId:gate.id});}
    else if(WONDER_ACTIONS[type]?.paired){if(cooperationPartners(g,person,type,o).length)candidates.push({type,targetId:o.id});}
-   else candidates.push({type,targetId:o.id});
+   else candidates.push(type==='study'?{type,targetId:o.id,studySkill:studyFacilitySkill(o)}:{type,targetId:o.id});
   }
  }
  if(person.position.age>=adultStart(g))for(const n of neighbors(g))if(isInfant(g,n.age))candidates.push({type:'care',targetId:n.id});
  // Births share the household budget and must pass resource and caregiver checks.
  for(const n of neighbors(g))if(!isInfant(g,n.age)&&n.id!==person.id&&!g.npcs[n.id].queue.length&&!conversationWith(g,n.id))for(const type of ['chat','joke','gift','flirt'])if(type!=='flirt'||person.position.age>=adultStart(g)&&n.age>=adultStart(g)&&(person.id==='player'?g.relationships[n.id]:person.relationships[n.id])>=35)candidates.push({type,targetId:n.id});
+ if(person.position.age<adultStart(g)||person.ai.lastWorkDay===g.day||g.minute<480||g.minute>=1080)for(const [targetId,n] of Object.entries(g.npcs))if(!studyError(person.position,stageConfig(g),n)&&sameSide(n,person.position)&&!n.queue.length&&!conversationWith(g,targetId))candidates.push({type:'study',targetId,studySkill:'social'});
  const careerReady=person.id==='player'?!missingCareerSkills(person.skills,g.career.id,1,g.config).length:ensureNpcCareer(g,person);
  if(person.position.age>=adultStart(g)&&g.minute>=480&&g.minute<1080&&person.ai.lastWorkDay!==g.day&&Math.min(...Object.values(person.needs))>45&&careerReady){
   for(const o of g.objects)if(canWorkAt(person.id==='player'?g.career.id:person.position.career.id,o.type))candidates.push({type:'work',targetId:o.id});
@@ -469,7 +479,8 @@ function decide(g,person,random=Math.random){
   if(candidate.type==='study'){
    if(Math.min(...Object.values(person.needs))<40)continue;
    const focus=person.position.education.focus;
-   score+=18+(focus?studyInterest(person.position,focus):Math.max(...Object.keys(SKILLS).map(skill=>studyInterest(person.position,skill))));
+   if(focus&&focus!==candidate.studySkill)continue;
+   score+=18+studyInterest(person.position,candidate.studySkill)+(person.position.education.major===candidate.studySkill?40:0);
   }
   for(const [need,effect]of Object.entries(action.effects)){
    const value=person.needs[need],deficit=(100-value)/100;
@@ -494,7 +505,7 @@ function decide(g,person,random=Math.random){
  const best=chooseWeighted(scored,random);
  if(WONDER_ACTIONS[best.type]?.paired){const partners=cooperationPartners(g,person,best.type,g.objects.find(o=>o.id===best.targetId));if(!partners.length)return;best.partnerId=chooseWeighted(partners.map(p=>({id:p.id,score:Math.max(1,20+(person.id==='player'?g.relationships[p.id]:person.relationships[p.id]??0)*.2-p.queue.length*2-Math.hypot(p.position.x-person.position.x,p.position.z-person.position.z)*.3)})),random).id;}
  const q=makeAction(g,best.type,best.targetId,best.target,'ai');q.path=best.path;if(best.partnerId!==undefined)q.partnerId=best.partnerId;if(best.destinationId)q.destinationId=best.destinationId;
- if(q.type==='study')q.studySkill=studySubject(person.position,random);
+ if(q.type==='study'){q.studySkill=best.studySkill;q.studyVersion=2;}
  person.queue.push(q);if(q.type==='voyage')inviteFlight(g,person,q,autonomousFlightPassengers(g,person,q,random));if(WONDER_ACTIONS[q.type]?.paired)invitePaired(g,person,q);person.ai.reason=q.type==='study'?`想学习${studyName(person.position,q.studySkill)}`:WONDER_ACTIONS[q.type]?.paired?`想邀请邻居一起${ACTIONS[q.type].name.includes('传光')?'传光':'解读遗迹'}`:best.reason;
 }
 
@@ -613,6 +624,7 @@ function releaseAction(person,q){person.ai.lastAction=q.type;person.ai.lastTarge
 
 function advanceAction(g,person,dt){
  const q=person.queue[0];if(!q)return;
+ if(q.type==='study'&&(studyError(person.position,stageConfig(g),studyTarget(g,q.targetId))||studyFacilitySkill(studyTarget(g,q.targetId))!==q.studySkill)){person.queue.shift();person.ai.cooldown=3;return;}
  if(q.type==='voyage'&&(!q.shipId||flightPassengers(g,q).length!==(q.passengerUids?.length??0))){cancelFlight(g,q);return;}
  if(q.phase==='celebrating'){q.elapsed+=dt;if(q.elapsed>=PRAYER_RULES.celebrationSeconds)releaseAction(person,q);return;}
  if(q.hostId&&!pairedHost(g,q)){person.queue.shift();return;}
@@ -904,7 +916,9 @@ export function restore(raw){
   if(g.wonders.archive===3||c.visits.city>0||existing.length)c.discoveryPath.push('city');
   c.discoveryPath.push(...existing);c.projects=Object.fromEntries(['spore','city',...existing].map(id=>[id,createProject()]));g.version=22;
  }
- const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&g.objects.some(o=>o.id===a.targetId&&workbench(o)))&&validFlight(a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||(a.type==='memoryExpedition'?g.objects.some(o=>o.id===a.targetId&&o.type==='portal'):g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type))))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&o.type==='sofa'))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(a.type==='walk'||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
+ // Old workbench lessons cannot continue at unrelated facilities; retain all earned progress.
+ for(const queue of new Set([g.queue,...Object.values(g.npcs).map(n=>n.queue)]))if(Array.isArray(queue))for(let i=queue.length-1;i>=0;i--){const a=queue[i];if(a.type==='study'&&a.studyVersion===undefined&&Object.hasOwn(SKILLS,a.studySkill)){if(studyFacilitySkill(studyTarget(g,a.targetId))!==a.studySkill)queue.splice(i,1);else a.studyVersion=2;}}
+ const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||(a.type==='memoryExpedition'?g.objects.some(o=>o.id===a.targetId&&o.type==='portal'):g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type))))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&o.type==='sofa'))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(a.type==='walk'||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
  const residentNpcCount=Object.keys(g.npcs||{}).length-Number(g.controlledId!=='player');
  const valid=g?.version===22&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
   &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&residentNpcCount<=(3+Object.keys(g.civilization.islands).length)*8&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&(id===g.controlledId||range(g.relationships?.[id],0,100))&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validCareerState(n.career)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))

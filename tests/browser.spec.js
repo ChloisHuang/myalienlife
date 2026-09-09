@@ -724,6 +724,14 @@ test('resident devotion editor saves the individual prayer tendency',async({page
 });
 
 
+test('UFO moving approach is rendered on desktop and mobile',async({page})=>{
+ const {enqueue}=await import('../src/simulation.js');const state=createGame();state.civilization.technology=120;state.civilization.observations=3;state.civilization.discoveryPath=['home','spore'];state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;
+ state.space.ships=[{id:'tilting-ufo',tier:3,island:'home',side:'front',food:8,durability:100,reservedBy:null}];expect(enqueue(state,'voyage','portal',undefined,null,'spore',[],'tilting-ufo').ok).toBe(true);
+ state.queue[0].phase='acting';state.queue[0].path=[];state.queue[0].elapsed=state.config.actionDurations.voyage*.03;state.speed=0;fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('.ufo-flight-board')).toContainText('前往接人');
+ await page.screenshot({path:'artifacts/ufo-tilt-desktop.png'});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/ufo-tilt-mobile.png'});expect(errors).toEqual([]);
+});
+
 test('UFO flight displays a persistent route and animated departure before arrival',async({page})=>{
  const {enqueue}=await import('../src/simulation.js');const state=createGame();state.civilization.technology=120;state.civilization.observations=3;state.civilization.discoveryPath=['home','spore'];state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;
  state.space.ships=[{id:'animated-ufo',tier:2,island:'home',side:'front',food:8,durability:100,reservedBy:null}];expect(enqueue(state,'voyage','portal',undefined,null,'spore',[],'animated-ufo').ok).toBe(true);

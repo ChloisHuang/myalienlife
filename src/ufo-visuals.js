@@ -43,16 +43,22 @@ export function ufoFlightPresentation(g,ship){
  const landing=flying&&progress>=.5,location=landing?{...ship,island:action.destinationId,side:'front'}:ship,dock=ufoDock(g,location);
  const spot=landing?ufoLandingSpot(g,action.destinationId):host?.person;
  const pickup=spot?{x:spot.x,y:UFO_HOVER_HEIGHT+1,z:spot.z}:dock;
- let position=dock,scale=1,stage=action?'等待登船':'悬浮停靠',beam=0,bank=0;
+ let position=dock,scale=1,stage=action?'等待登船':'悬浮停靠',beam=0,pitch=0,roll=0;
+ const lean=(dx,dz,t)=>{
+  const distance=Math.hypot(dx,dz);if(distance<.001)return;
+  // Forward thrust, then a small counter-lean to brake; zero tilt at both endpoints.
+  const angle=(.24*Math.sin(Math.PI*t)+.18*Math.sin(2*Math.PI*t))*Math.min(1,distance/4);
+  pitch=angle*dz/distance;roll=-angle*dx/distance;
+ };
  if(flying){
-  if(progress<.12){position=mix(dock,pickup,smooth(progress/.12));stage='前往接人';}
+  if(progress<.12){const t=progress/.12;position=mix(dock,pickup,smooth(t));lean(pickup.x-dock.x,pickup.z-dock.z,t);stage='前往接人';}
   else if(progress<.28){position=pickup;beam=1;stage='光束吸入';}
-  else if(progress<.5){const t=smooth((progress-.28)/.22);position={x:pickup.x+t*12,y:pickup.y+t*8,z:pickup.z-t*5};scale=1-t;bank=Math.sin(t*Math.PI)*.18;stage='正在起飞';}
-  else if(progress<.70){const t=1-smooth((progress-.5)/.20);position={x:pickup.x-t*12,y:pickup.y+t*8,z:pickup.z-t*5};scale=1-t;bank=-Math.sin(t*Math.PI)*.18;stage='星际航行';}
+  else if(progress<.5){const phase=(progress-.28)/.22,t=smooth(phase);position={x:pickup.x+t*12,y:pickup.y+t*8,z:pickup.z-t*5};scale=1-t;lean(12,-5,phase);stage='正在起飞';}
+  else if(progress<.70){const phase=(progress-.5)/.20,t=1-smooth(phase);position={x:pickup.x-t*12,y:pickup.y+t*8,z:pickup.z-t*5};scale=1-t;lean(12,5,phase);stage='星际航行';}
   else if(progress<.86){position=pickup;beam=1;stage='光束放下';}
-  else{position=mix(pickup,dock,smooth((progress-.86)/.14));stage='返回外圈停靠';}
+  else{const t=(progress-.86)/.14;position=mix(pickup,dock,smooth(t));lean(dock.x-pickup.x,dock.z-pickup.z,t);stage='返回外圈停靠';}
  }
- return {...position,island:location.island,side:location.side,scale,bank,progress,flying,beam,stage,pickup,
+ return {...position,island:location.island,side:location.side,scale,pitch,roll,progress,flying,beam,stage,pickup,
   crew:flying?[host.person.uid,...action.passengerUids]:[],
   route:action?`${islandDefinition(g,ship.island).name} → ${islandDefinition(g,action.destinationId).name}`:''};
 }

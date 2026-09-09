@@ -4,6 +4,17 @@ import {createGame} from '../src/simulation.js';
 import {islandDefinition} from '../src/civilization.js';
 import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,UFO_HOVER_HEIGHT,ufoPassengerPresentation,createUfoTransferBeam} from '../src/ufo-visuals.js';
 function fixture(){const g=createGame();g.space.ships=[{id:'flight-test',tier:2,island:'home',side:'front',food:4,durability:100,reservedBy:99}];g.queue=[{id:99,type:'voyage',phase:'acting',elapsed:0,destinationId:'spore',passengerUids:[]}];return g;}
+test('every moving leg leans along travel, brakes back and levels at transfers',()=>{
+ const g=fixture(),ship=g.space.ships[0],frame=p=>{g.queue[0].elapsed=p*g.config.actionDurations.voyage;return ufoFlightPresentation(g,ship);};
+ for(const [start,end] of [[0,.12],[.28,.5],[.5,.70],[.86,1]]){
+  const a=frame(start+(end-start)*.25),b=frame(start+(end-start)*.26),brake=frame(start+(end-start)*.9);
+  const dx=b.x-a.x,dz=b.z-a.z;
+  assert.ok(-a.roll*dx+a.pitch*dz>0,'accelerating tilt must follow travel direction');
+  assert.ok(-brake.roll*dx+brake.pitch*dz<0,'braking tilt must oppose travel');
+  assert.ok(Math.hypot(a.pitch,a.roll)<.4);
+ }
+ for(const p of [0,.12,.2,.28,.5,.70,.8,.86,1]){const f=frame(p);assert.ok(Math.hypot(f.pitch,f.roll)<1e-8);}
+});
 test('all dock slots stay on the screen-left outer arc on either island face',()=>{
  const g=createGame();
  for(const island of ['home','spore','city'])for(const side of ['front','back']){
