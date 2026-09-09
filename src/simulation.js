@@ -10,7 +10,7 @@ import {housingFurniture} from './housing-layout.js';
 import {WONDER_ACTIONS,WONDER_OPTIONS,createWonders,createWonder,wonderError,pairedCooldown,advanceWonders,finishWonder,useCrystal,validWonder,validWonders} from './wonders.js';
 import {isNether,PRAYER_RULES,DEFAULT_PRAYER_CHANCES,createPrayerState,validPrayerState,validBlessing,resolvePrayer,prayerSucceeded,blessingMessage} from './prayer.js';
 import {SIDES,sideOf,islandOf,sameSide,createGates,DEFAULT_GATE_POSITION} from './island.js';
-import {CROPS,materialSource,createPlant,advancePlants,plantActionError,tendPlant,harvestPlant,validPlant} from './plants.js';
+import {CROPS,MUSHROOM_SEED_COST,harvestPrice,plantTraits,materialSource,createPlant,advancePlants,plantActionError,tendPlant,harvestPlant,validPlant} from './plants.js';
 import {defaultGenome,defaultHeadShape,residentHeadShape,HEAD_SHAPE,inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS} from './genetics.js';
 export {inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS};
 import {RESIDENTS,GENDERS,SKILLS,SOFA_SEATS,localToWorld,approachPosition,skillProgress,lifeStage,DEFAULT_LIFE_STAGES} from './characters.js';
@@ -83,7 +83,7 @@ export const ITEMS=[
  {id:'telescope',name:'深空望远镜',pack:'星际科技',price:350,icon:'Telescope',action:'observe',desc:'科学技能 +1 · 乐趣 +35'},
  {id:'garden',name:'发光孢子花圃',pack:'孢子花园',price:160,icon:'Flower2',action:'garden',desc:'浇水养护 · 6 小时一熟 · 收获发光孢子'},
  {id:'crystal',name:'极光晶簇',pack:'孢子花园',price:120,icon:'Gem',action:'tuneSleep',desc:'免费切换频率 · 蓄能 6 小时 · 1 微尘激活 · 半径 5 米'},
- {id:'mushroom',name:'星伞蘑菇',pack:'孢子花园',price:190,icon:'TreePine',action:'garden',desc:'浇水养护 · 12 小时一熟 · 收获星伞菇'},
+ {id:'mushroom',name:'星伞蘑菇',pack:'孢子花园',price:MUSHROOM_SEED_COST,icon:'Sprout',action:'garden',desc:'单次种植 · 12 小时成熟 · 普通收成 50 星币 · 巨型 / 多株 / 变异'},
  {id:'lamp',name:'漂浮光球',pack:'孢子花园',price:90,icon:'Lamp',action:'chaseOrb',desc:'追逐光球 · 双人传光 · 陪伴幼体'}
 ];
 export const ACTIONS={
@@ -115,6 +115,7 @@ export const ACTIONS={
  explore:{name:'勘察星岛与轨道',icon:'Orbit',duration:24,effects:{fun:30,energy:-12},money:80},observe:{name:'观测遥远星系',icon:'Telescope',duration:12,effects:{fun:35},skill:'science'},
  harvest:{name:'收获成熟植物',icon:'Sprout',duration:10,effects:{fun:15,hygiene:-5},skill:'botany'},extractMaterials:{name:'提取植生复材',icon:'Sprout',duration:18,effects:{fun:12,hygiene:-6,energy:-4},skill:'botany'},replant:{name:'清理并补种',icon:'Flower2',duration:12,effects:{fun:10,hygiene:-8},skill:'botany'},
  garden:{name:'浇水养护',icon:'Sprout',duration:12,effects:{fun:25,hygiene:-8},skill:'botany'},
+ plantMushroom:{name:'种植星伞蘑菇',icon:'Sprout',duration:12,cost:MUSHROOM_SEED_COST,effects:{fun:15,hygiene:-8,energy:-3},skill:'botany'},
  chat:{name:'聊聊母星',icon:'MessagesSquare',duration:10,effects:{social:30},relation:15,skill:'social'},joke:{name:'讲一个地球笑话',icon:'Smile',duration:10,effects:{social:20,fun:25},relation:12,skill:'social'},
  gift:{name:'赠送星尘 · 30 星币',icon:'Gift',duration:8,effects:{social:25},relation:25,cost:30},flirt:{name:'分享心动频率',icon:'Heart',duration:12,effects:{social:35,fun:15},relation:20,minRelation:35},
  work:{name:'开始一个工作班次',icon:'BriefcaseBusiness',duration:32,effects:{energy:-18,hunger:-15},work:true}
@@ -184,11 +185,7 @@ export function createGame(config){return {
  log:[{text:'欢迎回家，凯伊。你的异星日常，从这里开始。',at:510}],completed:0
 };}
 export function canPlace(g,x,z,side=g.viewSide,island=g.viewIsland){return Number.isFinite(x)&&Number.isFinite(z)&&Math.abs(x)<=10&&Math.abs(z)<=6&&Object.hasOwn(SIDES,side)&&(side!=='back'||backDiscovered(g,island))&&!g.objects.some(o=>islandOf(o)===island&&sideOf(o)===side&&(Math.hypot(o.x-x,o.z-z)<1.8||o.type==='gate'&&Math.hypot(approachPosition(o).x-x,approachPosition(o).z-z)<1.8))&&!allActors(g).some(n=>islandOf(n.position)===island&&sideOf(n.position)===side&&isInfant(g,n.position.age)&&Math.hypot(n.position.x-x,n.position.z-z)<1.1);}
-export function buyItem(g,type,x,z,rotation=0,{side=g.viewSide,island=g.viewIsland,residentId='player'}={}){const item=ITEMS.find(i=>i.id===type),payer=residentId==='player'?g:g.npcs[residentId];if(!item||item.fixed)return{ok:false,message:'该物品不可购买'};if(payer.money<item.price)return{ok:false,message:'星币不足，完成工作可赚取星币。'};if(!canPlace(g,x,z,side,island))return{ok:false,message:'这里没有足够的摆放空间。'};payer.money-=item.price;const o={id:`${type}-${g.nextId++}`,type,x,z,rotation,island,side};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);return{ok:true,object:o};}
-export function sellHarvest(g,key){
- const crop=Object.values(cropDefinitions(g)).find(c=>c.key===key);if(!crop||!g.harvest[key])return{ok:false,message:'仓库里还没有这类收成。'};
- const count=g.harvest[key],earned=count*crop.price;g.harvest[key]=0;g.money+=earned;const message=`出售 ${count} 份${crop.name}，获得 ${earned} 星币。`;g.log.unshift({text:message,at:g.minute});return{ok:true,message};
-}
+export function buyItem(g,type,x,z,rotation=0,{side=g.viewSide,island=g.viewIsland,residentId='player'}={}){if(type==='mushroom')return residentId==='player'&&side===g.viewSide&&island===g.viewIsland?enqueue(g,'plantMushroom',null,{x,z}):{ok:false,message:'请由居民自主选择种植地点。'};const item=ITEMS.find(i=>i.id===type),payer=residentId==='player'?g:g.npcs[residentId];if(!item||item.fixed)return{ok:false,message:'该物品不可购买'};if(payer.money<item.price)return{ok:false,message:'星币不足，完成工作可赚取星币。'};if(!canPlace(g,x,z,side,island))return{ok:false,message:'这里没有足够的摆放空间。'};payer.money-=item.price;const o={id:`${type}-${g.nextId++}`,type,x,z,rotation,island,side};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);return{ok:true,object:o};}
 export function sellItem(g,id){if(g.objects.find(o=>o.id===id)?.fixed)return false;if(g.incubations.some(b=>b.podId===id))return false;if(allActors(g).some(a=>a.queue.some(q=>q.targetId===id||q.destinationId===id||q.path?.some(p=>p.gateId===id||p.destinationId===id))))return false;const i=g.objects.findIndex(o=>o.id===id);if(i<0)return false;g.money+=Math.floor(ITEMS.find(x=>x.id===g.objects[i].type).price*.7);g.objects.splice(i,1);return true;}
 export function setCareer(g,id){if(!g.player.alive||g.player.age<adultStart(g)||!CAREERS[id]||careerEntryMessage(g,id))return false;if(g.queue.some(a=>a.type==='work'))return false;g.career={id,level:1,shifts:0};return true;}
 export const workStationType=id=>id==='chef'?'stove':'lab';
@@ -247,6 +244,8 @@ export function enqueueStudy(g,random=Math.random){
  return enqueue(g,'study',target.id);
 }
 export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,passengerIds=[],shipId=null){
+ if(type==='replant'&&g.objects.some(o=>o.id===targetId&&o.type==='mushroom')&&!canAfford(g,actor(g,'player'),MUSHROOM_SEED_COST))return{ok:false,message:'补种星伞蘑菇需要 20 星币。'};
+ if(type==='plantMushroom'&&(!point||!canPlace(g,point.x,point.z)))return{ok:false,message:'这里没有可种植的空地。'};
  if(type==='study'){const error=studyError(g.player,stageConfig(g),studyTarget(g,targetId));if(error)return{ok:false,message:error};if(g.npcs[targetId]&&(g.npcs[targetId].queue.length||conversationWith(g,targetId)||!sameSide(g.player,g.npcs[targetId])))return{ok:false,message:'请选择同岛面空闲的居民交流学习。'};}
  if(!g.player.alive)return{ok:false,message:'这段生命已结束，请在生命页选择接管居民。'};
  if(isInfant(g,g.player.age))return{ok:false,message:`幼体需要照料，${stageConfig(g).infantEnd} 星岁后开始自主活动。`};
@@ -420,6 +419,12 @@ function cooperationPartners(g,person,type,o){if(actionAccessError(g,person,type
 export function autonomousCandidates(g,id){
  const person=actor(g,id),people=allActors(g);
  const candidates=[];
+ if(Math.min(...Object.values(person.needs))>30&&canAfford(g,person,MUSHROOM_SEED_COST+100)&&g.objects.filter(o=>o.type==='mushroom'&&sameSide(o,person.position)).length+allActors(g).flatMap(a=>a.queue).filter(q=>q.type==='plantMushroom'&&sameSide(q.target,person.position)).length<6){
+  const spots=[];for(let z=-5;z<=5;z+=2)for(let x=-9;x<=9;x+=2)if(canPlace(g,x,z,sideOf(person.position),islandOf(person.position)))spots.push({x,z,side:sideOf(person.position),island:islandOf(person.position)});
+  spots.sort((a,b)=>Math.hypot(a.x-person.position.x,a.z-person.position.z)-Math.hypot(b.x-person.position.x,b.z-person.position.z));
+  const point=spots.find(p=>!allActors(g).some(a=>a.queue.some(q=>q.type==='plantMushroom'&&sameSide(q.target,p)&&Math.hypot(q.target.x-p.x,q.target.z-p.z)<1.8))&&findPath(g,person.position,p));
+  if(point)candidates.push({type:'plantMushroom',targetId:null,point});
+ }
  const backTarget=undiscoveredBackTarget(g,person.position);if(backTarget)candidates.push({type:'walk',targetId:null,point:backTarget});
  for(const o of g.objects){
   let types=WONDER_OPTIONS[o.type]||[ITEMS.find(i=>i.id===o.type).action];
@@ -428,7 +433,7 @@ export function autonomousCandidates(g,id){
   if(workbench(o))types=[...new Set([...types,...projectActions(o)])];
   if(!studyError(person.position,stageConfig(g),o)&&(person.position.age<adultStart(g)||person.ai.lastWorkDay===g.day||g.minute<480||g.minute>=1080))types=[...types,'study'];
   for(const type of types){
-   if(!type||type==='incubate')continue;
+   if(!type||type==='incubate'||type==='replant'&&o.type==='mushroom'&&!canAfford(g,person,MUSHROOM_SEED_COST))continue;
    if(type==='voyage'||type==='starVoyage')for(const id of Object.keys(islandCatalog(g))){
     const localShip=availableUfo(g,person.position,islandDefinition(g,id).level,1,id==='home');
     if(type==='starVoyage'&&localShip)continue;
@@ -468,7 +473,7 @@ function decide(g,person,random=Math.random){
  const weights={hunger:1.8,energy:1.6,social:1.3,fun:1,hygiene:1.4,comfort:.8};
  const scored=[];
   for(const candidate of candidates){
-   if(['relax','lounge'].includes(candidate.type)){if(freeSofaSeat(g,candidate.targetId)<0)continue;}else if(active.some(q=>q.targetId===candidate.targetId&&!WONDER_ACTIONS[candidate.type]?.paired))continue;
+   if(['relax','lounge'].includes(candidate.type)){if(freeSofaSeat(g,candidate.targetId)<0)continue;}else if(candidate.targetId&&active.some(q=>q.targetId===candidate.targetId&&!WONDER_ACTIONS[candidate.type]?.paired))continue;
    const action=ACTIONS[candidate.type],cost=actionCost(g,candidate.type);if(cost&&!canAfford(g,person,cost))continue;const target=destination(g,candidate.targetId,candidate.point);
   if(!target)continue;
   if(actionAccessError(g,person,candidate.type))continue;
@@ -490,13 +495,14 @@ function decide(g,person,random=Math.random){
   const preference=candidate.type==='chat'&&person.needs.social>=75?0:actionPreference(person,candidate.type);
   score+=preference;if(candidate.type==='relax'&&active.some(q=>seatedAction(q)&&q.targetId===candidate.targetId))score+=(100-person.needs.social)*.5;
   if(['garden','harvest','replant'].includes(candidate.type)){const p=g.objects.find(o=>o.id===candidate.targetId).plant;if(candidate.type==='garden'){if(p.water>=90&&p.health>=90)continue;score+=p.water<25?65:(100-p.health)*.4;}if(candidate.type==='harvest')score+=55+(person.position.preferences.garden||0);if(candidate.type==='replant')score+=35+(person.position.preferences.garden||0);}
+  if(candidate.type==='plantMushroom')score+=5+(person.position.preferences.garden||0)*.3;
   if(candidate.type==='incubate')score+=25+person.position.familyDesire*30;if(candidate.type==='care'){const baby=g.npcs[candidate.targetId];score+=(100-baby.needs.hunger)*2+(baby.starvation>0?300:0);if(baby.needs.hunger>70)continue;}if(candidate.type==='work')score+=availableMoney(g,person)<500?55:28;
   if(['traceRelic','decodeRelic','restoreMemory'].includes(candidate.type))score+=12;if(candidate.type==='catchBugs')score+=g.wonders.dust<3?15:0;
   score-=Math.hypot(person.position.x-target.x,person.position.z-target.z)*.35;
   if(person.ai.lastAction===candidate.type)score-=14;
   if(score<=0)continue;
   const path=findPath(g,person.position,target);if(!path)continue;
-  const reason=candidate.type==='harvest'?'植物成熟了，先把收成带回家':candidate.type==='replant'?'清理枯萎植物，重新播种':candidate.type==='garden'?'给植物补水，让它健康生长':candidate.type==='incubate'?'生活稳定、照料人手充足，想迎接新的家人':candidate.type==='care'?'幼体需要喂养，先照料小居民':candidate.type==='work'?'状态良好，工作赚取星币':largest>preference&&dominant?`${NEEDS[dominant][0]}需要补充`:'想做一件自己喜欢的事';
+  const reason=candidate.type==='plantMushroom'?'找一块空地种蘑菇，赚取下一笔收成':candidate.type==='harvest'?'植物成熟了，收获后自动出售':candidate.type==='replant'?'清理枯萎植物，重新播种':candidate.type==='garden'?'给植物补水，让它健康生长':candidate.type==='incubate'?'生活稳定、照料人手充足，想迎接新的家人':candidate.type==='care'?'幼体需要喂养，先照料小居民':candidate.type==='work'?'状态良好，工作赚取星币':largest>preference&&dominant?`${NEEDS[dominant][0]}需要补充`:'想做一件自己喜欢的事';
   scored.push({...candidate,target,path,score,reason});
  }
  if(!scored.length){person.ai.reason='暂时没有合适的行动，休息观察';person.ai.cooldown=3;return;}
@@ -575,13 +581,19 @@ function finishAction(g,person,q){
  if(['garden','harvest','extractMaterials','replant'].includes(q.type)){
   const target=g.objects.find(o=>o.id===q.targetId),o=q.type==='extractMaterials'?materialSource(g.objects,target):target,error=plantActionError(o,q.type);if(error){person.queue.shift();person.ai.cooldown=3;if(isPlayer)g.log.unshift({text:error,at:g.minute});return;}
   if(q.type==='garden')tendPlant(o);
-  if(q.type==='replant')o.plant={...createPlant(),growth:0,harvests:o.plant.harvests};
+  if(q.type==='replant'){if(o.type==='mushroom'){if(!canAfford(g,person,MUSHROOM_SEED_COST)){releaseAction(person,q);return;}changeMoney(g,person,-MUSHROOM_SEED_COST);}o.plant={...createPlant(),growth:0,harvests:o.plant.harvests};}
   if(q.type==='harvest'||q.type==='extractMaterials'){
-   const crop=cropDefinition(g,o.type),amount=harvestPlant(o,cropDefinitions(g));
+   const crop=cropDefinition(g,o.type),price=harvestPrice(o,cropDefinitions(g)),traits=plantTraits(o.plant),amount=harvestPlant(o,cropDefinitions(g));
    if(q.type==='extractMaterials'){const id=islandOf(o),materials=Math.floor(amount*(2+(isPlayer?g.career:person.position.career).level)*(target.type==='extractor'?1.5:1));g.space.materials[id]=(g.space.materials[id]??0)+materials;cropMessage=`${person.position.name}提取 ${materials} 份植生复材，已存入${islandDefinition(g,id).name}仓库。`;}
-   else{const inventory=isPlayer?g.harvest:person.position.inventory;inventory[crop.key]+=amount;cropMessage=`${person.position.name}收获了 ${amount} 份${crop.name}，已放入${isPlayer?'收成仓库':'个人物品包'}。`;}
+   else{const earned=amount*price;changeMoney(g,person,earned);cropMessage=`${person.position.name}收获 ${amount} 份${traits}${crop.name}，自动出售 +${earned} 星币。`;}
+   if(o.type==='mushroom'){g.objects.splice(g.objects.indexOf(o),1);for(const a of allActors(g))for(let i=a.queue.length-1;i>=0;i--)if(a.queue[i]!==q&&a.queue[i].targetId===o.id)a.queue.splice(i,1);}
    g.log.unshift({text:cropMessage,at:g.minute});
   }
+ }
+ if(q.type==='plantMushroom'){
+  if(!canAfford(g,person,cost)||!canPlace(g,q.target.x,q.target.z,sideOf(q.target),islandOf(q.target))){releaseAction(person,q);g.log.unshift({text:'种植取消：星币不足或空地已被占用。',at:g.minute});return;}
+  g.objects.push({id:`mushroom-${g.nextId++}`,type:'mushroom',...q.target,rotation:0,plant:{...createPlant(),growth:0}});
+  cropMessage=`${person.position.name}花费 ${cost} 星币种下星伞蘑菇。`;g.log.unshift({text:cropMessage,at:g.minute});
  }
  if(action.work){const state=isPlayer?g.career:person.position.career,error=state?careerEntryMessage(g,state.id,person.skills):'尚未申请职业。';if(error){person.queue.shift();person.ai.cooldown=3;if(isPlayer)g.log.unshift({text:`工作未完成：${error}`,at:g.minute});return;}}
  if(cost&&!canAfford(g,person,cost)){person.queue.shift();g.log.unshift({text:action.costMessage||'星币不足，礼物没有送出。',at:g.minute});return;}
@@ -629,8 +641,8 @@ function advanceAction(g,person,dt){
  if(q.phase==='celebrating'){q.elapsed+=dt;if(q.elapsed>=PRAYER_RULES.celebrationSeconds)releaseAction(person,q);return;}
  if(q.hostId&&!pairedHost(g,q)){person.queue.shift();return;}
  if(WONDER_ACTIONS[q.type]?.paired&&!q.hostId){const issue=preparePaired(g,person,q);if(issue){cancelPaired(g,q);person.ai.cooldown=3;g.log.unshift({text:issue,at:g.minute});return;}}
- const currentTarget=q.type==='walk'?q.target:q.hostId?guestApproach(g,q.targetId):destination(g,q.targetId);if(currentTarget&&(!sameSide(currentTarget,q.target)||Math.hypot(currentTarget.x-q.target.x,currentTarget.z-q.target.z)>1.5)){q.target=currentTarget;q.path=null;delete q.transit;delete q.blinkTransit;q.phase='walking';}
- if(q.type!=='walk'&&!destination(g,q.targetId)){person.queue.shift();person.ai.cooldown=3;person.ai.reason='目标已不存在，重新观察';return;}
+ const currentTarget=['walk','plantMushroom'].includes(q.type)?q.target:q.hostId?guestApproach(g,q.targetId):destination(g,q.targetId);if(currentTarget&&(!sameSide(currentTarget,q.target)||Math.hypot(currentTarget.x-q.target.x,currentTarget.z-q.target.z)>1.5)){q.target=currentTarget;q.path=null;delete q.transit;delete q.blinkTransit;q.phase='walking';}
+ if(!['walk','plantMushroom'].includes(q.type)&&!destination(g,q.targetId)){person.queue.shift();person.ai.cooldown=3;person.ai.reason='目标已不存在，重新观察';return;}
  if(seatedAction(q)){
   const sofa=g.objects.find(o=>o.id===q.targetId&&o.type==='sofa');if(!sofa){person.queue.shift();return;}
   if(!Number.isInteger(q.seat)||q.seat<0){const seat=freeSofaSeat(g,q.targetId,q);if(seat<0){q.phase='waiting';return;}q.seat=seat;q.path=null;q.phase='walking';}
@@ -667,7 +679,7 @@ function advanceAction(g,person,dt){
  if(q.type==='voyage'&&flightPassengers(g,q).some(p=>!isInfant(g,p.position.age)&&(p.queue[0]?.hostActionId!==q.id||p.queue[0].phase!=='waiting'||p.queue[0].path?.length!==0))){q.phase='waiting';return;}
  if(q.type==='voyage'&&q.phase!=='acting'){const issue=civilizationError(g,q.type,g.objects.find(o=>o.id===q.targetId),person.position,person.skills,q.destinationId,1+(q.passengerUids?.length??0),q.id,q.shipId);if(issue){cancelFlight(g,q);g.log.unshift({text:issue,at:g.minute});return;}}
  const reserved=allActors(g).some(a=>a.id!==person.id&&a.queue[0]?.targetId===q.targetId&&groupId(a.queue[0])!==groupId(q)&&a.queue[0].phase==='acting');
- if(q.type!=='walk'&&q.type!=='travel'&&!seatedAction(q)&&reserved){q.phase='waiting';return;}
+ if(!['walk','plantMushroom','travel'].includes(q.type)&&!seatedAction(q)&&reserved){q.phase='waiting';return;}
  if(q.type==='voyage'&&q.phase!=='acting'){
   const amount=loadConstructionCargo(g,q);
   if(amount)g.log.unshift({text:`${person.position.name}出航前自动装载 ${amount} 份植生复材，运往${islandDefinition(g,q.destinationId).name}用于建设。`,at:g.minute});
@@ -918,7 +930,7 @@ export function restore(raw){
  }
  // Old workbench lessons cannot continue at unrelated facilities; retain all earned progress.
  for(const queue of new Set([g.queue,...Object.values(g.npcs).map(n=>n.queue)]))if(Array.isArray(queue))for(let i=queue.length-1;i>=0;i--){const a=queue[i];if(a.type==='study'&&a.studyVersion===undefined&&Object.hasOwn(SKILLS,a.studySkill)){if(studyFacilitySkill(studyTarget(g,a.targetId))!==a.studySkill)queue.splice(i,1);else a.studyVersion=2;}}
- const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||(a.type==='memoryExpedition'?g.objects.some(o=>o.id===a.targetId&&o.type==='portal'):g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type))))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&o.type==='sofa'))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(a.type==='walk'||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
+ const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||(a.type==='memoryExpedition'?g.objects.some(o=>o.id===a.targetId&&o.type==='portal'):g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type))))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&o.type==='sofa'))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(['walk','plantMushroom'].includes(a.type)||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
  const residentNpcCount=Object.keys(g.npcs||{}).length-Number(g.controlledId!=='player');
  const valid=g?.version===22&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
   &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&residentNpcCount<=(3+Object.keys(g.civilization.islands).length)*8&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&(id===g.controlledId||range(g.relationships?.[id],0,100))&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validCareerState(n.career)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))
@@ -932,6 +944,8 @@ export function restore(raw){
   &&validQueue(g.queue)
   &&Array.isArray(g.log)&&g.log.every(l=>typeof l.text==='string'&&finite(l.at))&&Number.isInteger(g.nextId)&&range(g.nextId,1,1e12)&&Number.isInteger(g.completed);
  if(!valid)throw new Error('存档格式不兼容');
+ for(const o of g.objects)if(CROPS[o.type]){o.plant.cluster??=false;o.plant.mutant??=false;}
+ for(const person of allActors(g)){const inventory=person.id==='player'?g.harvest:person.position.inventory;let earned=0;for(const key of Object.keys(inventory)){const crop=Object.values(cropDefinitions(g)).find(c=>c.key===key);earned+=inventory[key]*crop.price;inventory[key]=0;}if(earned){changeMoney(g,person,earned);g.log.unshift({text:`${person.position.name}的旧收成自动出售 +${earned} 星币。`,at:g.minute});}}
  g.majorEvents=g.majorEvents.filter(event=>event.type!=='mature');
  const occupied=allActors(g).map(a=>a.queue[0]).filter(q=>seatedAction(q)&&Number.isInteger(q.seat)).map(q=>`${q.targetId}:${q.seat}`);if(new Set(occupied).size!==occupied.length)throw new Error('沙发座位重复占用');enforceFleetLimit(g);return g;
 }

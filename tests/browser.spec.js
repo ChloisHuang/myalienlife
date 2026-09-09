@@ -9,6 +9,31 @@ import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
 
+test('mushroom variants render on desktop and mobile; harvesting clears the plant and menu',async({page})=>{
+ const {createPlant}=await import('../src/plants.js');const state=createGame();state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;
+ state.objects=[{}, {giant:true}, {cluster:true}, {mutant:true}, {mutant:true,cluster:true}].map((traits,i)=>({id:`crop-${i}`,type:'mushroom',x:-8+i*4,z:2,rotation:0,side:'front',island:'home',plant:{...createPlant(),growth:1,...traits}}));
+ fixtures.set(page,state);const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ for(const width of [1440,390]){
+  await page.setViewportSize({width,height:1000});await page.waitForTimeout(300);
+  const colors=await page.locator('#world canvas').evaluate(canvas=>{const c=document.createElement('canvas');c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext('2d');ctx.drawImage(canvas,0,0);const data=ctx.getImageData(0,0,c.width,c.height).data,set=new Set();for(let i=0;i<data.length;i+=64)set.add(`${data[i]},${data[i+1]},${data[i+2]}`);return set.size;});
+  expect(colors).toBeGreaterThan(100);await page.screenshot({path:`artifacts/mushroom-variants-${width}.png`});
+ }
+ await page.setViewportSize({width:1440,height:1000});await page.waitForTimeout(300);
+ const b=await page.locator('#world canvas').boundingBox(),p=new Vector3(4,1.8,2).project(sceneCamera(b));await page.mouse.click(b.x+(p.x+1)*b.width/2,b.y+(1-p.y)*b.height/2);
+ await expect(page.locator('#plant-status')).toContainText('变异');await expect(page.locator('#plant-status')).toContainText('150 星币');
+ await page.locator('[data-action="harvest"]').click();await page.locator('[data-speed="3"]').click();await expect(page.locator('#money')).toHaveText('2,550',{timeout:20000});await page.locator('[data-speed="0"]').click();
+ await expect(page.locator('#context-menu')).toBeHidden();await page.locator('#save').click();const saved=await savedState(page);expect(saved.objects.some(o=>o.id==='crop-3')).toBe(false);expect(saved.harvest.mushrooms).toBe(0);expect(errors).toEqual([]);
+});
+
+test('catalog mushroom placement queues a resident walking and planting on the chosen tile',async({page})=>{
+ const state=createGame();state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.getByRole('button',{name:'物品包',exact:true}).click();await page.locator('[data-item="mushroom"]').click();
+ const b=await page.locator('#world canvas').boundingBox(),p=new Vector3(-5,.29,4).project(sceneCamera(b));await page.mouse.click(b.x+(p.x+1)*b.width/2,b.y+(1-p.y)*b.height/2);
+ await expect(page.locator('#queue')).toContainText('种植星伞蘑菇');await expect(page.locator('#money')).toHaveText('2,400');await page.locator('[data-speed="3"]').click();await expect(page.locator('#money')).toHaveText('2,380',{timeout:20000});await page.locator('[data-speed="0"]').click();await page.locator('#save').click();
+ const saved=await savedState(page),crop=saved.objects.find(o=>o.type==='mushroom');expect(crop.x).toBe(-5);expect(crop.z).toBe(4);expect(crop.plant.growth).toBeLessThan(.15);
+});
+
 test('repaired school record displays real foundation requirements and persists without inflated credits',async({page})=>{
  const {switchControl}=await import('../src/simulation.js');const g=createGame();switchControl(g,'pip');g.speed=0;g.player.education={version:2,credits:55,focus:null,foundation:{practical:2,logic:0,nature:1,expression:2,arts:2},major:null};fixtures.set(page,g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="career"]').click();
@@ -635,16 +660,16 @@ test('3D nursery lets the player choose two parents and the newborn displays inh
  fixtures.set(page,structuredClone(saved));await page.reload();await expect(page.locator('#loading')).toBeHidden();await page.getByRole('button',{name:'生命',exact:true}).click();await page.locator('#active-character').click();await page.locator(`[data-character="${baby.uid}"]`).click();await expect(page.locator('.family-line').first()).toContainText('凯伊、诺瓦');await expect(page.locator('.family-line').last()).toContainText('身高');
  await page.getByRole('button',{name:'跟随凯伊',exact:true}).click();for(let i=0;i<8;i++)await page.getByRole('button',{name:'拉近视角',exact:true}).click();await page.screenshot({path:'test-results/newborn-closeup.png'});expect(errors).toEqual([]);
 });
-test('plant menu shows condition, harvests into storage, sells produce and saves regrowth',async({page})=>{
- const {OrthographicCamera,Vector3}=await import('three');const g=createGame();g.speed=0;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.objects.find(o=>o.type==='garden').plant.growth=1;
+test('plant menu automatically sells produce and saves regrowth',async({page})=>{
+ const {OrthographicCamera,Vector3}=await import('three');const g=createGame();g.speed=0;g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.objects.find(o=>o.type==='garden').plant.growth=1;
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(state=>{if(!localStorage.getItem('orbit-life-v1'))localStorage.setItem('orbit-life-v1',JSON.stringify(state));},g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  const r=await page.locator('#world canvas').boundingBox(),camera=sceneCamera(r);const p=new Vector3(7,.9,3).project(camera);await page.mouse.click(r.x+(p.x+1)*r.width/2,r.y+(1-p.y)*r.height/2);
  await expect(page.locator('#plant-status')).toContainText('成熟可收获');await expect(page.locator('#plant-status')).toContainText('水分');await expect(page.locator('[data-action="replant"]')).toBeDisabled();await page.screenshot({path:'test-results/plant-mature.png'});
  await page.locator('[data-action="harvest"]').click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();await expect(page.locator('#queue')).not.toContainText('收获成熟植物',{timeout:20000});await expect(page.locator('#journal')).toBeHidden();await page.getByRole('button',{name:'暂停',exact:true}).click();
- await page.getByRole('button',{name:'物品包',exact:true}).click();await page.getByRole('button',{name:'收成仓库',exact:true}).click();await expect(page.locator('#harvest-content')).toContainText('3 份');await page.locator('#harvest-dialog [data-sell-crop="spores"]').click();await expect(page.locator('#money')).toHaveText('2,454');await expect(page.locator('#harvest-dialog [data-sell-crop="spores"]')).toBeDisabled();await page.getByRole('button',{name:'关闭收成仓库'}).click();
+ await expect(page.locator('#money')).toHaveText('2,454');await expect(page.locator('#harvest-dialog')).toHaveCount(0);
  await page.getByRole('button',{name:'保存游戏',exact:true}).click();const saved=await savedState(page);expect(saved.objects.find(o=>o.type==='garden').plant.harvests).toBe(1);expect(saved.objects.find(o=>o.type==='garden').plant.growth).toBeLessThan(.2);await page.reload();await expect(page.locator('#loading')).toBeHidden();await expect(page.locator('#money')).toHaveText('2,454');
- await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'物品包',exact:true}).click();await page.getByRole('button',{name:'收成仓库',exact:true}).click();await expect(page.locator('#harvest-content')).toBeVisible();await page.screenshot({path:'test-results/harvest-mobile.png'});expect(errors).toEqual([]);
+ await page.setViewportSize({width:390,height:844});await expect(page.locator('#money')).toHaveText('2,454');await page.screenshot({path:'test-results/harvest-mobile.png'});expect(saved.harvest.spores).toBe(0);expect(errors).toEqual([]);
 });
 test('life scrolling survives live updates on desktop and narrow screens',async({page})=>{
  const g=createGame();g.memorials=Array.from({length:16},(_,i)=>({uid:`old-${i}`,name:`纪念居民 ${i}`,age:120,day:1,cause:'old_age',parents:[]}));

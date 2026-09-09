@@ -17,7 +17,7 @@ const ring=(p,c,xyz,r,t=.07)=>mesh(p,new THREE.TorusGeometry(r,t,10,60),c,xyz,nu
 
 export {material,mesh,box,sphere,cylinder,ring};
 
-export function createPropFactory({mushroomAsset,model,crystal}){
+export function createPropFactory({mushroomAsset,mushroomVariants,model,crystal}){
  function prop(type){if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
   if(type==='blueprintTable'){
    for(const x of [-.6,.6])box(g,0x96aaa1,[x,.5,0],[.15,1,.85]);
@@ -110,7 +110,7 @@ export function createPropFactory({mushroomAsset,model,crystal}){
    box(g,0x799c9d,[0,.35,.67],[.52,.3,.12]);for(const x of [-.13,.13])sphere(g,0xbde1c7,[x,.38,.75],[.035,.035,.02],.3);
   }
   if(type==='crystal')g.userData.crystalLight=crystal(g,0,0,1).userData.crystalLight;
-  if(type==='mushroom'){const crop=new THREE.Group();g.add(crop);model(mushroomAsset,crop,0,0,0,.65);g.userData.cropVisual=[crop];}
+  if(type==='mushroom'){const crop=new THREE.Group();g.add(crop);let current=null;g.userData.setMushroomVariant=variant=>{if(current===variant)return;crop.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial)n.material.dispose();});crop.clear();model(variant==='normal'?mushroomAsset:mushroomVariants[variant],crop,0,0,0,.65);current=variant;};g.userData.setMushroomVariant('normal');g.userData.cropVisual=[crop];}
   if(type==='lamp'){cylinder(g,colors.ivory,[0,.15,0],.35,.3);cylinder(g,colors.purple,[0,.7,0],.045,1);g.userData.playOrb=sphere(g,colors.gold,[0,1.4,0],[.35,.35,.35],.7);ring(g,colors.ivory,[0,1.4,0],.48,.035).rotation.x=1.1;}
   const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const light=new THREE.PointLight(lighting.color,lighting.intensity,Math.hypot(lighting.radius,lighting.height),2);light.position.set(0,lighting.height,0);g.add(light);g.userData.areaLight=light;}
   if(CROPS[type]){g.userData.cropLight=createBioluminescence(g,{radius:type==='garden'?.8:.65,height:type==='garden'?1.3:1.8,color:0xc9e8e4});for(const crop of g.userData.cropVisual)crop.traverse(n=>{if(n.isMesh){n.material=n.material.clone();n.userData.plantColor=n.material.color.clone();}});for(const crop of g.userData.cropVisual)if(crop.userData.fruit){const fruit=crop.userData.fruit;fruit.material=new BiolumeMaterial({color:fruit.material.color,emissive:0xbce6d9,emissiveIntensity:1});}}

@@ -68,7 +68,7 @@ export function stylizeAsset(source,{character=false}={}){
  const converted=new Map();
  source.traverse(node=>{if(!node.isMesh)return;
   const original=node.material;
-  const Material=['Nebula mushroom','Luminous gills','Pearl stem'].includes(original.name)?BiolumeMaterial:StarToonMaterial;
+  const Material=['Nebula mushroom','Luminous gills','Pearl stem','Mutant cap','Mutant gills','Mutant stem','Mutant spores'].includes(original.name)?BiolumeMaterial:StarToonMaterial;
   if(!converted.has(original))converted.set(original,new Material({
    name:original.name,color:original.name==='Nebula mushroom'?new THREE.Color(0xd99bc5):original.color,map:original.map,
    emissive:Material===BiolumeMaterial?new THREE.Color(original.name==='Nebula mushroom'?0xe8cddd:0xaedbd8):original.emissive,emissiveIntensity:Material===BiolumeMaterial?1:!character&&original.name==='Bioluminescence'?.22:original.emissiveIntensity,
