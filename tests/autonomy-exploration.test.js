@@ -31,7 +31,7 @@ test('scientific skill and inherited research preference increase cooperative re
  p.position.preferences={research:30};const low=autonomyBonus(g,p,c,[p,partner]);p.skills.science=30;assert.ok(autonomyBonus(g,p,c,[p,partner])>low);assert.equal(actionPreference(p,'decodeTogether'),19.5);
 });
 test('v11 exploration migration preserves archive and crystals without inventing past city visits',()=>{
- const g=setup(),o=buyItem(g,'crystal',0,0).object;g.version=11;g.wonders={dust:7,archive:3,lastExpeditionDay:1};o.wonder={mode:'insight',charge:100,armed:true};const loaded=restore(serialize(g));assert.equal(loaded.version,21);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.wonders.dust,7);assert.equal(loaded.wonders.expeditions,0);assert.equal(loaded.objects[0].wonder.armed,true);
+ const g=setup(),o=buyItem(g,'crystal',0,0).object;g.version=11;g.wonders={dust:7,archive:3,lastExpeditionDay:1};o.wonder={mode:'insight',charge:100,armed:true};const loaded=restore(serialize(g));assert.equal(loaded.version,22);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.wonders.dust,7);assert.equal(loaded.wonders.expeditions,0);assert.equal(loaded.objects[0].wonder.armed,true);
 });
 test('an NPC can autonomously invite the controlled resident without replacing their queue',()=>{
  const g=setup();buyItem(g,'lamp',0,0);g.npcs.nova.preferences={passOrb:100};g.npcs.nova.ai.enabled=true;g.npcs.nova.needs.fun=20;g.npcs.nova.needs.social=10;

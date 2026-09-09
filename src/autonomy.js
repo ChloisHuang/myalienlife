@@ -25,10 +25,12 @@ export function autonomyBonus(g,p,c,people){
  if(type==='prepareRations'){if((g.space.provisions[islandOf(p.position)]??0)>=24)return null;bonus+=15;}
  if(type.startsWith('buildUfo')){const tier=Number(type.at(-1));if(g.space.ships.some(s=>s.island===islandOf(p.position)&&s.tier>=tier)||people.some(n=>n!==p&&n.queue.some(q=>q.type===type)))return null;bonus+=10;}
  if(type==='memoryExpedition')bonus+=14;
+ if(type==='developBlueprint'||type==='constructIsland'){if(Math.min(p.needs.energy,p.needs.hunger)<40)return null;bonus+=22;}
+ if(type==='settleIsland')bonus+=12;
  if(type==='voyage'||type==='starVoyage'){
-  const lowestNeed=Math.min(...Object.values(p.needs)),remote=islandOf(p.position)!=='home';
+  const lowestNeed=Math.min(...Object.values(p.needs)),home=p.position.homeIsland??'home',remote=islandOf(p.position)!==home;
   if(p.queue.some(q=>['voyage','boardUfo'].includes(q.type))||['voyage','starVoyage'].includes(p.ai.lastAction))return null;
-  if(c.destinationId==='home'){
+  if(c.destinationId===home){
    if(remote&&hasSettlementEssentials(g,p.position)){if(lowestNeed>=12)return null;bonus+=36;}
    else bonus+=lowestNeed<25?36:12;
   }else{

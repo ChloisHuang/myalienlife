@@ -1,15 +1,11 @@
 // Versioned blueprints are stored in the save, so future generator changes never
 // redraw an island that residents have already discovered or built upon.
-export const BIOMES={
- fungal:{name:'荧孢林',color:0x91bdaa,accent:0xe6afca,skill:'botany',interests:['garden','observe','explore'],resources:['mushroom','garden','glowlight']},
- crystalline:{name:'晶潮原',color:0x8eaac5,accent:0xc1b5f0,skill:'science',interests:['research','observe','explore'],resources:['crystal','beacon','glowlight']},
- ruins:{name:'遗迹环',color:0xb9a6bd,accent:0xe2cda6,skill:'science',interests:['research','observe','explore'],resources:['relic','telescope','crystal']},
- choral:{name:'鸣光洲',color:0xa8b9d1,accent:0xa8e4df,skill:'social',interests:['chat','dance','explore'],resources:['music','lamp','sofa']}
-};
+import {BIOMES} from './planet-biomes.js';
+export {BIOMES};
 export function seededRandom(seed){let value=seed>>>0;return()=>{value=(Math.imul(value,1664525)+1013904223)>>>0;return value/4294967296;};}
 export function generateIsland(seed,index){
  if(!Number.isInteger(seed)||seed<0||seed>0xffffffff||!Number.isInteger(index)||index<0||index>=64)throw new Error('星岛生成参数无效');
- const random=seededRandom((seed^Math.imul(index+1,2654435761))>>>0),biome=Object.keys(BIOMES)[Math.floor(random()*4)],theme=BIOMES[biome];
+ const random=seededRandom((seed^Math.imul(index+1,2654435761))>>>0),biome=Object.keys(BIOMES)[Math.floor(random()*Object.keys(BIOMES).length)],theme=BIOMES[biome];
  const phase=random()*Math.PI*2,tilt=(random()-.5)*.24,rx=16.1+random()*.4,rz=11.6+random()*.35;
  const outline=Array.from({length:48},(_,i)=>{const a=i*Math.PI/24,r=1+.048*Math.sin(a*3+phase)+.026*Math.cos(a*5-phase)+.012*Math.sin(a*8+phase*2),x=Math.cos(a)*rx*r,z=Math.sin(a)*rz*r;return{x:x*Math.cos(tilt)-z*Math.sin(tilt),z:x*Math.sin(tilt)+z*Math.cos(tilt)};});
  // Poisson spacing produces different clearings while preserving accessible approaches.

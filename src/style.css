@@ -72,6 +72,7 @@
 @media(max-width:700px){.exploration-panel{height:170px}.exploration-grid{grid-template-columns:1fr}.exploration-intro{font-size:10px}}
 
 .locations{max-width:55vw;overflow:auto}.island-launch{display:block;margin:8px 0 14px;padding:7px 10px;border:1px solid #c5d5c0;border-radius:8px;background:#eef4e8;color:#526b51;cursor:pointer}.island-launch:disabled{opacity:.5;cursor:default}
+.island-destroy{color:#963e48;border-color:#d9b7bb;background:#faf0f1}.island-destroy:hover{background:#f2dfe2}.island-destroy:focus-visible{outline:2px solid #963e48;outline-offset:2px}
 
 .locations select{color:#e3eee7;background:#26364a;border:0;border-radius:6px;min-width:100px;max-width:200px;padding:8px;font:inherit;font-size:11px;outline-offset:2px}.locations button:disabled{opacity:.3;cursor:default}@media(max-width:700px){.locations{max-width:60vw}.locations select{min-width:0;max-width:140px;width:33vw;font-size:10px}.locations button{padding:5px}}
 
@@ -91,6 +92,7 @@
 .dashboard #panel-content{padding-bottom:18px}
 .dashboard .resident-panel,.dashboard .exploration-panel,.dashboard .life-panel,.dashboard .relationship-grid{height:100%;min-height:100%;max-height:none;overflow-y:auto}
 .dashboard .resident-panel{padding-bottom:24px}
+.resident-home{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;margin:0 0 12px;padding:10px 0;border-bottom:1px solid #dce4d8;font-size:13px}.resident-home dt{display:flex;align-items:center;gap:6px;color:#647566}.resident-home dd{margin:0;font-weight:600;overflow-wrap:anywhere}
 .dashboard .resident-editor{align-items:flex-start}
 .dashboard .resident-fields{align-items:flex-start;gap:10px}
 .dashboard .resident-fields label{min-width:0;flex:1 1 105px}

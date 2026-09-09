@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import {StarToonMaterial,BiolumeMaterial} from './npr.js';
 import {seededRandom} from './island-generator.js';
+import {BIOMES} from './planet-biomes.js';
+import {decorateSurface} from './planet-surfaces.js';
+import {housingLayout} from './housing-layout.js';
 
 // Visual detail is derived from the saved blueprint; it never moves buildings or residents.
 export function createIslandTerrain(definition,mushroom,side='front'){
@@ -67,11 +70,24 @@ export function createIslandTerrain(definition,mushroom,side='front'){
  const seeds=Array.from({length:80},()=>({x:(random()-.5)*26,z:(random()-.5)*17,y:.4+random()*3,phase:random()*6.28})).filter(p=>inside(p.x,p.z));
  const dustGeometry=own(new THREE.BufferGeometry());dustGeometry.setAttribute('position',new THREE.Float32BufferAttribute(seeds.flatMap(p=>[p.x,p.y,p.z]),3));
  const dustMaterial=new THREE.PointsMaterial({color:dark?0xcebcff:0xc9ffe0,size:.06,transparent:true,opacity:.45,depthWrite:false,blending:THREE.AdditiveBlending});materials.add(dustMaterial);const dust=new THREE.Points(dustGeometry,dustMaterial);dust.name='drifting-spores';root.add(dust);
- return {root,update(seconds,wind=0,night=0){
+ let disposeSurface;
+ if(!dark&&BIOMES[theme]?.kind){
+  for(const child of root.children)if(child.name!=='rounded-island-shell')child.visible=false;
+  ground.color.set(BIOMES[theme].color);
+  disposeSurface=decorateSurface(root,definition,{id:theme,...BIOMES[theme]},housingLayout(definition.seed^definition.index).rooms);
+ }
+ return {root,clearConstruction(rooms){
+  const within=(x,z)=>rooms.some(r=>Math.abs(x-r.x)<r.w/2+.2&&Math.abs(z-r.z)<r.d/2+.2);
+  root.updateMatrixWorld(true);
+  for(const child of root.children){
+   if(child.isGroup&&child.name!=='surface-deposits'){const b=new THREE.Box3().setFromObject(child);if(rooms.some(r=>b.min.x<r.x+r.w/2&&b.max.x>r.x-r.w/2&&b.min.z<r.z+r.d/2&&b.max.z>r.z-r.d/2))child.visible=false;}
+   if(child.isInstancedMesh){const matrix=new THREE.Matrix4(),p=new THREE.Vector3();for(let i=0;i<child.count;i++){child.getMatrixAt(i,matrix);p.setFromMatrixPosition(matrix);if(within(p.x,p.z)){matrix.makeScale(0,0,0);child.setMatrixAt(i,matrix);}}child.instanceMatrix.needsUpdate=true;}
+  }
+ },update(seconds,wind=0,night=0){
   for(const p of plants)p.group.rotation.z=Math.sin(seconds*.65+p.phase)*p.amount*(1+wind*.2);
   for(const f of floaters){f.mesh.position.y=f.y+Math.sin(seconds*.35+f.phase)*.15;f.mesh.rotation.y=seconds*.025+f.phase;}
   for(const r of ripples){const t=(seconds*.11+r.phase)%1;r.mesh.scale.set(.2+t*1.25,.12+t*.75,1);r.mesh.material.opacity=(1-t)*.35;}
   for(const m of living){m.bio.time.value=seconds;m.bio.strength.value=.35+night*.95;}
   const pos=dustGeometry.attributes.position;for(let i=0;i<seeds.length;i++){const p=seeds[i];pos.setXYZ(i,p.x+Math.sin(seconds*.23+p.phase)*.25,p.y+Math.sin(seconds*.4+p.phase)*.24,p.z+Math.cos(seconds*.18+p.phase)*.18);}pos.needsUpdate=true;dustMaterial.opacity=.25+night*.35;
- },dispose(){root.removeFromParent();root.traverse(n=>{if(n.isInstancedMesh)n.dispose();});for(const g of geometries)g.dispose();for(const m of materials)m.dispose();}};
+ },dispose(){disposeSurface?.();root.removeFromParent();root.traverse(n=>{if(n.isInstancedMesh)n.dispose();});for(const g of geometries)g.dispose();for(const m of materials)m.dispose();}};
 }

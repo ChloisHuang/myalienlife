@@ -13,7 +13,7 @@ test('autonomous work uses innate blink without selecting an independent blink a
 });
 test('mid-movement save resumes the original action and migrates obsolete blink actions',()=>{
  const g=fixture();enqueue(g,'research','back-lab');tick(g,1.5);const loaded=restore(JSON.stringify(g));assert.ok(loaded.queue[0].blinkTransit);tick(loaded,1);assert.equal(loaded.player.side,'back');assert.equal(loaded.queue[0].type,'research');
- const old=fixture();old.version=17;old.queue=[{type:'blink'}];old.config.actionDurations.blink=2.4;const migrated=restore(JSON.stringify(old));assert.equal(migrated.version,21);assert.equal(migrated.queue.length,0);assert.equal(migrated.config.actionDurations.blink,undefined);assert.equal(migrated.money,old.money);
+ const old=fixture();old.version=17;old.queue=[{type:'blink'}];old.config.actionDurations.blink=2.4;const migrated=restore(JSON.stringify(old));assert.equal(migrated.version,22);assert.equal(migrated.queue.length,0);assert.equal(migrated.config.actionDurations.blink,undefined);assert.equal(migrated.money,old.money);
 });
 test('lost ability or newly obstructed landing cancels the crossing without teleporting',()=>{
  for(const block of [g=>g.player.prayer.nether=0,g=>g.objects.push({id:'block',type:'pod',...g.queue[0].path[0]})]){const g=fixture();enqueue(g,'research','back-lab');tick(g,.6);block(g);tick(g,3);assert.equal(g.player.side,'front');assert.equal(g.queue[0]?.blinkTransit,undefined);}

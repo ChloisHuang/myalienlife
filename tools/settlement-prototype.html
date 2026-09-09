@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>星岛竣工预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;color:#263b3c;background:#e8eff0;letter-spacing:0}#scene{position:fixed;inset:0}canvas{display:block;width:100%;height:100%;touch-action:none}header{position:fixed;top:20px;left:24px;pointer-events:none}h1{font-size:24px;margin:0 0 8px}p{margin:4px 0;color:#506669}#meta{font-size:12px}.toolbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:#fff;padding:10px;border:1px solid #c2d1cf;border-radius:6px;box-shadow:0 3px 15px #18333315;max-width:calc(100% - 24px)}button{width:36px;height:36px;border:0;background:#edf3f1;color:#2e5550;border-radius:4px;display:grid;place-items:center;cursor:pointer}button:hover{background:#d5e6df}button svg{width:19px;height:19px}#variant{width:128px;text-align:center;font-weight:600;flex-shrink:0}label{display:flex;gap:5px;align-items:center;white-space:nowrap}.separator{height:24px;border-left:1px solid #d3ddda}#loading{position:fixed;inset:45% 0;text-align:center;pointer-events:none}#legend{position:fixed;right:24px;top:22px;font-size:12px;line-height:1.9;color:#476165;text-align:right}#legend b{color:#204c42} @media(max-width:600px){header{top:16px;left:16px}h1{font-size:20px}#legend{top:102px;left:16px;right:auto;text-align:left}.toolbar{gap:5px;padding:7px;bottom:16px}#variant{width:98px;font-size:12px}button{width:30px;height:34px}.toolbar label{font-size:12px}.separator{display:none}}
+</style>
+<div id="scene"></div><header><h1 id="name">星岛竣工预览</h1><p id="meta"></p></header>
+<div id="legend"><b>工程完成 100%</b><br>卧室 · 客厅 · 厨房 · 卫浴 · 育生室 · 研究室<br>独立预览，不写入游戏存档</div><div id="loading">正在加载星岛…</div>
+<nav class="toolbar" aria-label="预览控制">
+<button id="previous" title="上一座岛" aria-label="上一座岛"><i data-lucide="chevron-left"></i></button><span id="variant"></span><button id="next" title="下一座岛" aria-label="下一座岛"><i data-lucide="chevron-right"></i></button><span class="separator"></span>
+<button id="random" title="重新随机生成" aria-label="重新随机生成"><i data-lucide="shuffle"></i></button><button id="reset" title="重置视角" aria-label="重置视角"><i data-lucide="rotate-ccw"></i></button><button id="top" title="俯视户型" aria-label="俯视户型"><i data-lucide="scan"></i></button><label><input id="night" type="checkbox">夜景</label>
+</nav><script type="module" src="./settlement-prototype.js"></script>
+</html>

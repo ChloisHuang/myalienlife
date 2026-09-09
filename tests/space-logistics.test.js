@@ -4,7 +4,7 @@ import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchCon
 import {backDiscovered} from '../src/space-logistics.js';
 import {autonomyBonus} from '../src/autonomy.js';
 const run=(g,seconds=80)=>{for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.5);};
-function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const key in g.config.needDecay)g.config.needDecay[key]=0;g.civilization.technology=240;g.civilization.observations=3;g.skills.science=18;g.money=10000;return g;}
+function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const key in g.config.needDecay)g.config.needDecay[key]=0;g.civilization.technology=240;g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];g.skills.science=18;g.money=10000;return g;}
 function equip(g,tier=2){g.space.ships.push({id:'ship-a',tier,island:'home',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.home=24;}
 test('manufacture and rations require their professions and create persisted resources after completion',()=>{
  const g=setup();g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);run(g);assert.equal(g.space.ships[0].tier,2);assert.match(g.space.ships[0].id,/^ufo-\d+$/);assert.equal(g.money,8600);

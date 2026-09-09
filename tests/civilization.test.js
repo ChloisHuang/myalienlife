@@ -9,16 +9,16 @@ function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Ob
 
 function ship(g){g.skills.science=6;g.space.ships.push({id:'test-ship',tier:2,island:'home',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.home=8;}
 test('discovery, technology, manufacture and food each gate landing',()=>{
- const g=setup();g.civilization.observations=3;assert.ok(discovered(g,'spore'));
+ const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];assert.ok(discovered(g,'spore'));
  assert.match(voyageError(g,g.player,g.skills,'spore'),/科技/);g.civilization.technology=40;
  g.skills.science=0;
  assert.match(voyageError(g,g.player,g.skills,'spore'),/制造/);ship(g);g.career.id='chef';g.space.provisions.home=0;
  assert.match(voyageError(g,g.player,g.skills,'spore'),/食物/);g.space.provisions.home=8;
  assert.equal(voyageError(g,g.player,g.skills,'spore'),null);g.player.age=12;g.skills.science=0;assert.equal(voyageError(g,g.player,g.skills,'spore'),null);
- g.player.age=28;g.wonders.archive=3;assert.match(voyageError(g,g.player,g.skills,'city'),/科技 2/);
+ g.player.age=28;g.wonders.archive=3;g.civilization.discoveryPath.push('city');assert.match(voyageError(g,g.player,g.skills,'city'),/科技 2/);
 });
 test('a real UFO voyage creates a playable island and reserves return food',()=>{
- const g=setup();g.civilization.observations=3;g.civilization.technology=40;ship(g);
+ const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];g.civilization.technology=40;ship(g);
  assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);
  assert.equal(g.player.island,'spore');assert.equal(g.viewIsland,'spore');assert.equal(g.civilization.visits.spore,1);assert.equal(g.space.ships[0].food,1);
  assert.equal(enqueue(g,'research','lab').ok,false);assert.equal(enqueue(g,'explore','spore-portal').ok,true);run(g,35);assert.equal(g.civilization.surveys.spore,1);
@@ -38,7 +38,7 @@ test('research is shared across residents and remains after switching control an
 });
 test('v12 migration preserves existing lore and does not invent technology or island visits',()=>{
  const g=setup();g.version=12;delete g.civilization;delete g.viewIsland;g.wonders.archive=3;
- const loaded=restore(serialize(g));assert.equal(loaded.version,21);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.civilization.technology,0);assert.equal(loaded.civilization.visits.city,0);
+ const loaded=restore(serialize(g));assert.equal(loaded.version,22);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.civilization.technology,0);assert.equal(loaded.civilization.visits.city,0);
 });
 test('a multiplayer activity has exactly one candidate regardless of eligible partner count',()=>{
  const g=setup();g.objects=[];const o=buyItem(g,'lamp',0,0).object;
