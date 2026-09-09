@@ -12,10 +12,12 @@ test('public viewers cannot mutate; last explicit claim fences all old browser c
   await new Promise(resolve=>service.server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${service.server.address().port}`;
   const request=(path,body,extra={})=>fetch(base+path,{method:body?'POST':'GET',headers:{Origin:'https://game.example','Content-Type':'application/json','X-Orbit-Client':'browser-a',...extra},body:body?JSON.stringify(body):undefined});
   assert.equal((await request('/api/state')).status,200);
+  assert.equal((await request('/api/visitors')).status,401);
   assert.equal((await request('/api/command',{name:'speed',args:[0]})).status,401);
   assert.equal((await request('/api/login',{token:'wrong'})).status,401);
   const login=await request('/api/login',{token});assert.equal(login.status,200);assert.equal(login.headers.get('set-cookie'),null);
   const session=(await login.json()).session;assert.notEqual(session,token);const Authorization=`Bearer ${session}`;
+  const stats=await request('/api/visitors',undefined,{Authorization});assert.equal(stats.status,200);assert.equal((await stats.json()).totalVisits,1);
   assert.equal((await request('/api/command',{name:'speed',args:[0]},{Authorization})).status,409);
   const a=await (await request('/api/control/claim',{}, {Authorization})).json();
   const headersA={Authorization,'X-Orbit-Epoch':String(a.epoch)};

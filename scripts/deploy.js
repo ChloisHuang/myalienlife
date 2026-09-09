@@ -13,7 +13,7 @@ const directory=await buildRelease(),id=new Date().toISOString().replace(/[^0-9]
 run('tar',[...(process.platform==='darwin'?['--no-xattrs']:[]),'-czf',archive,'-C',directory,'.'],{env:{...process.env,COPYFILE_DISABLE:'1'}});
 const hash=createHash('sha256').update(await readFile(archive)).digest('hex');
 const target=`${c.user}@${c.host}`,ssh=['-p',String(c.sshPort),'-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20'];
-const scp=['-P',String(c.sshPort),'-o','BatchMode=yes','-o','StrictHostKeyChecking=yes'];
+const scp=['-O','-P',String(c.sshPort),'-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=20','-o','ServerAliveInterval=10','-o','ServerAliveCountMax=3'];
 run('ssh',[...ssh,target,'mkdir -p /opt/myalienlife/incoming && chmod 700 /opt/myalienlife/incoming']);
 run('scp',[...scp,archive,`${target}:/opt/myalienlife/incoming/${id}.tgz`]);
 if(seed){const file=resolve(root,'.data/orbit-life.json');await stat(file);run('scp',[...scp,file,`${target}:/opt/myalienlife/incoming/${id}.seed.json`]);}

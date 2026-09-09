@@ -38,6 +38,15 @@ test('nether tattoos and multiple acquired mutations update a paused character w
  assert.equal(rig.prayerVisuals.skinUniforms.freckles.value,1);
  assert.notEqual(rig.body.getObjectByName('LeftEye').material.color.getHex(),other.body.getObjectByName('LeftEye').material.color.getHex());
 });
+test('nether skin is translucent, isolated per resident, and restores when no longer awakened',async()=>{
+ const {createCharacter,updateCharacter}=await import('../src/character-rig.js');const {createGame}=await import('../src/simulation.js');
+ const person=createGame().player,rig=createCharacter(asset.scene,person),other=createCharacter(asset.scene,person);
+ person.prayer.nether=10;updateCharacter(rig,{person,time:0,delta:0});
+ rig.body.traverse(n=>{if(n.isMesh&&n.material.name==='Alien skin'){assert.equal(n.material.transparent,true);assert.equal(n.material.opacity,.42);assert.equal(n.material.depthWrite,false);}});
+ assert.equal(other.limbs.LeftLeg.mesh.material.opacity,1);
+ person.prayer.radiance=10;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.limbs.LeftLeg.mesh.material.opacity,.42);
+ person.prayer.nether=0;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.limbs.LeftLeg.mesh.material.opacity,1);assert.equal(rig.limbs.LeftLeg.mesh.material.transparent,false);
+});
 test('dawn halo appears at awakening and coexists with nether without changing other residents',async()=>{
  const {createCharacter,updateCharacter}=await import('../src/character-rig.js');const {createGame}=await import('../src/simulation.js');
  const person=createGame().player,rig=createCharacter(asset.scene,person),other=createCharacter(asset.scene,person);

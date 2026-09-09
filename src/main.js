@@ -2,6 +2,7 @@ import {applyCommand} from './game-commands.js';
 import {createPresentation} from './presentation.js';
 import './online.css';
 import {createOnlineClient} from './online-client.js';
+import {createVisitorsUi} from './visitors-ui.js';
 import {displayNumber} from './display-number.js';
 import {UFO_WEAR_PER_FLIGHT,backDiscovered,ufoDefinition,shipFoodStatus} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
@@ -37,13 +38,16 @@ const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('
 Object.assign(icons,{PictureInPicture2,ArrowLeft});
 const hosted=import.meta.env.VITE_SERVER_AUTHORITY==='1';
 const persistence=hosted?null:createPersistence();let game;
-const presentation=hosted?createPresentation():null;let visualGame;
+const presentation=hosted?createPresentation():null;let visualGame,visitorsUi,watchedResidentUid=null;
 const online=hosted?createOnlineClient({onState(next){
  if(!game)return;const previous=game;
  if(Object.hasOwn(islandCatalog(next),previous.viewIsland)){next.viewIsland=previous.viewIsland;next.viewSide=previous.viewSide;}
- if(previous.player.uid!==next.player.uid||islandOf(previous.player)!==islandOf(next.player)||sideOf(previous.player)!==sideOf(next.player)){next.viewIsland=islandOf(next.player);next.viewSide=sideOf(next.player);}
+ const findWatched=state=>watchedResidentUid?[state.player,...Object.values(state.npcs)].find(person=>person.uid===watchedResidentUid&&person.alive):state.player;
+ const before=findWatched(previous)??previous.player;let after=findWatched(next);
+ if(!after){watchedResidentUid=null;after=next.player;}
+ if(before.uid!==after.uid||islandOf(before)!==islandOf(after)||sideOf(before)!==sideOf(after)){next.viewIsland=islandOf(after);next.viewSide=sideOf(after);}
  game=next;presentation.push(next);
-},onStatus(value){const el=document.querySelector('#online-status');if(!el)return;el.textContent=!value.connected?'连接中断 · 只读':value.error|| (value.canOperate?'操作中':value.authenticated?'已验证 · 只读':'访客 · 只读');document.querySelector('#claim-control').hidden=!value.authenticated;document.querySelector('#operator-login').hidden=value.authenticated;document.querySelector('#operator-logout').hidden=!value.authenticated;if(!value.canOperate&&build){build=false;cancelPlacement();document.querySelector('#build-button').classList.remove('active');}}}):null;
+},onStatus(value){visitorsUi?.setAuthenticated(value.authenticated);const el=document.querySelector('#online-status');if(!el)return;el.textContent=!value.connected?'连接中断 · 只读':value.error|| (value.canOperate?'操作中':value.authenticated?'已验证 · 只读':'访客 · 只读');document.querySelector('#claim-control').hidden=!value.authenticated;document.querySelector('#operator-login').hidden=value.authenticated;document.querySelector('#operator-logout').hidden=!value.authenticated;if(!value.canOperate&&build){build=false;cancelPlacement();document.querySelector('#build-button').classList.remove('active');}}}):null;
 async function command(name,...args){
  try{return hosted?await online.mutate('/api/command',{name,args,view:{island:game.viewIsland,side:game.viewSide}}):applyCommand(game,{name,args});}
  catch(error){toast(error.message);return{ok:false,message:error.message};}
@@ -132,14 +136,14 @@ window.addEventListener('beforeunload',()=>save(false,true));
 if(import.meta.hot)import.meta.hot.on('vite:beforeFullReload',()=>save(false,true));
 
 if(hosted){
- const bar=document.createElement('div');bar.className='online-controls';bar.innerHTML='<span id="online-status">连接中</span><button id="operator-login">验证 Token</button><button id="claim-control" hidden>获取操作权</button><button id="operator-logout" hidden>退出验证</button>';$('#app').append(bar);
+ const bar=document.createElement('div');bar.className='online-controls';bar.innerHTML='<span id="online-status">连接中</span><button id="operator-login">验证 Token</button><button id="claim-control" hidden>获取操作权</button><button id="operator-logout" hidden>退出验证</button>';$('.location').prepend(bar);
  const dialog=document.createElement('dialog');dialog.id='operator-dialog';dialog.innerHTML='<form id="operator-form"><h2>操作验证</h2><label>Token<input id="operator-token" type="password" required autocomplete="off" maxlength="256"></label><p id="operator-error" role="alert"></p><button type="button" id="operator-close">取消</button><button type="submit">验证</button></form>';$('#app').append(dialog);
  $('#operator-login').onclick=()=>dialog.showModal();$('#operator-close').onclick=()=>{dialog.close();$('#operator-token').value='';};
  $('#operator-form').onsubmit=async event=>{event.preventDefault();const input=$('#operator-token'),token=input.value;input.value='';try{await online.login(token);dialog.close();toast('验证成功，点击获取操作权后可以操作。');}catch(error){$('#operator-error').textContent=error.message;}};
- $('#claim-control').onclick=()=>online.claim().catch(error=>toast(error.message));$('#operator-logout').onclick=()=>online.logout().catch(error=>toast(error.message));online.start();
+ $('#claim-control').onclick=()=>online.claim().catch(error=>toast(error.message));$('#operator-logout').onclick=()=>online.logout().catch(error=>toast(error.message));visitorsUi=createVisitorsUi(online);online.start();
 }
 const flightDialog=document.createElement('dialog');flightDialog.id='flight-dialog';$('#app').append(flightDialog);
-const mutationControls='[data-speed],#autonomy,[data-character],[data-inherit],#new-life,[data-cancel],[data-action],[data-career],[data-item],[data-destroy-island],[data-star-voyage],[data-load-ship],[data-load-materials],[data-unload-materials],[data-sell],#work,#study,#save,#config-reset,#restart-epoch,#config-project-default,#build-button,#randomize-heads,#study-focus,#family-desire,#confirm-flight,#config-form input,#config-form button[type="submit"],#resident-form input,#resident-form select,#resident-form button[type="submit"]';
+const mutationControls='[data-speed],#autonomy,[data-inherit],#new-life,[data-cancel],[data-action],[data-career],[data-item],[data-destroy-island],[data-star-voyage],[data-load-ship],[data-load-materials],[data-unload-materials],[data-sell],#work,#study,#save,#config-reset,#restart-epoch,#config-project-default,#build-button,#randomize-heads,#study-focus,#family-desire,#confirm-flight,#config-form input,#config-form button[type="submit"],#resident-form input,#resident-form select,#resident-form button[type="submit"]';
 if(hosted)for(const type of ['click','change','submit'])$('#app').addEventListener(type,event=>{if(!online.canOperate&&(event.target.closest(mutationControls)||type==='submit'&&['resident-form','config-form'].includes(event.target.id))){event.preventDefault();event.stopImmediatePropagation();toast('当前为只读，请先获取操作权');}},true);
 function openFlight(id,shipId=null){
  const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));
@@ -351,7 +355,13 @@ $('#app').addEventListener('click',async e=>{
  if(b.id==='autonomy'){await setAutonomy(game,!game.autonomy.enabled);toast(game.autonomy.enabled?'自主行为已开启，手动安排随时优先。':'自主行为已关闭，保留你的手动安排。');refresh();}
  if(b.id==='active-character')toggleCharacterSwitcher();
  if(b.dataset.tab)changeTab(b.dataset.tab);
- if(b.dataset.character){const result=await switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
+ if(b.dataset.character){
+  if(hosted&&!online.canOperate){
+   const person=game.npcs[b.dataset.character];if(!person?.alive)return;
+   watchedResidentUid=person.uid;game.viewIsland=islandOf(person);game.viewSide=sideOf(person);world.focus(b.dataset.character);
+   closeCharacterSwitcher();closeContext();refresh();toast(`视角已切换到${person.name}`);
+  }else{watchedResidentUid=null;const result=await switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
+ }
  if(b.dataset.inherit){const result=await takeOver(game,b.dataset.inherit);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';refresh();save();toast(`现在由你陪伴${game.player.name}生活。`);}else toast(result.message);}
  if(b.id==='new-life'&&confirm('重新开始将覆盖当前存档，确定开始新的星湾生活吗？'))startNewLife();
  if(b.dataset.cancel){await cancelAction(game,Number(b.dataset.cancel));refresh();}
@@ -359,7 +369,7 @@ $('#app').addEventListener('click',async e=>{
  if(b.dataset.action==='voyage'&&context){openFlight(b.dataset.destination);closeContext();return;}
  if(b.dataset.action&&context){const result=await enqueue(game,b.dataset.action,context.id,undefined,(WONDER_ACTIONS[b.dataset.action]?.paired?$('#wonder-partner')?.value:$('#birth-partner')?.value)||null,b.dataset.destination||null);if(!result.ok)toast(result.message);else toast(`已安排：${actionLabel(b.dataset.action)}`);closeContext();refresh();}
  if(b.dataset.career){const id=b.dataset.career;if(await setCareer(game,id)){toast(`已加入${CAREERS[id].name}职业。`);lastPanel='';refresh();}else toast(careerEntryMessage(game,id)||'请先完成或取消当前工作班次。');}
- if(b.dataset.pack){pack=b.dataset.pack;lastPanel='';renderPanel();}
+ if(b.dataset.pack){pack=b.dataset.pack;lastPanel='';renderPanel();$('#panel-content').scrollTop=0;$('.pack-filters .active').scrollIntoView({block:'nearest',inline:'nearest'});}
  if(b.dataset.item)selectItem(b.dataset.item);
  if(b.dataset.destroyIsland){
   const id=b.dataset.destroyIsland,name=islandDefinition(game,id).name;
@@ -390,7 +400,7 @@ $('#app').addEventListener('click',async e=>{
  if(b.id==='build-button')toggleBuild();
  if(b.id==='cancel-placement')cancelPlacement();
  if(b.id==='all-neighbors')changeTab('relations');
- if(b.id==='zoom-in')world.zoom(.15);if(b.id==='zoom-out')world.zoom(-.15);if(b.id==='reset-view')world.resetCamera();if(b.id==='focus-player'){game.viewIsland=islandOf(game.player);game.viewSide=sideOf(game.player);world.focus('player');refresh();}
+ if(b.id==='zoom-in')world.zoom(.15);if(b.id==='zoom-out')world.zoom(-.15);if(b.id==='reset-view')world.resetCamera();if(b.id==='focus-player'){watchedResidentUid=null;game.viewIsland=islandOf(game.player);game.viewSide=sideOf(game.player);world.focus('player');refresh();}
  if(b.id==='context-close')closeContext();if(b.id==='sound')toggleSound();
 });
 $('#app').addEventListener('click',async e=>{if(e.target.closest('#randomize-heads')){await randomizeHeads(game);refreshPortraits();lastPanel='';refresh();toast('所有居民的头型与触角长度已随机。');}});

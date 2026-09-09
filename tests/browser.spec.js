@@ -9,6 +9,35 @@ import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
 
+test('nether translucency appears in the world and regenerated portraits',async({page})=>{
+ const state=createGame();state.speed=0;state.autonomy.enabled=false;fixtures.set(page,state);
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const ordinary=await page.locator('#player-portrait').getAttribute('src');
+ state.player.prayer.nether=10;state.player.x=0;state.player.z=3;fixtures.set(page,state);await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ expect(await page.locator('#player-portrait').getAttribute('src')).not.toBe(ordinary);
+ for(const width of [1440,390]){await page.setViewportSize({width,height:900});await page.waitForTimeout(400);await page.screenshot({path:`artifacts/nether-translucent-${width}.png`});}
+ await page.locator('#player-portrait').screenshot({path:'artifacts/nether-translucent-avatar.png'});
+ expect(errors).toEqual([]);
+});
+
+test('catalog cards fit their content and have usable space on desktop and mobile',async({page})=>{
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ for(const viewport of [{width:1440,height:900},{width:390,height:844},{width:375,height:667}]){
+  await page.setViewportSize(viewport);await page.locator('[data-tab="items"]').click();
+  const layout=await page.locator('.catalog').evaluate(el=>{
+   const cards=[...el.querySelectorAll('.item-card')];
+   return {space:document.querySelector('#panel-content').clientHeight,overflows:cards.filter(card=>[...card.children].some(child=>child.getBoundingClientRect().bottom>card.getBoundingClientRect().bottom+1)).length};
+  });
+  expect(layout.overflows).toBe(0);expect(layout.space).toBeGreaterThan(250);
+  await page.locator('[data-pack="生活舱"]').click();await expect(page.locator('.item-card')).not.toHaveCount(0);
+  await page.locator('.item-card').last().scrollIntoViewIfNeeded();await expect(page.locator('.item-card').last()).toBeInViewport();
+  await page.locator('[data-pack="全部"]').click();
+  expect(await page.locator('#panel-content').evaluate(el=>el.scrollTop)).toBe(0);
+  await page.screenshot({path:`artifacts/catalog-repaired-${viewport.width}.png`});
+ }
+});
+
 test('mushroom variants render on desktop and mobile; harvesting clears the plant and menu',async({page})=>{
  const {createPlant}=await import('../src/plants.js');const state=createGame();state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;
  state.objects=[{}, {giant:true}, {cluster:true}, {mutant:true}, {mutant:true,cluster:true}].map((traits,i)=>({id:`crop-${i}`,type:'mushroom',x:-8+i*4,z:2,rotation:0,side:'front',island:'home',plant:{...createPlant(),growth:1,...traits}}));

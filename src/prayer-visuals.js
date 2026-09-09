@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import {isNether,isRadiant} from './prayer.js';
 
 export function createPrayerVisuals(rig){
+ const skinMaterials=new Map();
+ rig.body.traverse(mesh=>{if(mesh.isMesh&&mesh.material.name==='Alien skin'){const material=mesh.material;skinMaterials.set(material,{opacity:material.opacity,transparent:material.transparent,depthWrite:material.depthWrite});}});
  const skinUniforms={nether:{value:0},freckles:{value:0}};
  const skin=rig.limbs.LeftLeg.mesh.material,originalCompile=skin.onBeforeCompile.bind(skin),originalKey=skin.customProgramCacheKey();
  skin.onBeforeCompile=shader=>{
@@ -50,6 +52,12 @@ export function createPrayerVisuals(rig){
  return {skinUniforms,crown,spines,dawnHalo,
   update(person){
    const mutations=person.prayer?.mutations??[];
+   const nether=isNether(person);
+   for(const [material,original]of skinMaterials){
+    const transparent=nether||original.transparent;
+    if(material.transparent!==transparent){material.transparent=transparent;material.needsUpdate=true;}
+    material.opacity=nether?.42:original.opacity;material.depthWrite=nether?false:original.depthWrite;
+   }
    skinUniforms.nether.value=isNether(person)?1:0;skinUniforms.freckles.value=mutations.includes('freckles')?1:0;
    crown.visible=mutations.includes('crown');spines.visible=mutations.includes('spines');
    dawnHalo.visible=isRadiant(person);

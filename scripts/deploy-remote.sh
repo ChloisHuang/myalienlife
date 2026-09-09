@@ -90,10 +90,23 @@ server {
     error_log /var/log/nginx/myalienlife-error.log warn;
     gzip on;
     gzip_types application/json text/javascript text/css;
+    location = /api/stream {
+        limit_req zone=orbit_api burst=10 nodelay;
+        proxy_pass http://127.0.0.1:$backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_buffering off;
+    }
     location / {
         limit_req zone=orbit_api burst=40 nodelay;
         proxy_pass http://127.0.0.1:$backend;
         proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header Connection "";
         proxy_http_version 1.1;
         proxy_connect_timeout 5s;
