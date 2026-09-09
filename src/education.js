@@ -1,0 +1,54 @@
+import {workbench} from './settlements.js';
+import {DEFAULT_LIFE_STAGES,SKILLS,skillProgress} from './characters.js';
+export const EDUCATION_LEVELS=[
+ {name:'幼儿园',credits:0,multiplier:.65},{name:'小学',credits:6,multiplier:.75},
+ {name:'中学',credits:18,multiplier:.85},{name:'高中',credits:36,multiplier:1},
+ {name:'大学',credits:60,multiplier:1.2},{name:'研究生',credits:96,multiplier:1.4},{name:'博士',credits:144,multiplier:1.6}
+];
+export const FOUNDATION_SKILLS={practical:{name:'生活实践',icon:'Utensils'},logic:{name:'逻辑思维',icon:'Atom'},nature:{name:'自然感知',icon:'Sprout'},expression:{name:'语言表达',icon:'MessagesSquare'},arts:{name:'艺术感知',icon:'Music2'}};
+export const FOUNDATION_FOR={cooking:'practical',science:'logic',botany:'nature',social:'expression',music:'arts'};
+export const MAJORS={cooking:'星膳学',science:'量子科学',botany:'异星生态',social:'星际传播',music:'星律艺术'};
+const interests={cooking:['cook','brew'],science:['research','observe'],botany:['garden','harvest'],social:['chat','joke'],music:['dance']};
+export const isLearner=(person,stages=DEFAULT_LIFE_STAGES)=>person.age<stages.teenEnd;
+const foundationState=()=>Object.fromEntries(Object.keys(FOUNDATION_SKILLS).map(key=>[key,0]));
+export const createEducation=()=>({version:3,credits:0,focus:null,foundation:foundationState(),major:null});
+const validFields=e=>e&&Number.isSafeInteger(e.credits)&&e.credits>=0&&(e.focus===null||Object.hasOwn(SKILLS,e.focus))&&(e.major===null||Object.hasOwn(MAJORS,e.major))&&e.foundation&&Object.keys(FOUNDATION_SKILLS).every(key=>Number.isSafeInteger(e.foundation[key])&&e.foundation[key]>=0);
+export const validEducation=e=>e?.version===3&&validFields(e);
+export function foundationQualified(education,level){
+ const values=Object.keys(FOUNDATION_SKILLS).map(key=>skillProgress(education.foundation[key]).level),index=EDUCATION_LEVELS.indexOf(level);
+ return index===0||index===1&&values.some(value=>value>=2)||index>=2&&values.every(value=>value>=Math.min(index,4));
+}
+export const educationRequirements=level=>{const index=EDUCATION_LEVELS.indexOf(level);return index===1?'至少一项基础能力达到 Lv.2':index>=2?`五项基础能力全部达到 Lv.${Math.min(index,4)}`:'';};
+export const educationLevel=person=>EDUCATION_LEVELS.findLast(level=>person.education.credits>=level.credits&&foundationQualified(person.education,level));
+export const higherEducation=person=>EDUCATION_LEVELS.indexOf(educationLevel(person))>=4;
+export const educationWage=(person,base)=>Math.round(base*educationLevel(person).multiplier);
+export const studyInterest=(person,skill)=>Math.max(...interests[skill].map(action=>person.preferences[action]??0));
+export const studyName=(person,skill)=>higherEducation(person)?SKILLS[skill].name:FOUNDATION_SKILLS[FOUNDATION_FOR[skill]].name;
+function weightedSubject(person,random,majorChoice=false){
+ const subjects=Object.keys(SKILLS),weights=subjects.map(skill=>10+studyInterest(person,skill)+(majorChoice?skillProgress(person.education.foundation[FOUNDATION_FOR[skill]]).level*2:person.education.major===skill?40:0));let roll=random()*weights.reduce((a,b)=>a+b,0);
+ return subjects.find((skill,i)=>(roll-=weights[i])<0)??subjects.at(-1);
+}
+export function chooseMajor(person,random=Math.random){
+ if(higherEducation(person)&&person.education.major===null)person.education.major=weightedSubject(person,random,true);
+}
+export function studySubject(person,random=Math.random){chooseMajor(person,random);return person.education.focus??weightedSubject(person,random);}
+export function completeStudy(person,skills,subject,random=Math.random){
+ chooseMajor(person,random);const advanced=higherEducation(person),name=studyName(person,subject),amount=advanced&&person.education.major===subject?2:1;
+ if(advanced)skills[subject]+=amount;else person.education.foundation[FOUNDATION_FOR[subject]]+=amount;
+ person.education.credits++;chooseMajor(person,random);return {name,amount};
+}
+export function migrateEducation(person){
+ if(person.education===undefined){person.education=createEducation();return;}
+ const old=person.education;
+ if(old?.version===2&&validFields(old)){
+  // Only recorded foundation study supports pre-college credits; retain professional XP elsewhere.
+  const credits=foundationQualified(old,EDUCATION_LEVELS[4])?old.credits:Math.min(old.credits,Object.keys(FOUNDATION_SKILLS).reduce((sum,key)=>sum+old.foundation[key],0));
+  person.education={...old,version:3,credits};return;
+ }
+ if(old?.version===undefined&&Number.isSafeInteger(old?.credits)&&old.credits>=0&&(old.focus===null||Object.hasOwn(SKILLS,old.focus)))person.education={...createEducation(),focus:old.focus};
+}
+export function studyError(person,stages,station){
+ if(person.age<stages.infantEnd)return '幼体长大后才能开始学习。';
+ if(!workbench(station))return '请在工作台学习。';
+ return null;
+}

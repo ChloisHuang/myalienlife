@@ -39,7 +39,7 @@ test('urgent needs override a characters hobby preference',()=>{
  run(g,1);assert.equal(g.npcs.pip.queue[0]?.type,'sleep');
 });
 test('equal needs lead to different hobbies for botanist and musician',()=>{
- for(const [id,expected] of [['nova','garden'],['pip','dance']]){const g=sim.createGame();g.autonomy.enabled=false;for(const [key,n] of Object.entries(g.npcs)){n.needs=healthy();n.ai.enabled=key===id;}run(g,1);assert.equal(g.npcs[id].queue[0]?.type,expected);}
+ for(const [id,expected] of [['nova','garden'],['pip','dance']]){const g=sim.createGame();g.autonomy.enabled=false;for(const [key,n] of Object.entries(g.npcs)){n.needs=healthy();n.age=28;n.ai.enabled=key===id;}run(g,1);assert.equal(g.npcs[id].queue[0]?.type,expected);}
 });
 test('autonomous choices give lower-benefit actions a chance instead of always taking the top score',()=>{
  const selected=new Set();

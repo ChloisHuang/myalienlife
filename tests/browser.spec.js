@@ -9,6 +9,75 @@ import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
 
+test('repaired school record displays real foundation requirements and persists without inflated credits',async({page})=>{
+ const {switchControl}=await import('../src/simulation.js');const g=createGame();switchControl(g,'pip');g.speed=0;g.player.education={version:2,credits:55,focus:null,foundation:{practical:2,logic:0,nature:1,expression:2,arts:2},major:null};fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="career"]').click();
+ await expect(page.locator('.learning-heading h3')).toHaveText('幼儿园');await expect(page.locator('.learning-heading')).toContainText('7 学分 / 6 学分');await expect(page.locator('.education-requirements')).toContainText('至少一项基础能力达到 Lv.2');await expect(page.locator('.learning-heading .meter>span')).toHaveAttribute('style','width:100%');
+ await page.screenshot({path:'artifacts/education-repaired-desktop.png'});await page.setViewportSize({width:390,height:844});await page.locator('.education-requirements').scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/education-repaired-mobile.png'});
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="career"]').click();await expect(page.locator('.learning-heading h3')).toHaveText('幼儿园');await expect(page.locator('.learning-heading')).toContainText('7 学分 / 6 学分');
+});
+
+test('education stages show foundations, readonly specialization and adult continuing study without noisy decimals',async({page})=>{
+ const {switchControl}=await import('../src/simulation.js');const g=createGame();switchControl(g,'pip');g.speed=0;g.player.preferences.dance=24.123456789;g.player.prayer.radiance=2;g.player.education.foundation.arts=4;fixtures.set(page,g);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden();await page.locator('[data-tab="career"]').click();
+ await expect(page.locator('.education-path')).toHaveText('幼儿园 → 小学 → 中学 → 高中 → 大学 → 研究生 → 博士');await expect(page.locator('#study-focus option[value="music"]')).toHaveText('艺术感知');await expect(page.locator('.learning-panel')).toContainText('基础能力');await expect(page.locator('.learning-panel')).toContainText('兴趣 24.12');await expect(page.locator('#panel-content')).not.toContainText('123456789');await page.screenshot({path:'artifacts/education-foundations.png'});
+ await page.locator('[data-tab="resident"]').click();await expect(page.locator('.prayer-status')).toContainText('曦光属性 2');await expect(page.locator('.prayer-status')).not.toContainText('123456789');
+ g.player.age=24;g.player.education.credits=60;for(const key in g.player.education.foundation)g.player.education.foundation[key]=18;g.player.education.major='music';g.skills.music=3.123456789;fixtures.set(page,g);await page.reload();await expect(page.locator('#loading')).toBeHidden();await page.locator('[data-tab="career"]').click();await page.locator('.continuing-education summary').click();
+ await expect(page.locator('.education-major')).toContainText('星律艺术');await expect(page.locator('.education-major')).toContainText('音乐 · 学习效率 ×2');await expect(page.locator('.education-major select')).toHaveCount(0);await page.locator('#study-focus').selectOption('science');await expect(page.locator('.continuing-education')).toHaveAttribute('open','');await expect(page.locator('.education-major')).toContainText('星律艺术');
+ await page.locator('#study').click();await expect(page.locator('#toast')).toContainText('已安排学习');await page.setViewportSize({width:390,height:844});await page.locator('.education-major').scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/education-university-mobile.png'});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.locator('[data-tab="skills"]').click();await expect(page.locator('[data-skill="music"]')).toContainText('经验 0.12 / 6');await expect(page.locator('#panel-content')).not.toContainText('123456789');expect(errors).toEqual([]);
+});
+
+test('resident dossier uses consistent typography and controls across desktop and mobile panels',async({page})=>{
+ const state=createGame();state.speed=0;fixtures.set(page,state);const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden();
+ for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
+  await page.setViewportSize(viewport);
+  for(const tab of ['needs','skills','resident','career','life','relations','exploration','items']){
+   await page.locator(`[data-tab="${tab}"]`).click();
+   const metrics=await page.locator('#panel-content').evaluate(el=>{const controls=[...el.querySelectorAll('select,input,button.primary')].filter(c=>c.getClientRects().length);return {overflow:el.scrollWidth>el.clientWidth,font:getComputedStyle(el).fontSize,controls:controls.map(c=>({height:c.getBoundingClientRect().height,font:getComputedStyle(c).fontFamily}))};});
+   expect(metrics.overflow,tab).toBe(false);expect(metrics.font).toBe('13px');for(const c of metrics.controls){expect(c.height).toBeGreaterThanOrEqual(36);expect(c.font).toContain('PingFang SC');}
+   await page.screenshot({path:`artifacts/dossier-${tab}-${viewport.width}.png`});
+  }
+ }
+ expect(errors).toEqual([]);
+});
+
+test('minor learning panel selects subjects, displays skill levels and switches back to adult careers',async({page})=>{
+ const {switchControl}=await import('../src/simulation.js');const state=createGame();switchControl(state,'pip');state.speed=0;fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await expect(page.locator('[data-tab="career"]')).toContainText('学习');await page.locator('[data-tab="career"]').click();await expect(page.locator('.learning-panel')).toContainText('幼儿园');await expect(page.locator('[data-career]')).toHaveCount(0);
+ await page.locator('#study-focus').selectOption('music');await page.locator('#study').click();await expect(page.locator('#toast')).toContainText('已安排学习');await page.screenshot({path:'artifacts/education-desktop.png'});
+ await page.setViewportSize({width:390,height:844});await expect(page.locator('#study-focus')).toBeVisible();await page.screenshot({path:'artifacts/education-mobile.png'});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.keyboard.press('3');await expect(page.locator('.learning-heading')).toContainText('1 学分 / 6 学分',{timeout:25000});await page.keyboard.press('Space');await page.locator('.learning-panel .skill-card').last().scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/education-mobile-skills.png'});
+ state.player.age=18;state.player.education.credits=144;for(const key in state.player.education.foundation)state.player.education.foundation[key]=18;fixtures.set(page,state);await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="career"]').click();await expect(page.locator('[data-tab="career"]')).toContainText('职业');await expect(page.locator('.career-current')).toContainText('博士 ×1.6');expect(errors).toEqual([]);
+});
+
+test('hovering cargo shelves and UFOs shows local stock and loaded capacity without opening a dialog',async({page})=>{
+ const {ufoDock}=await import('../src/ufo-visuals.js');const state=createGame();state.speed=0;
+ state.objects=[{id:'cargo-shelf',type:'materialCabinet',x:0,z:3,island:'home',side:'front',rotation:0},{id:'cargo-platform',type:'loadingPlatform',x:5,z:3,island:'home',side:'front',rotation:0}];
+ state.space.materials.home=42;state.space.ships=[{id:'hover-ship',tier:2,island:'home',side:'front',food:3,durability:80,reservedBy:null},{id:'back-ship',tier:1,island:'home',side:'back',food:0,durability:100,reservedBy:null}];state.space.cargo={'hover-ship':12,'back-ship':7};fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const hover=async(x,y,z)=>{const bounds=await page.locator('#world canvas').boundingBox(),p=new Vector3(x,y,z).project(sceneCamera(bounds));await page.mouse.move(bounds.x+(p.x+1)*bounds.width/2,bounds.y+(1-p.y)*bounds.height/2);};
+ const tooltip=page.locator('#tooltip');await hover(0,1,3);await expect(tooltip).toContainText('本岛建材库存 42 份');await expect(tooltip).toContainText('同岛面飞船装填 12 / 60 份');await expect(page.locator('dialog[open]')).toHaveCount(0);await page.screenshot({path:'artifacts/cargo-shelf-hover.png'});
+ await hover(5,.7,3);await expect(tooltip).toContainText('星港装卸平台');await expect(tooltip).toContainText('同岛面飞船装填 12 / 60 份');
+ const dock=ufoDock(state,state.space.ships[0]);await hover(dock.x,dock.y,dock.z);await expect(tooltip).toContainText('建材装填 12 / 60 份');await expect(tooltip).toContainText('本岛建材库存 42 份');await expect(tooltip).toContainText('补给 3/10');await page.screenshot({path:'artifacts/ufo-cargo-hover.png'});
+ const box=await tooltip.boundingBox();expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(1440);expect(box.y).toBeGreaterThanOrEqual(0);await page.mouse.move(20,20);await expect(tooltip).toBeHidden();
+ state.space.ships=[];state.space.cargo={};state.space.materials={};fixtures.set(page,state);await page.setViewportSize({width:390,height:844});await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await hover(0,1,3);
+ await expect(tooltip).toContainText('本岛建材库存 0 份');await expect(tooltip).toContainText('同岛面飞船装填 0 / 0 份');await expect(tooltip).toContainText('本岛面暂无飞船');const mobileBox=await tooltip.boundingBox();expect(mobileBox.x).toBeGreaterThanOrEqual(0);expect(mobileBox.x+mobileBox.width).toBeLessThanOrEqual(390);expect(mobileBox.y+mobileBox.height).toBeLessThanOrEqual(844);await page.screenshot({path:'artifacts/cargo-hover-mobile.png'});expect(errors).toEqual([]);
+});
+
+test('cargo hover inventory refreshes while the pointer stays still',async({page})=>{
+ const {enqueue}=await import('../src/simulation.js');const state=createGame(),plant=state.objects.find(o=>o.type==='garden');
+ state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;
+ state.objects=[plant,{id:'live-shelf',type:'materialCabinet',x:0,z:3,island:'home',side:'front',rotation:0}];state.career.id='botanist';plant.plant.growth=1;state.player.x=plant.x;state.player.z=plant.z+1;
+ expect(enqueue(state,'extractMaterials',plant.id).ok).toBe(true);fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const bounds=await page.locator('#world canvas').boundingBox(),p=new Vector3(0,1,3).project(sceneCamera(bounds));await page.mouse.move(bounds.x+(p.x+1)*bounds.width/2,bounds.y+(1-p.y)*bounds.height/2);
+ const tooltip=page.locator('#tooltip');await expect(tooltip).toContainText('本岛建材库存 0 份');await page.keyboard.press('3');
+ await expect(tooltip).toContainText('本岛建材库存 9 份',{timeout:20000});
+});
+
 test('Atoll preview follows the server save without starting or saving a game',async({page})=>{
  const state=createGame();state.day=159;state.civilization.discoveryPath=['home','spore'];state.civilization.visits.spore=1;state.viewIsland=state.player.island='spore';fixtures.set(page,state);
  const writes=[],errors=[];page.on('request',r=>{if(r.url().endsWith('/api/save')&&r.method()!=='GET')writes.push(r.method());});page.on('pageerror',e=>errors.push(e.message));

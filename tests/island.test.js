@@ -52,7 +52,7 @@ test('cooking trains the chef career and chef shifts require a kitchen',()=>{
  Object.assign(g.skills,CAREERS.chef.levels[1].skills);assert.equal(setCareer(g,'chef'),true);
  assert.equal(enqueue(g,'work','lab').ok,false);
  const before=g.money;for(let i=0;i<3;i++){assert.equal(enqueue(g,'work',result.object.id).ok,true);run(g);}
- assert.equal(g.career.level,2);assert.equal(g.money,before+CAREERS.chef.levels[0].wage*3);
+ assert.equal(g.career.level,2);assert.equal(g.money,before+Math.round(CAREERS.chef.levels[0].wage*.65)*3);
 });
 
 test('both faces and cooking survive save roundtrip; version 8 upgrades explicitly',()=>{
@@ -101,7 +101,7 @@ test('residents approaching opposite ends can cross without deadlocking each oth
  const g=game();g.objects.push({id:'dark-food',type:'food',side:'back',x:3,z:0,rotation:0});
  const n=g.npcs.nova;n.side='back';n.x=-10;n.z=1.7;n.needs.hunger=5;n.ai.enabled=true;
  g.player.x=-10;g.player.z=1.7;assert.equal(enqueue(g,'eat','dark-food').ok,true);
- run(g,55);assert.equal(g.player.side,'back');assert.equal(n.side,'front');assert.ok(n.needs.hunger>45);assert.equal(g.queue.length,0);
+ for(let i=0;i<550;i++)tick(g,.1,()=>0);assert.equal(g.player.side,'back');assert.equal(n.side,'front');assert.ok(n.needs.hunger>45);assert.equal(g.queue.length,0);
 });
 
 test('area lamps can be purchased on either face, used, saved and sold',()=>{
