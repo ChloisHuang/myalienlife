@@ -1,5 +1,5 @@
 import {canBlinkTo,BLINK_SECONDS,undiscoveredBackTarget} from './nether-blink.js';
-import {depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
+import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
 import {groupId,advanceCooperation,AUTONOMOUS_COOPERATION_WEIGHT,autonomousCooperationReady,restFromCooperation} from './cooperation.js';
 import {discovered,populationCapacity,islandCatalog,islandDefinition,createCivilization,validCivilization,civilizationError,contributeCivilization} from './civilization.js';
@@ -644,6 +644,10 @@ function advanceAction(g,person,dt){
  if(q.type==='voyage'&&q.phase!=='acting'){const issue=civilizationError(g,q.type,g.objects.find(o=>o.id===q.targetId),person.position,person.skills,q.destinationId,1+(q.passengerUids?.length??0),q.id,q.shipId);if(issue){cancelFlight(g,q);g.log.unshift({text:issue,at:g.minute});return;}}
  const reserved=allActors(g).some(a=>a.id!==person.id&&a.queue[0]?.targetId===q.targetId&&groupId(a.queue[0])!==groupId(q)&&a.queue[0].phase==='acting');
  if(q.type!=='walk'&&q.type!=='travel'&&!seatedAction(q)&&reserved){q.phase='waiting';return;}
+ if(q.type==='voyage'&&q.phase!=='acting'){
+  const amount=loadConstructionCargo(g,q);
+  if(amount)g.log.unshift({text:`${person.position.name}出航前自动装载 ${amount} 份植生复材，运往${islandDefinition(g,q.destinationId).name}用于建设。`,at:g.minute});
+ }
  if(WONDER_ACTIONS[q.type]?.paired){
   const peer=q.hostId?pairedHost(g,q):pairedGuest(g,q),other=peer?.queue[0],matching=q.hostId?other?.id===q.hostActionId:other?.hostActionId===q.id;
   if(!matching||!['waiting','acting'].includes(other.phase)||other.path?.length!==0||pairedCooldown(g,q.type,g.objects.find(o=>o.id===q.targetId))>0){q.phase='waiting';return;}
@@ -855,6 +859,7 @@ export function restore(raw){
  if(g.controlledId!=='player'&&g.npcs?.[g.controlledId]){g.player=g.npcs[g.controlledId];g.player.needs=g.needs;g.player.skills=g.skills;g.player.career=g.career;g.player.queue=g.queue;g.player.ai=g.autonomy;g.player.relationships=g.relationships;g.player.inventory??=g.harvest;g.player.money??=0;}
  for(const o of g.objects||[])if(o.type==='gate'&&o.fixed&&o.id.startsWith('island-gate-'))Object.assign(o,DEFAULT_GATE_POSITION);
  migrateResidentNames(g);
+ for(const p of [g.player,...Object.values(g.npcs||{})])delete p.islandVisit;
  g.config=normalizeConfig(g.config);
  for(const o of g.objects||[])if(CROPS[o.type]&&o.plant?.giant===undefined)o.plant.giant=false;
  if(g.civilization.destroyedIslands===undefined)g.civilization.destroyedIslands=[];

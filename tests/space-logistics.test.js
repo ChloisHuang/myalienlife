@@ -28,6 +28,7 @@ test('flight waiting for long prior work expires without cancelling that work',(
 });
 test('home back is open by default; remote discovery requires Nether and gates must be purchased',()=>{
  const g=setup();equip(g);const home=structuredClone(g.objects.filter(o=>o.fixed));assert.equal(backDiscovered(g,'home'),true);enqueue(g,'voyage','portal',undefined,null,'spore');run(g);
+ g.civilization.projects.spore.blueprint=300;g.civilization.projects.spore.construction=600;
  assert.equal(backDiscovered(g,'spore'),false);g.viewSide='back';assert.equal(buyItem(g,'gate',5,5).ok,false);g.viewSide='front';assert.equal(enqueue(g,'senseNether','spore-portal').ok,false);g.player.prayer.nether=10;g.autonomy.enabled=true;g.autonomy.cooldown=0;g.autonomy.lastWorkDay=g.day;g.player.preferences.explore=10;for(let i=0;i<30;i++)tick(g,.1,()=>0);g.autonomy.enabled=false;g.queue=[];assert.equal(backDiscovered(g,'spore'),true);
  assert.equal(g.objects.filter(o=>o.island==='spore'&&o.type==='gate').length,0);g.viewSide='front';const front=buyItem(g,'gate',-7,3).object;g.viewSide='back';const back=buyItem(g,'gate',-7,3).object;assert.ok(front&&back);g.viewSide='front';assert.equal(enqueue(g,'travel',front.id,undefined,null,back.id).ok,true);run(g);assert.equal(g.player.side,'back');assert.deepEqual(g.objects.filter(o=>o.fixed&&(!o.island||o.island==='home')),home);
 });
@@ -47,6 +48,7 @@ test('autonomous voyage chooses its action first and only then draws occasional 
 test('autonomous settlements attract residents and keep them local until a need is critical',()=>{
  const g=setup(),person={id:'nova',position:g.npcs.nova,skills:g.npcs.nova.skills,needs:g.npcs.nova.needs,queue:[],ai:g.npcs.nova.ai};g.objects=[{id:'home-portal',type:'portal',island:'home',side:'front',x:0,z:0,rotation:0},{id:'city-portal',type:'portal',island:'city',side:'front',x:0,z:0,rotation:0},{id:'city-food',type:'food',island:'city',side:'front',x:2,z:0,rotation:0},{id:'city-pod',type:'pod',island:'city',side:'front',x:4,z:0,rotation:0},{id:'city-shower',type:'shower',island:'city',side:'front',x:6,z:0,rotation:0}];g.civilization.visits.city=1;
  for(const key in person.needs)person.needs[key]=80;const empty=autonomyBonus(g,person,{type:'voyage',targetId:'home-portal',destinationId:'city'},[person]);assert.ok(empty>10);
+ g.civilization.projects.city.blueprint=300;g.civilization.projects.city.construction=600;
  person.position.island='city';for(const key in person.needs)person.needs[key]=40;const healthyReturn=autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person]);assert.equal(healthyReturn,null);
  for(const key in person.needs)person.needs[key]=80;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'spore'},[person]),null);
  for(const key in person.needs)person.needs[key]=20;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person]),null);

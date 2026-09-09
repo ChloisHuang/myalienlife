@@ -1,5 +1,6 @@
 import {autonomousCooperationReady} from './cooperation.js';
 import {islandOf,sameSide} from './island.js';
+import {projectComplete} from './settlements.js';
 
 const interests={starVoyage:'explore',buildUfo1:'research',buildUfo2:'research',buildUfo3:'research',prepareRations:'cook',spaceResearch:'research',voyage:'explore',lightGrow:'garden',lightParty:'chat',lightDaily:'relax',releaseBugs:'garden',catchBugs:'garden',traceRelic:'research',decodeRelic:'research',decodeTogether:'research',restoreMemory:'research',memoryExpedition:'observe',tuneInsight:'research',tuneSleep:'relax',activateCrystal:'research',passOrb:'chat',chaseOrb:'dance',sootheOrb:'chat',lounge:'chat',joke:'chat',gift:'chat',flirt:'chat',travel:'explore'};
 const specialties={starVoyage:'science',buildUfo1:'science',buildUfo2:'science',buildUfo3:'science',prepareRations:'cooking',spaceResearch:'science',voyage:'science',lightGrow:'botany',catchBugs:'botany',releaseBugs:'botany',traceRelic:'science',decodeRelic:'science',decodeTogether:'science',restoreMemory:'science',memoryExpedition:'science',tuneInsight:'science',tuneSleep:'science',activateCrystal:'science',passOrb:'social',lounge:'social',sootheOrb:'social',gift:'social',flirt:'social',travel:'science'};
@@ -30,9 +31,11 @@ export function autonomyBonus(g,p,c,people){
  if(type==='settleIsland')bonus+=12;
  if(type==='voyage'||type==='starVoyage'){
   const lowestNeed=Math.min(...Object.values(p.needs)),home=p.position.homeIsland??'home',remote=islandOf(p.position)!==home;
-  if(p.queue.some(q=>['voyage','boardUfo'].includes(q.type))||['voyage','starVoyage'].includes(p.ai.lastAction))return null;
+  const unfinishedReturn=remote&&c.destinationId===home&&!projectComplete(g,islandOf(p.position));
+  if(p.queue.some(q=>['voyage','boardUfo'].includes(q.type))||!unfinishedReturn&&['voyage','starVoyage'].includes(p.ai.lastAction))return null;
   if(c.destinationId===home){
-   if(remote&&hasSettlementEssentials(g,p.position)){if(lowestNeed>=12)return null;bonus+=36;}
+   if(unfinishedReturn)bonus+=lowestNeed<40?70:50;
+   else if(remote&&hasSettlementEssentials(g,p.position)){if(lowestNeed>=12)return null;bonus+=36;}
    else bonus+=lowestNeed<25?36:12;
   }else{
    if(remote)return null;

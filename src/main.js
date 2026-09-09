@@ -16,6 +16,9 @@ import {CROPS,plantStatus,plantActionError} from './plants.js';
 import {getWeather} from './weather.js';
 import {NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind} from 'lucide';
 import './style.css';
+import './floating-island.css';
+import {createFloatingIsland} from './floating-island.js';
+import {PictureInPicture2,ArrowLeft} from 'lucide';
 import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins} from 'lucide';
 import {createWorld} from './world.js';
 import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,takeOver,switchControl,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,enqueue,cancelAction,buyItem,sellItem,setCareer,setAutonomy,sellHarvest,updateResident,canAffordAction} from './simulation.js';
@@ -24,6 +27,7 @@ import {GENDERS,SKILLS,STAGES,lifeStage,skillProgress} from './characters.js';
 const $=s=>document.querySelector(s);
 const icons={NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins};
 const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('class',`icon ${cls}`);el.setAttribute('aria-hidden','true');return el.outerHTML;};
+Object.assign(icons,{PictureInPicture2,ArrowLeft});
 const persistence=createPersistence();let game;
 $('#app').innerHTML='<div id="loading"><h2>正在读取星湾存档</h2><p>从服务器恢复你的生活进度…</p></div>';
 try{game=await persistence.load();}catch(error){
@@ -83,6 +87,7 @@ async function save(manual=false,leaving=false){
  }
 }
 $('#save-status').textContent='已恢复服务器存档 · 每分钟自动保存';
+const floatingButton=document.createElement('button');floatingButton.id='float-island';floatingButton.title='开启浮窗';floatingButton.setAttribute('aria-label','开启浮窗');floatingButton.innerHTML=icon('PictureInPicture2');floatingButton.disabled=true;$('.view-tools').append(floatingButton);
 $('#save-status').dataset.state='ready';
 setInterval(()=>save(),60000);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save(false,true);});
@@ -335,7 +340,7 @@ $('#app').addEventListener('submit',e=>{
  const result=updateResident(game,selectedResident,{gender:$('#resident-gender').value,age:Number($('#resident-age').value),devotion:Number($('#resident-devotion').value),headShape});
  if(!result.ok){toast(result.message);return;}refreshPortraits();lastPanel='';refresh();toast('人物设定已更新。');
 });
-document.addEventListener('keydown',e=>{if(document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();game.speed=game.speed?0:1;refresh();}if(e.key==='1'||e.key==='3'){game.speed=Number(e.key);refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();}});
+document.addEventListener('keydown',e=>{if(document.body.classList.contains('island-floating')||document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();game.speed=game.speed?0:1;refresh();}if(e.key==='1'||e.key==='3'){game.speed=Number(e.key);refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();if(!e.target.closest('#character-switcher')&&!e.target.closest('#active-character'))closeCharacterSwitcher();});
 setupDashboardResize();
 let audioContext=null,audioOn=false;
@@ -349,6 +354,13 @@ try{
  });
  refreshPortraits();
  $('#loading').hidden=true;refresh();
- let previous=performance.now(),uiElapsed=0;function frame(now){requestAnimationFrame(frame);const dt=Math.min((now-previous)/1000,.1);previous=now;tick(game,dt);world.render(now/1000);uiElapsed+=dt;if(uiElapsed>.2){refresh();uiElapsed=0;}}requestAnimationFrame(frame);
+ let previous=performance.now(),uiElapsed=0,frameWindow=window,frameId;
+ function frame(){frameId=frameWindow.requestAnimationFrame(frame);const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;tick(game,dt);world.render(now/1000);uiElapsed+=dt;if(uiElapsed>.2){refresh();uiElapsed=0;}}
+ const floating=createFloatingIsland($('#world'),{returnIcon:icon('ArrowLeft'),
+  onEnter(){if(build)toggleBuild();cancelPlacement();closeContext();closeCharacterSwitcher();$('#tooltip').hidden=true;world.setSceneOnly(true);},
+  onLeave(){world.setSceneOnly(false);floatingButton.focus();},
+  onWindowChange(next){frameWindow.cancelAnimationFrame(frameId);frameWindow=next;previous=performance.now();frameId=frameWindow.requestAnimationFrame(frame);}
+ });
+ floatingButton.disabled=false;floatingButton.onclick=()=>floating.open().catch(error=>toast(error.message));frameId=frameWindow.requestAnimationFrame(frame);
  document.addEventListener('visibilitychange',()=>{previous=performance.now();});
 }catch(error){console.error(error);$('#loading').innerHTML=`${icon('TriangleAlert')}<h2>星湾暂时无法加载</h2><p>请使用支持 WebGL 的现代浏览器，并确认 3D 资产加载正常。</p><button class="primary" onclick="location.reload()">重新降落</button>`;}

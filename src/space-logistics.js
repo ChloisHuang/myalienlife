@@ -1,4 +1,5 @@
 import {islandOf,sideOf,sameSide} from './island.js';
+import {remainingConstructionMaterials} from './settlements.js';
 export const UFOS=[
  {tier:1,name:'萤舟 UFO',technology:1,range:1,seats:2,cargoCapacity:20,price:600},
  {tier:2,name:'星梭 UFO',technology:2,range:2,seats:5,cargoCapacity:60,price:1400},
@@ -51,8 +52,25 @@ export function loadShipMaterials(g,id,amount){
  if(ship.reservedBy!==null)return {ok:false,message:'飞船已预留航行，不能改变货物。'};
  const stock=g.space.materials[ship.island]??0,loaded=g.space.cargo[id]??0;
  if(!Number.isSafeInteger(amount)||amount<=0||amount>stock||amount+loaded>ufoDefinition(ship).cargoCapacity)return {ok:false,message:'请填写库存和剩余载货量以内的正整数。'};
- g.space.materials[ship.island]=stock-amount;g.space.cargo[id]=loaded+amount;
+ transferMaterialsToShip(g,ship,amount);
  return {ok:true,message:`已装载 ${amount} 份植生复材，抵达后自动卸入目标星岛仓库。`};
+}
+function transferMaterialsToShip(g,ship,amount){
+ g.space.materials[ship.island]-=amount;g.space.cargo[ship.id]=(g.space.cargo[ship.id]??0)+amount;
+}
+export function loadConstructionCargo(g,flight){
+ const ship=g.space.ships.find(s=>s.id===flight.shipId&&s.reservedBy===flight.id);
+ if(flight.type!=='voyage'||flight.source!=='ai'||!ship)return 0;
+ const target=flight.destinationId,loaded=g.space.cargo[ship.id]??0;
+ // Reserved inbound cargo already covers part of the same island's construction.
+ const incoming=new Set([g.queue,...Object.values(g.npcs).map(n=>n.queue)].flat().filter(q=>q.type==='voyage'&&q.destinationId===target&&g.space.ships.some(s=>s.id===q.shipId&&s.reservedBy===q.id)).map(q=>q.shipId));
+ incoming.delete(ship.id);
+ const inbound=[...incoming].reduce((sum,id)=>sum+(g.space.cargo[id]??0),0);
+ const deficit=remainingConstructionMaterials(g,target)-(g.space.materials[target]??0)-inbound-loaded;
+ const available=(g.space.materials[ship.island]??0)-remainingConstructionMaterials(g,ship.island);
+ const amount=Math.max(0,Math.min(deficit,available,ufoDefinition(ship).cargoCapacity-loaded));
+ if(amount)transferMaterialsToShip(g,ship,amount);
+ return amount;
 }
 export function depositShipCargo(g,ship){
  const amount=g.space.cargo[ship.id]??0;

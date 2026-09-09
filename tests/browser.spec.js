@@ -9,6 +9,37 @@ import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
 
+test('Atoll preview follows the server save without starting or saving a game',async({page})=>{
+ const state=createGame();state.day=159;state.civilization.discoveryPath=['home','spore'];state.civilization.visits.spore=1;state.viewIsland=state.player.island='spore';fixtures.set(page,state);
+ const writes=[],errors=[];page.on('request',r=>{if(r.url().endsWith('/api/save')&&r.method()!=='GET')writes.push(r.method());});page.on('pageerror',e=>errors.push(e.message));
+ await page.setViewportSize({width:600,height:420});await page.goto('http://127.0.0.1:5173/tools/atoll-verification.html');
+ await expect(page.locator('#status')).toBeHidden({timeout:45000});await expect(page.locator('#world')).toHaveAttribute('data-day','159');await expect(page.locator('#world')).toHaveAttribute('data-island','spore');
+ const colors=await page.evaluate(()=>{const c=document.querySelector('canvas'),gl=c.getContext('webgl2'),p=new Uint8Array(c.width*c.height*4);gl.readPixels(0,0,c.width,c.height,gl.RGBA,gl.UNSIGNED_BYTE,p);const colors=new Set();for(let i=0;i<p.length;i+=64)colors.add(`${p[i]},${p[i+1]},${p[i+2]}`);return colors.size;});expect(colors).toBeGreaterThan(50);
+ await page.screenshot({path:'artifacts/atoll-save-preview.png'});
+ state.day=160;state.viewIsland='home';fixtures.set(page,state);await expect(page.locator('#world')).toHaveAttribute('data-day','160');await expect(page.locator('#world')).toHaveAttribute('data-island','home');
+ expect(writes).toEqual([]);expect(errors).toEqual([]);
+});
+
+test('floating island moves the live canvas and restores it on return and window close',async({page,context})=>{
+ const state=createGame();state.speed=1;fixtures.set(page,state);const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.evaluate(()=>window.originalIslandCanvas=document.querySelector('#world canvas'));
+ const enter=async()=>{const opened=context.waitForEvent('page');await page.getByRole('button',{name:'开启浮窗',exact:true}).click();const popup=await opened;popup.on('pageerror',e=>errors.push(e.message));await popup.setViewportSize({width:640,height:480});await expect(popup.locator('#world canvas')).toBeVisible();return popup;};
+ const popup=await enter();await expect(popup.locator('button')).toHaveCount(1);const back=popup.getByRole('button',{name:'回归',exact:true});await expect(back).toBeVisible();await expect(back).toHaveText('');await expect(back).toHaveCSS('background-color','rgb(224, 224, 224)');await expect(back).toHaveCSS('width','36px');await expect(back.locator('svg path').first()).toHaveAttribute('d','m12 19-7-7 7-7');await expect(page.locator('#world')).toHaveCount(0);
+ expect(await page.evaluate(()=>documentPictureInPicture.window.document.querySelector('canvas')===window.originalIslandCanvas)).toBe(true);
+ const pixels=()=>popup.evaluate(()=>{const c=document.querySelector('canvas'),gl=c.getContext('webgl2'),p=new Uint8Array(c.width*c.height*4);gl.readPixels(0,0,c.width,c.height,gl.RGBA,gl.UNSIGNED_BYTE,p);const colors=new Set();for(let i=0;i<p.length;i+=64)colors.add(`${p[i]},${p[i+1]},${p[i+2]}`);return {colors:colors.size,sample:Array.from(p.filter((_,i)=>i%509===0)).join(',')};});
+ await expect.poll(async()=>(await pixels()).colors).toBeGreaterThan(50);const first=(await pixels()).sample;await expect.poll(async()=>(await pixels()).sample).not.toBe(first);
+ await popup.screenshot({path:'artifacts/floating-island.png'});await popup.setViewportSize({width:320,height:480});await expect.poll(async()=>(await pixels()).colors).toBeGreaterThan(50);await popup.screenshot({path:'artifacts/floating-island-narrow.png'});await popup.getByRole('button',{name:'回归',exact:true}).click();await expect(page.locator('#world canvas')).toBeVisible();expect(await page.evaluate(()=>document.querySelector('#world canvas')===window.originalIslandCanvas)).toBe(true);await expect(page.locator('.dashboard')).toBeVisible();
+ const second=await enter();await second.close();await expect(page.locator('#world canvas')).toBeVisible();await page.setViewportSize({width:390,height:844});await expect(page.getByRole('button',{name:'开启浮窗',exact:true})).toBeVisible();await page.screenshot({path:'artifacts/floating-entry-mobile.png'});expect(errors).toEqual([]);
+});
+
+test('unsupported or denied floating windows keep the original scene usable',async({page})=>{
+ fixtures.set(page,createGame());await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.evaluate(()=>{documentPictureInPicture.requestWindow=()=>Promise.reject(new DOMException('浮窗开启被拒绝','NotAllowedError'));});
+ await page.getByRole('button',{name:'开启浮窗',exact:true}).click();await expect(page.locator('#toast')).toContainText('浮窗开启被拒绝');await expect(page.locator('#world canvas')).toBeVisible();
+ await page.evaluate(()=>Object.defineProperty(window,'documentPictureInPicture',{value:undefined,configurable:true}));await page.getByRole('button',{name:'开启浮窗',exact:true}).click();await expect(page.locator('#toast')).toContainText('当前浏览器不支持独立浮窗');await expect(page.locator('.dashboard')).toBeVisible();await expect(page.locator('#app')).not.toHaveAttribute('inert','');
+});
+
 test('left outer UFO fleet renders on desktop and mobile without blocking the rooms',async({page})=>{
  const state=createGame();state.speed=0;state.space.ships=[1,2,3].map(tier=>({id:`left-fleet-${tier}`,tier,island:'home',side:'front',food:4,durability:100,reservedBy:null}));fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#world')).toHaveAttribute('data-ufo-count','3');

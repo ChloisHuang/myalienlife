@@ -1,0 +1,87 @@
+diff --git a/DynamicIsland/ContentView.swift b/DynamicIsland/ContentView.swift
+index 51a5122..062a4ee 100644
+--- a/DynamicIsland/ContentView.swift
++++ b/DynamicIsland/ContentView.swift
+@@ -162,6 +162,10 @@ struct ContentView: View {
+         }
+ 
+         if coordinator.currentView == .extensionExperience {
++            if let payload = currentExtensionTabPayload(), OrbitIslandLayout.matches(payload.bundleIdentifier),
++               let screen = NSScreen.screens.first(where: { $0.localizedName == vm.screen }) ?? NSScreen.main {
++                return OrbitIslandLayout.size(available: screen.visibleFrame.size)
++            }
+             if let preferredHeight = extensionTabPreferredHeight(baseSize: baseSize) {
+                 return CGSize(width: baseSize.width, height: preferredHeight)
+             }
+diff --git a/DynamicIsland/DynamicIslandApp.swift b/DynamicIsland/DynamicIslandApp.swift
+index 25a5e95..fde692d 100644
+--- a/DynamicIsland/DynamicIslandApp.swift
++++ b/DynamicIsland/DynamicIslandApp.swift
+@@ -435,6 +435,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
+         
+         // Use minimalistic or normal size based on settings
+         var baseSize = Defaults[.enableMinimalisticUI] ? minimalisticOpenNotchSize : openNotchSize
++
++        if coordinator.currentView == .extensionExperience {
++            let manager = ExtensionNotchExperienceManager.shared
++            let payload = coordinator.selectedExtensionExperienceID.flatMap { manager.payload(experienceID: $0) } ?? manager.highestPriorityTabPayload()
++            if let payload, OrbitIslandLayout.matches(payload.bundleIdentifier),
++               let screen = NSScreen.screens.first(where: { $0.localizedName == vm.screen }) ?? NSScreen.main {
++                baseSize = OrbitIslandLayout.size(available: screen.visibleFrame.size)
++            }
++        }
+         
+         // Use a consistent height for different view types
+         if coordinator.currentView == .timer {
+diff --git a/DynamicIsland/components/Extensions/ExtensionLiveActivityViews.swift b/DynamicIsland/components/Extensions/ExtensionLiveActivityViews.swift
+index fbaf69d..8a506fe 100644
+--- a/DynamicIsland/components/Extensions/ExtensionLiveActivityViews.swift
++++ b/DynamicIsland/components/Extensions/ExtensionLiveActivityViews.swift
+@@ -194,7 +194,10 @@ struct ExtensionNotchExperienceTabView: View {
+ 
+     var body: some View {
+         Group {
+-            if let tabConfiguration {
++            if OrbitIslandLayout.matches(payload.bundleIdentifier), let webDescriptor = tabConfiguration?.webContent {
++                ExtensionWebContentView(descriptor: webDescriptor, allowInteraction: allowInteractiveWebViews)
++                    .frame(maxWidth: .infinity, maxHeight: .infinity)
++            } else if let tabConfiguration {
+                 ScrollView(.vertical, showsIndicators: false) {
+                     VStack(alignment: .leading, spacing: 18) {
+                         header(for: tabConfiguration)
+diff --git a/DynamicIsland/models/OrbitIslandLayout.swift b/DynamicIsland/models/OrbitIslandLayout.swift
+new file mode 100644
+index 0000000..22862e2
+--- /dev/null
++++ b/DynamicIsland/models/OrbitIslandLayout.swift
+@@ -0,0 +1,11 @@
++import Foundation
++
++enum OrbitIslandLayout {
++    static func matches(_ bundleIdentifier: String) -> Bool {
++        bundleIdentifier == "local.orbitlife.atoll-preview"
++    }
++
++    static func size(available: CGSize) -> CGSize {
++        CGSize(width: min(600, available.width - 24), height: min(480, available.height - 24))
++    }
++}
+diff --git a/OrbitIslandLayoutTests.swift b/OrbitIslandLayoutTests.swift
+new file mode 100644
+index 0000000..78cb737
+--- /dev/null
++++ b/OrbitIslandLayoutTests.swift
+@@ -0,0 +1,13 @@
++import Foundation
++
++@main struct OrbitIslandLayoutTests {
++    static func main() {
++        precondition(OrbitIslandLayout.matches("local.orbitlife.atoll-preview"))
++        precondition(!OrbitIslandLayout.matches("com.example.other-extension"))
++        let desktop = OrbitIslandLayout.size(available: CGSize(width: 1710, height: 1030))
++        precondition(desktop.width == 600 && desktop.height == 480)
++        let small = OrbitIslandLayout.size(available: CGSize(width: 580, height: 450))
++        precondition(small.width <= 556 && small.height <= 426)
++        print("Orbit island layout: 4 checks passed")
++    }
++}

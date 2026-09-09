@@ -26,6 +26,7 @@ const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
 function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 
 export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
+ let sceneOnly=false;
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x10152e);scene.fog=new THREE.FogExp2(0x171c39,.006);
  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
  const createCrystalMesh=createCrystalFactory(renderer);
@@ -165,10 +166,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  renderer.domElement.addEventListener('pointerdown',e=>{pointerDown={x:e.clientX,y:e.clientY};});
  renderer.domElement.addEventListener('pointerup',e=>{if(e.button!==0||!pointerDown||Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y)>6)return;const h=hit(e);if(buildType){onPlace(buildType,Math.round(h.point.x),Math.round(h.point.z),buildRotation);return;}if(h.target)onClick(h.target,e.clientX,e.clientY);else if(Math.abs(h.point.x)<=11&&Math.abs(h.point.z)<=7)onClick({kind:'ground',point:{x:h.point.x,z:h.point.z}},e.clientX,e.clientY);});
  renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
- function resize(){const w=container.clientWidth,h=container.clientHeight;renderer.setSize(w,h);composer.setSize(w,h);const v=14;camera.left=-v*w/h;camera.right=v*w/h;camera.top=v;camera.bottom=-v;camera.updateProjectionMatrix();}
+ function resize(){const w=container.clientWidth,h=container.clientHeight;if(!w||!h)return;renderer.setSize(w,h);composer.setSize(w,h);const v=14*(sceneOnly?Math.max(1,1.3*h/w):1);camera.left=-v*w/h;camera.right=v*w/h;camera.top=v;camera.bottom=-v;camera.updateProjectionMatrix();}
  new ResizeObserver(resize).observe(container);resize();syncObjects();
  let previousSimTime=null,previousFrame=performance.now();island.rotation.x=getGame().viewSide==='back'?Math.PI:0;
  return {
+   setSceneOnly(value){sceneOnly=value;controls.enabled=!value;renderer.domElement.style.pointerEvents=value?'none':'';hoverTarget=null;pointerDown=null;resize();},
    render(){const g=getGame(),weather=getWeather(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
    syncTerrain(g);container.dataset.island=g.viewIsland;
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);

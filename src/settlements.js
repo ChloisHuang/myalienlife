@@ -10,6 +10,10 @@ export const workbench=o=>Object.hasOwn(PROJECT_STATIONS,o?.type);
 export const createProject=(seed=0)=>({blueprint:0,construction:0,plan:housingLayout(seed)});
 export const projectFor=(g,id)=>g.civilization.projects[id];
 export const projectComplete=(g,id)=>id==='home'||projectFor(g,id)?.construction===PROJECT_WORK.construction;
+export function remainingConstructionMaterials(g,id){
+ const project=projectFor(g,id);
+ return project?Math.ceil(PROJECT_WORK.construction/MATERIAL_WORK_SECONDS)-Math.ceil(project.construction/MATERIAL_WORK_SECONDS):0;
+}
 export function projectError(g,type,o,p){
  if(!PROJECT_ACTIONS.includes(type))return null;
  const id=islandOf(p),project=projectFor(g,id);

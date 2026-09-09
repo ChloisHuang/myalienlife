@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>星岛</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#10152e;font:12px sans-serif}
+#world{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}
+#world>:not(canvas){display:none}
+#status{position:fixed;bottom:8px;left:8px;right:8px;width:fit-content;max-width:calc(100% - 32px);padding:6px 8px;border-radius:4px;background:#262626dd;color:#eee;overflow-wrap:anywhere;pointer-events:none}
+</style>
+<div id="world"></div><output id="status">正在读取存档</output>
+<script type="module">
+import {readPreviewSave} from '../src/atoll-preview.js';
+import {createWorld} from '../src/world.js';
+const status=document.querySelector('#status'),container=document.querySelector('#world');
+let game,revision,world;
+function report(error){status.hidden=false;status.textContent=String(error.message||error);}
+window.addEventListener('error',e=>report(e.error||e.message));
+window.addEventListener('unhandledrejection',e=>report(e.reason));
+async function refresh(){
+ try{
+  const saved=await readPreviewSave();
+  if(saved.revision!==revision){game=saved.game;revision=saved.revision;container.dataset.day=String(game.day);container.dataset.revision=String(revision);}
+  if(!world){world=await createWorld(container,()=>game,{onClick(){},onHover(){},onPlace(){}});world.setSceneOnly(true);requestAnimationFrame(frame);}
+  status.hidden=true;
+ }catch(error){report(error);}
+ setTimeout(refresh,2000);
+}
+function frame(){world.render();requestAnimationFrame(frame);}
+refresh();
+</script>
+</html>
