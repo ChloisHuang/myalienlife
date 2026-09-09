@@ -36,21 +36,23 @@ export function createPrayerVisuals(rig){
  skin.customProgramCacheKey=()=>originalKey+'-prayer-skin-v2';
  const crystalMaterial=new THREE.MeshStandardMaterial({color:0x9783ce,emissive:0xbca2ff,emissiveIntensity:6,roughness:.3,metalness:.15});
  const crown=new THREE.Group();rig.joints.Head.add(crown);
- const dawnMaterial=new THREE.MeshStandardMaterial({color:0xffe9ae,emissive:0xffd98a,emissiveIntensity:2.4,roughness:.22,metalness:.1});
- const dawnHalo=new THREE.Group();dawnHalo.position.set(0,.14,-.24);rig.joints.Head.add(dawnHalo);
- dawnHalo.add(new THREE.Mesh(new THREE.TorusGeometry(.48,.012,6,64),dawnMaterial));
- for(let i=0;i<6;i++){
-  const angle=i*Math.PI/3,ray=new THREE.Mesh(new THREE.OctahedronGeometry(.035),dawnMaterial);
-  ray.scale.set(.65,2.2,.45);ray.position.set(Math.cos(angle)*.58,Math.sin(angle)*.58,0);ray.rotation.z=angle-Math.PI/2;dawnHalo.add(ray);
- }
+ const dawnMaterial=new THREE.MeshStandardMaterial({color:0xfff3ce,emissive:0xffe5a3,emissiveIntensity:4.2,roughness:.4,metalness:0});
+ const dawnHalo=new THREE.Group();dawnHalo.position.set(0,.82,0);rig.joints.Head.add(dawnHalo);
+ const haloRing=new THREE.Mesh(new THREE.TorusGeometry(.33,.018,8,64),dawnMaterial);haloRing.name='dawn-halo-ring';haloRing.rotation.x=Math.PI/2;dawnHalo.add(haloRing);
+ const pixels=new Uint8Array(64*64*4);
+ for(let y=0;y<64;y++)for(let x=0;x<64;x++){const r=Math.hypot((x-31.5)/31.5,(y-31.5)/31.5);pixels.set([255,255,255,Math.round(255*Math.exp(-(((r-.6)/.17)**2)))],(y*64+x)*4);}
+ const haloTexture=new THREE.DataTexture(pixels,64,64);haloTexture.needsUpdate=true;
+ const haloGlowMaterial=new THREE.MeshBasicMaterial({map:haloTexture,color:0xffe5a3,transparent:true,opacity:.3,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,toneMapped:false});
+ const haloGlow=new THREE.Mesh(new THREE.PlaneGeometry(1.1,1.1),haloGlowMaterial);haloGlow.rotation.x=-Math.PI/2;dawnHalo.add(haloGlow);
  for(const sign of [-1,1]){const horn=new THREE.Mesh(new THREE.ConeGeometry(.085,.4,6),crystalMaterial);horn.position.set(sign*.24,.45,-.01);horn.rotation.z=-sign*.3;crown.add(horn);}
  const spines=new THREE.Group();rig.joints.Core.add(spines);
- for(let i=0;i<4;i++){const shard=new THREE.Mesh(new THREE.OctahedronGeometry(.075),crystalMaterial);shard.scale.set(.8,1.1,2.6);shard.position.set(0,.21-i*.14,-.19);spines.add(shard);}
+ const spineMaterial=new THREE.MeshStandardMaterial({color:0xbda5dc,emissive:0xbca2ff,emissiveIntensity:2,roughness:.55,metalness:0});
+ for(let i=0;i<3;i++){const bump=new THREE.Mesh(new THREE.SphereGeometry(.06,16,12),spineMaterial);bump.scale.set(1,1,.6);bump.position.set(0,.19-i*.19,-.205);spines.add(bump);}
  const eyes=['Left','Right'].map(side=>rig.body.getObjectByName(side+'Eye'));
  const originalEyes=eyes.map(eye=>({color:eye.material.color.clone(),emissive:eye.material.emissive.clone(),intensity:eye.material.emissiveIntensity}));
  crown.visible=spines.visible=dawnHalo.visible=false;
  return {skinUniforms,crown,spines,dawnHalo,
-  update(person){
+  update(person,time=0){
    const mutations=person.prayer?.mutations??[];
    const nether=isNether(person);
    for(const [material,original]of skinMaterials){
@@ -61,12 +63,14 @@ export function createPrayerVisuals(rig){
    skinUniforms.nether.value=isNether(person)?1:0;skinUniforms.freckles.value=mutations.includes('freckles')?1:0;
    crown.visible=mutations.includes('crown');spines.visible=mutations.includes('spines');
    dawnHalo.visible=isRadiant(person);
+   dawnHalo.position.y=.82+Math.sin(time*1.5)*.025;
+   dawnMaterial.emissiveIntensity=4.2+Math.sin(time*1.5)*.4;haloGlowMaterial.opacity=.3+Math.sin(time*1.5)*.04;
    for(const [i,eye]of eyes.entries()){
     const changed=mutations.includes('eyes');eye.material.color.copy(originalEyes[i].color);eye.material.emissive.copy(originalEyes[i].emissive);eye.material.emissiveIntensity=originalEyes[i].intensity;
     if(changed){eye.material.color.set(i?0xb66cff:0x5ef0df);eye.material.emissive.set(i?0xd8a6ff:0x7efff0);eye.material.emissiveIntensity=4.5;}
    }
 
   },
-  dispose(){for(const geometry of new Set([...crown.children,...spines.children,...dawnHalo.children].map(o=>o.geometry)))geometry.dispose();crystalMaterial.dispose();dawnMaterial.dispose();}
+  dispose(){for(const geometry of new Set([...crown.children,...spines.children,...dawnHalo.children].map(o=>o.geometry)))geometry.dispose();crystalMaterial.dispose();spineMaterial.dispose();dawnMaterial.dispose();haloGlowMaterial.dispose();haloTexture.dispose();}
  };
 }

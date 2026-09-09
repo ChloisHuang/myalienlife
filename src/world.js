@@ -1,4 +1,5 @@
 import {BLINK_SECONDS} from './nether-blink.js';
+import {isRadiant} from './prayer.js';
 import {createBlinkVisual} from './nether-blink-visuals.js';
 import {shipFoodStatus} from './space-logistics.js';
 import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
@@ -152,7 +153,6 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   }
  }
  syncActors();
- const marker=mesh(faces.front,new THREE.OctahedronGeometry(.25),0xb9ffca,[0,2.65,2],null,.7);
  const selected=ring(faces.front,0xc1ffd0,[0,.3,2],.52,.035);selected.rotation.x=-Math.PI/2;
  const ghost=new THREE.Group();faces.front.add(ghost);let buildType=null,buildRotation=0,ghostProp=null;
  const buildGrid=new THREE.GridHelper(22,22,0xc6ffd5,0xaba3b0);buildGrid.position.y=.29;buildGrid.material.transparent=true;buildGrid.material.opacity=.28;buildGrid.visible=false;faces.front.add(buildGrid);
@@ -177,7 +177,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
    render(visualState){const g=visualState??getGame(),weather=getWeather(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
    syncTerrain(g);container.dataset.island=g.viewIsland;
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
-   faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(marker,selected);
+   faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(selected);
    container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects(g);syncActors(g);syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
 
    for(const[id,rig]of actors){
@@ -195,7 +195,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
      if(onboard.has(person.uid)){const transfer=ufoPassengerPresentation(onboard.get(person.uid),person);rig.root.visible=transfer.visible&&transfer.island===g.viewIsland;if(transfer.visible){surfaceItems[transfer.side].add(rig.root);rig.root.position.set(transfer.x,transfer.y,transfer.z);rig.root.scale.setScalar(transfer.scale);}}
    }
     container.dataset.blinking=String([...actors.values()].filter(r=>r.blinkVisual.root.visible).length);
-    marker.visible=selected.visible=!g.queue[0]?.blinkTransit&&g.player.alive&&!onboard.has(g.player.uid)&&islandOf(g.player)===g.viewIsland&&sideOf(g.player)===g.viewSide;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);marker.position.set(main.x,main.y+2.65*appearance(g.player,g.config.lifeStages).scale+Math.sin(time*3)*.06,main.z);marker.rotation.y=time;selected.position.set(main.x,groundHeight(main.x,main.z,sideOf(g.player),islandOf(g.player))+.025,main.z);
+    selected.visible=!g.queue[0]?.blinkTransit&&g.player.alive&&!onboard.has(g.player.uid)&&islandOf(g.player)===g.viewIsland&&sideOf(g.player)===g.viewSide;const main=actors.get('player')?.root.position||new THREE.Vector3(g.player.x,0,g.player.z);selected.position.set(main.x,groundHeight(main.x,main.z,sideOf(g.player),islandOf(g.player))+.025,main.z);
    for(const [id,o]of objectMeshes){if(o.userData.rift){o.userData.rift.material.uniforms.time.value=time;o.userData.riftFrame.position.y=1.5+Math.sin(time*1.4)*.06;}if(o.userData.orb)o.userData.orb.position.y=1.4+Math.sin(time*1.4)*.09;if(o.userData.egg){o.userData.egg.visible=g.incubations.some(b=>b.podId===id);o.userData.egg.position.y=.8+Math.sin(time*1.5)*.06;}if(o.userData.portal){o.userData.portal.material.uniforms.time.value=time;o.userData.glyphs.rotation.z=time*.09;}if(o.userData.cropVisual)for(const [i,crop]of o.userData.cropVisual.entries())crop.rotation.z+=Math.sin(time*.85+i+o.position.x)*.025;}
    for(const item of g.objects){const group=objectMeshes.get(item.id);
     if(group.userData.materialBars)group.userData.materialBars.forEach((m,i)=>{m.visible=(g.space.materials[islandOf(item)]??0)>i*10;});
@@ -240,7 +240,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
     const person=id==='player'?getGame().player:getGame().npcs[id],color=person.color,config=getGame().config;
     const rig=createCharacter(alienAsset.scene,{id,color,...person});updateCharacter(rig,{person:{...person,x:0,z:0},time:0,delta:0,config});rig.root.rotation.set(0,0,0);rig.root.position.set(0,0,0);
    portraitScene.background.set(id==='player'?0xc3e6c8:0xd4cde5);portraitScene.add(rig.root);
-   const scale=appearance(person,config.lifeStages).scale;portraitCamera.position.set(0,1.65*scale,3.3*scale);portraitCamera.lookAt(0,1.45*scale,0);
+   const scale=appearance(person,config.lifeStages).scale,radiant=isRadiant(person);portraitCamera.position.set(0,(radiant?1.85:1.65)*scale,(radiant?3.8:3.3)*scale);portraitCamera.lookAt(0,(radiant?1.65:1.45)*scale,0);
    portraitComposer.render();const url=portraitRenderer.domElement.toDataURL();
    rig.root.removeFromParent();portraitRenderer.renderLists.dispose();rig.prayerVisuals.dispose();rig.body.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();return url;
   }

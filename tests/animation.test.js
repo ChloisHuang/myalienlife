@@ -35,6 +35,8 @@ test('nether tattoos and multiple acquired mutations update a paused character w
  updateCharacter(rig,{person,time:0,delta:0});
  assert.equal(rig.prayerVisuals.skinUniforms.nether.value,1);assert.equal(other.prayerVisuals.skinUniforms.nether.value,0);
  assert.equal(rig.prayerVisuals.crown.visible,true);assert.equal(rig.prayerVisuals.spines.visible,true);
+ const bumps=rig.prayerVisuals.spines.children;assert.equal(bumps.length,3);
+ for(const [i,bump] of bumps.entries()){assert.equal(bump.geometry.type,'SphereGeometry');assert.ok(bump.scale.z<=.6);assert.equal(bump.position.x,0);assert.ok(bump.material.emissiveIntensity>=1.5&&bump.material.emissiveIntensity<=2.5);if(i)assert.ok(bumps[i-1].position.y-bump.position.y>bump.geometry.parameters.radius*3);}
  assert.equal(rig.prayerVisuals.skinUniforms.freckles.value,1);
  assert.notEqual(rig.body.getObjectByName('LeftEye').material.color.getHex(),other.body.getObjectByName('LeftEye').material.color.getHex());
 });
@@ -54,6 +56,8 @@ test('dawn halo appears at awakening and coexists with nether without changing o
  person.prayer.radiance=10;person.prayer.nether=10;updateCharacter(rig,{person,time:0,delta:0});
  assert.equal(rig.prayerVisuals.dawnHalo.visible,true);assert.equal(rig.prayerVisuals.skinUniforms.nether.value,1);
  assert.equal(rig.prayerVisuals.dawnHalo.parent,rig.joints.Head);assert.equal(other.prayerVisuals.dawnHalo.visible,false);
+ assert.ok(rig.prayerVisuals.dawnHalo.position.y>.65);
+ const ring=rig.prayerVisuals.dawnHalo.getObjectByName('dawn-halo-ring');assert.ok(ring);assert.equal(ring.rotation.x,Math.PI/2);
  person.prayer.radiance=0;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.prayerVisuals.dawnHalo.visible,false);
  rig.prayerVisuals.dispose();other.prayerVisuals.dispose();
 });

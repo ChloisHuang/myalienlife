@@ -9,6 +9,32 @@ import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
 
+test('spine bumps remain individually visible with scene bloom',async({page})=>{
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.evaluate(async()=>{
+  const THREE=await import('/node_modules/three/build/three.module.js');
+  const {GLTFLoader}=await import('/node_modules/three/examples/jsm/loaders/GLTFLoader.js');
+  const {createCharacter,updateCharacter}=await import('/src/character-rig.js');
+  const {createGame}=await import('/src/simulation.js');const {createPostProcessing}=await import('/src/npr.js');
+  const asset=await new GLTFLoader().loadAsync('/assets/alien.glb'),person=createGame().player;person.prayer.nether=10;person.prayer.mutations=['spines'];
+  const rig=createCharacter(asset.scene,person);updateCharacter(rig,{person,time:0,delta:0});rig.root.position.set(0,0,0);rig.root.rotation.y=0;
+  const scene=new THREE.Scene();scene.background=new THREE.Color(0x62767c);scene.add(rig.root,new THREE.HemisphereLight(0xffffff,0x334455,2));
+  const camera=new THREE.PerspectiveCamera(35,1,.1,100);camera.position.set(.6,1.5,-4.5);camera.lookAt(0,1.1,0);
+  const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(320,320);renderer.domElement.id='spine-preview';renderer.domElement.style.cssText='position:fixed;top:0;left:0;z-index:99999';document.body.append(renderer.domElement);
+  const composer=createPostProcessing(renderer,scene,camera);composer.setSize(320,320);composer.render();
+ });
+ await page.locator('#spine-preview').screenshot({path:'artifacts/spine-glow-preview.png'});
+});
+
+test('radiant halo floats above the head in world and portrait',async({page})=>{
+ const state=createGame();state.speed=0;state.player.prayer.radiance=10;state.player.x=0;state.player.z=3;fixtures.set(page,state);
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ for(const width of [1440,390]){await page.setViewportSize({width,height:900});await page.waitForTimeout(400);await page.screenshot({path:`artifacts/radiant-halo-${width}.png`});}
+ await page.locator('#player-portrait').evaluate(img=>{img.style.width='160px';img.style.height='160px';img.style.maxWidth='none';});
+ await page.locator('#player-portrait').screenshot({path:'artifacts/radiant-halo-avatar.png'});expect(errors).toEqual([]);
+});
+
 test('nether translucency appears in the world and regenerated portraits',async({page})=>{
  const state=createGame();state.speed=0;state.autonomy.enabled=false;fixtures.set(page,state);
  const errors=[];page.on('pageerror',error=>errors.push(error.message));

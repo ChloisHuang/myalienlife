@@ -135,6 +135,6 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  for(const limb of Object.values(rig.limbs))poseSkin(rig,limb);
  const skin=rig.limbs.LeftLeg.mesh;skin.skeleton.update();skin.computeBoundingSphere();
  if(rig.effects.wash.visible){for(let i=0;i<60;i++){const angle=i*2.399;rig.particles[i*3]=Math.cos(angle)*(.4+(i%3)*.035);rig.particles[i*3+1]=(2.2-(time*1.2+i*.13)%2.2)*look.scale;rig.particles[i*3+2]=Math.sin(angle)*(.4+(i%3)*.035);}rig.drops.geometry.attributes.position.needsUpdate=true;rig.halo.position.y=(.4+(Math.sin(time*2)+1)*.65)*look.scale;}
- rig.prayerVisuals.update(person);
+ rig.prayerVisuals.update(person,time);
  rig.last={x:person.x,z:person.z};rig.profile=profile;rig.state=state;rig.initialized=true;
 }
