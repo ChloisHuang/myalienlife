@@ -33,11 +33,11 @@ test('giant crop maturity preserves crops without adding radio events',()=>{
  tick(g,1);assert.deepEqual(g.majorEvents,events);
 });
 test('queued eating restores hunger only after arrival and completion',()=>{
- const g=createGame();g.autonomy.enabled=false; g.needs.hunger=20; enqueue(g,'eat','food'); tick(g,0.1); assert.ok(g.needs.hunger<21);
+ const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false; g.needs.hunger=20; enqueue(g,'eat','food'); tick(g,0.1); assert.ok(g.needs.hunger<21);
  for(let i=0;i<200;i++)tick(g,0.1); assert.ok(g.needs.hunger>65); assert.equal(g.queue.length,0);
 });
 test('completed eating charges ten coins from household funds',()=>{
- const g=createGame();g.autonomy.enabled=false;g.needs.hunger=0;const funds=g.money;enqueue(g,'eat','food');
+ const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.needs.hunger=0;const funds=g.money;enqueue(g,'eat','food');
  for(let i=0;i<200;i++)tick(g,0.1);
  assert.equal(g.money,funds-10);assert.ok(g.needs.hunger>60);assert.equal(g.queue.length,0);
 });

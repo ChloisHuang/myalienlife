@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from mathutils import Matrix
 
-ROOT = Path('/Users/jiaying/Local/Projects/myalienlife')
+ROOT = Path(__file__).resolve().parents[1]
 # Reserve the glTF material names before import; Blender otherwise suffixes duplicates.
 for material in list(bpy.data.materials):
     if material.name in ['Nebula mushroom', 'Luminous gills', 'Pearl stem', 'Bioluminescence', 'Mutant cap', 'Mutant gills', 'Mutant stem', 'Mutant spores']:

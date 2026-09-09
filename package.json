@@ -1,6 +1,24 @@
 {
-  "name": "orbit-life", "version": "1.0.0", "private": true, "type": "module",
-  "scripts": {"dev": "vite --host 127.0.0.1", "build": "vite build", "preview": "vite preview --host 127.0.0.1", "test": "node --test tests/*.test.js"},
-  "dependencies": {"three": "^0.180.0", "lucide": "^0.468.0"},
-  "devDependencies": {"vite": "^7.1.0", "@playwright/test": "^1.55.0"}
+  "name": "orbit-life",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/*.test.js",
+    "build:online": "node scripts/build-release.js",
+    "test:online": "playwright test --config playwright.online.config.js",
+    "deploy": "node scripts/deploy.js"
+  },
+  "dependencies": {
+    "lucide": "^0.468.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "esbuild": "^0.28.2",
+    "vite": "^7.1.0"
+  }
 }

@@ -117,7 +117,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  }
  const interactive=new THREE.Group();faces.front.add(interactive);const backInteractive=new THREE.Group();faces.back.add(backInteractive);const surfaceItems={front:interactive,back:backInteractive};const objectMeshes=new Map();
  const prop=createPropFactory({mushroomAsset,mushroomVariants,model,crystal});
- function syncObjects(){const g=getGame();for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.removeFromParent();objectMeshes.delete(id);}for(const o of g.objects){if(!objectMeshes.has(o.id)){const group=prop(o.type);group.position.set(o.x,o.type==='spiritTree'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};objectMeshes.set(o.id,group);}const objectMesh=objectMeshes.get(o.id);objectMesh.visible=islandOf(o)===g.viewIsland;surfaceItems[sideOf(o)].add(objectMesh);}}
+ function syncObjects(g=getGame()){for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.removeFromParent();objectMeshes.delete(id);}for(const o of g.objects){if(!objectMeshes.has(o.id)){const group=prop(o.type);group.position.set(o.x,o.type==='spiritTree'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};objectMeshes.set(o.id,group);}const objectMesh=objectMeshes.get(o.id);objectMesh.visible=islandOf(o)===g.viewIsland;surfaceItems[sideOf(o)].add(objectMesh);}}
  const ufoMeshes=new Map(),onboard=new Map(),flightBoard=document.createElement('div');flightBoard.className='ufo-flight-board';flightBoard.setAttribute('aria-label','UFO 航行动态');container.append(flightBoard);let flightBoardText='';
  function syncUfos(g){
   const flights=[];onboard.clear();
@@ -142,8 +142,8 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
   container.dataset.ufoCount=String(g.space.ships.filter(s=>s.island===g.viewIsland&&s.side===g.viewSide).length);
  }
  const actors=new Map();
- function syncActors(){
-  const g=getGame(),residents=[...(g.player.alive?[{id:'player',...g.player}]:[]),...neighbors(g)];
+ function syncActors(g=getGame()){
+  const residents=[...(g.player.alive?[{id:'player',...g.player}]:[]),...neighbors(g)];
   for(const [id,rig]of actors)if(!residents.some(n=>n.id===id&&n.uid===rig.uid)){
    rig.root.removeFromParent();rig.prayerVisuals.dispose();rig.blinkVisual.dispose();rig.root.traverse(n=>{if(n.isMesh)n.material.dispose();});for(const skeleton of new Set(Object.values(rig.limbs).map(l=>l.mesh.skeleton)))skeleton.dispose();actors.delete(id);
   }
@@ -174,11 +174,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace}){
  let previousSimTime=null,previousFrame=performance.now();island.rotation.x=getGame().viewSide==='back'?Math.PI:0;
  return {
    setSceneOnly(value){sceneOnly=value;controls.enabled=!value;renderer.domElement.style.pointerEvents=value?'none':'';hoverTarget=null;pointerDown=null;resize();},
-   render(){const g=getGame(),weather=getWeather(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
+   render(visualState){const g=visualState??getGame(),weather=getWeather(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
    syncTerrain(g);container.dataset.island=g.viewIsland;
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(marker,selected);
-   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects();syncActors();syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
+   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects(g);syncActors(g);syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
 
    for(const[id,rig]of actors){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];

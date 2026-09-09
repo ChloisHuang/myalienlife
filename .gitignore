@@ -3,3 +3,14 @@ dist/
 *.log
 test-results/
 .data/
+.deploy/
+deploy.config.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519

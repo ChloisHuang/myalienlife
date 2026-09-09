@@ -1,0 +1,5 @@
+.online-controls{position:fixed;z-index:25;left:16px;top:84px;display:flex;gap:8px;align-items:center;background:#fff;color:#243b36;border:1px solid #cbd5d0;padding:6px 10px;border-radius:6px;font-size:12px;max-width:calc(100vw - 32px);flex-wrap:wrap}
+.online-controls button{padding:6px 8px;border:1px solid #a6bab1;border-radius:4px;background:#f4faf7;color:#245548;cursor:pointer}
+#operator-form{display:grid;gap:16px;min-width:0}#operator-form label{display:grid;gap:8px}#operator-token{width:100%;min-width:0;padding:10px;font-size:16px}#operator-dialog{width:360px;max-width:calc(100vw - 32px)}
+[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+@media(max-width:700px){.online-controls{top:auto;bottom:8px;left:8px;max-width:calc(100vw - 16px);font-size:11px;padding:4px 6px;gap:5px}.online-controls button{padding:5px}.dashboard{padding-bottom:44px}}

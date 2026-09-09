@@ -1,0 +1,66 @@
+# VPS Deployment
+
+## 使用
+
+地址由本地配置的 domain 和 httpsPort 决定，例如 https://game.example.com:6443 。手机、Windows 和 macOS 使用同一个地址，支持 WebGL 的现代浏览器即可。
+
+部署电脑需要 Node.js 22.12+、npm、OpenSSH 的 ssh/scp、tar。macOS 自带后三项；Windows 10/11 可启用 OpenSSH 客户端。先配置 SSH 密钥并通过可信渠道核对服务器指纹。脚本使用 StrictHostKeyChecking=yes，不自动接受陌生主机，不收集密码。
+
+```sh
+npm ci
+npm run deploy
+```
+
+脚本部署当前工作目录的代码（包括未提交修改），不是自动拉取 Git 远端。每次先运行单元测试、本机构建，再上传压缩产物；VPS 不安装 npm 依赖、不保存 node_modules 或源码仓库。也可运行 deploy.command / deploy.cmd。
+
+首次迁移必须先在本地游戏点击保存，然后运行 `npm run deploy -- --seed-local`。首次无存档时会拒绝默默新建世界；后续即使携带该参数也不会覆盖 VPS 进度。迁移后只使用线上地址继续生活，本地保留的存档是独立副本，不会与云端合并。
+
+部署前必须创建被 Git 忽略的 deploy.config.json，格式见 deploy.config.example.json，将示例地址替换为自己的服务器信息。脚本不内置真实服务器地址，缺少配置会终止部署。默认新增 6443，不碰已有网站监听端口。现有部署不接受自动更换端口。
+
+## 操作权
+
+默认访客只能观看和切换视角。点击「验证 Token」，输入 `.deploy/operator-token.txt` 中的密钥，再点「获取操作权」。最后一次成功获取者可操作，之前所有页面变为只读。后端对每个写请求校验会话、浏览器 ID 和操作权版本，旧页面即使绕过按钮也不能写入。
+
+主 Token 不进入网页资源、URL、Cookie、localStorage 或日志。验证后使用内存中的短期随机会话，刷新需重新验证；会话最长 12 小时，服务器重启后失效。此域名还有其他端口的服务，因此刻意不使用跨端口共享的 Cookie。不要提交或分享 Token 文件；Windows 部署电脑应通过文件权限保护项目目录。
+
+支持 12 到 256 个字符的自定义操作口令。生成的随机 Token 仍是默认值；改用易记口令后应避免复用其他账号的密码，登录失败限流仍然生效。
+
+## 后台与存档
+
+浏览器只显示服务器快照和提交指令，只有一个服务端模拟器运行。直接复用原 simulation.js 及 AI、经济、种植、旅行等模块，不重写游戏规则。固定 50ms 小步推进，每 5 秒及操作后原子存档；没有任何浏览器时也照常运行。
+
+画面使用独立的只读快照缓冲，按每个绘制帧插值人物位置、动作进度和动画时间，吸收网络请求间隔造成的跳动。显示会比最新服务器状态稍晚，暂停、切换主控和重新开局会重置缓冲；断线后停在最后确认的画面，不虚构收成或离线事件。界面数值和操作校验仍使用最新权威状态。
+
+原来的暂停、建造暂停、主控死亡暂停仍然有效。关闭网页不会自动暂停；服务器停机的时间不做额外跳日补算。断线客户端不能操作，恢复后读取服务器进度，不会上传旧世界覆盖它。
+
+部署先用新版本只读验证旧存档，再停止旧进程、完成最终存档并备份，随后启动新版；不会让两个模拟器同时写一份存档。健康检查或 nginx 检查失败会恢复升级前状态与版本，并另存失败状态供排查，升级失败期间短暂产生的进度不会自动合并。最多保留两份发布和两份升级前备份；失败备份不自动删除。突然断电仍可能损失最近约 5 秒，不承诺零数据损失。
+
+## 隔离范围
+
+- 保留 Ubuntu 18.04、现有 SSH、系统软件、旧容器和防火墙设置；不重启 nginx，只在 `nginx -t` 成功后 reload。
+- 唯一新增网站配置：`/etc/nginx/conf.d/myalienlife.conf`。
+- 程序和数据：`/opt/myalienlife/`；容器名 `myalienlife`。
+- Docker Node 24 Alpine 提供现代用户态；镜像每次拉取，实际发布记录不可变 digest。
+- 非 root 容器、只读程序、删除 Linux capabilities、no-new-privileges、默认 seccomp、256 MiB 内存和 0.5 CPU 限额，日志最多约 10 MiB。旧内核不支持 swap 限额，不能依赖该限制保护主机。
+- 应用仅映射 `127.0.0.1:18080`，公网走 TLS 6443；拒绝跨来源写请求、整份存档上传、任意命令和任意文件访问，并限制请求体与频率。
+- 使用 `/etc/letsencrypt/live/<domain>/` 中已有的 Let's Encrypt 证书，不改旧网站证书路径；新增证书续期 deploy hook 只做 nginx 配置检查及平滑 reload。
+
+Ubuntu 18.04 的旧内核、旧 nginx/SSH/Docker 仍是宿主风险，容器不能修补宿主漏洞，也无法保证其他旧服务不被入侵。已按要求不升级；这不是“绝对安全”的服务器。建议另存异机备份并定期检查证书续期和系统安全状态。
+
+## 运维
+
+```sh
+# Replace the example host and SSH port with your private configuration.
+ssh -p 22 root@192.0.2.10
+docker ps --filter name=myalienlife
+docker logs --tail 30 myalienlife
+curl http://127.0.0.1:18080/healthz
+```
+
+Token 位于 `/opt/myalienlife/secrets/operator-token`；不要贴到聊天或命令行参数中。轮换需用 `openssl rand -hex 32` 写入同一个文件、保持 UID 1000 和 0400 权限，然后重启这个游戏容器；旧会话随之作废，不动其他容器。
+
+`npm run build:online && npm run test:online` 验证线上前端、双浏览器操作权、手机布局和离开页面后的后台推进。Windows 脚本是跨平台 Node/OpenSSH 实现，但仍需在真实 Windows 环境验收 SSH 密钥和 PATH。
+
+## 公开仓库
+
+真实服务器配置、操作口令和存档只保留在被忽略的 `deploy.config.json`、`.deploy/` 和 `.data/` 中。`.env` 和常见私钥文件也已忽略；`.env.example` 只能包含占位值。不要使用 `git add -f` 添加这些文件。忽略规则不会清除已经提交的历史；泄露过的密钥必须轮换，历史清理需要单独处理。公开域名仍可通过 DNS 暴露服务器 IP。

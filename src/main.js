@@ -1,5 +1,9 @@
+import {applyCommand} from './game-commands.js';
+import {createPresentation} from './presentation.js';
+import './online.css';
+import {createOnlineClient} from './online-client.js';
 import {displayNumber} from './display-number.js';
-import {loadShipMaterials,unloadShipMaterials,UFO_WEAR_PER_FLIGHT,backDiscovered,ufoDefinition,shipFoodStatus,loadShipFood} from './space-logistics.js';
+import {UFO_WEAR_PER_FLIGHT,backDiscovered,ufoDefinition,shipFoodStatus} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
 import {islandCatalog,islandDefinition,discovered,civilizationError,voyageError,starVoyageError} from './civilization.js';
 import {islandOf} from './island.js';
@@ -9,7 +13,7 @@ import {PRAYER_RULES,PRAYER_MUTATIONS,isNether,isRadiant,isDual,prayerRaceName} 
 import {SIDES,sideOf,sameSide} from './island.js';
 import {createPersistence} from './persistence.js';
 import {HEAD_SHAPE} from './genetics.js';
-import {enqueueStudy,destroyIsland,randomizeHeads} from './simulation.js';
+
 import {canWorkAt} from './simulation.js';
 import {studyFacilitySkill,FOUNDATION_SKILLS,FOUNDATION_FOR,MAJORS,higherEducation,studyName,educationRequirements,EDUCATION_LEVELS,educationLevel,educationWage,isLearner,studyInterest} from './education.js';
 import {projectActions,workbench} from './settlements.js';
@@ -24,21 +28,49 @@ import {createFloatingIsland} from './floating-island.js';
 import {PictureInPicture2,ArrowLeft} from 'lucide';
 import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins} from 'lucide';
 import {createWorld} from './world.js';
-import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,takeOver,switchControl,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,enqueue,cancelAction,buyItem,sellItem,setCareer,setAutonomy,updateResident,canAffordAction} from './simulation.js';
+import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,canAffordAction} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,lifeStage,skillProgress} from './characters.js';
 
 const $=s=>document.querySelector(s);
 const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins};
 const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('class',`icon ${cls}`);el.setAttribute('aria-hidden','true');return el.outerHTML;};
 Object.assign(icons,{PictureInPicture2,ArrowLeft});
-const persistence=createPersistence();let game;
+const hosted=import.meta.env.VITE_SERVER_AUTHORITY==='1';
+const persistence=hosted?null:createPersistence();let game;
+const presentation=hosted?createPresentation():null;let visualGame;
+const online=hosted?createOnlineClient({onState(next){
+ if(!game)return;const previous=game;
+ if(Object.hasOwn(islandCatalog(next),previous.viewIsland)){next.viewIsland=previous.viewIsland;next.viewSide=previous.viewSide;}
+ if(previous.player.uid!==next.player.uid||islandOf(previous.player)!==islandOf(next.player)||sideOf(previous.player)!==sideOf(next.player)){next.viewIsland=islandOf(next.player);next.viewSide=sideOf(next.player);}
+ game=next;presentation.push(next);
+},onStatus(value){const el=document.querySelector('#online-status');if(!el)return;el.textContent=!value.connected?'连接中断 · 只读':value.error|| (value.canOperate?'操作中':value.authenticated?'已验证 · 只读':'访客 · 只读');document.querySelector('#claim-control').hidden=!value.authenticated;document.querySelector('#operator-login').hidden=value.authenticated;document.querySelector('#operator-logout').hidden=!value.authenticated;if(!value.canOperate&&build){build=false;cancelPlacement();document.querySelector('#build-button').classList.remove('active');}}}):null;
+async function command(name,...args){
+ try{return hosted?await online.mutate('/api/command',{name,args,view:{island:game.viewIsland,side:game.viewSide}}):applyCommand(game,{name,args});}
+ catch(error){toast(error.message);return{ok:false,message:error.message};}
+}
+const enqueue=async(_game,...args)=>command('enqueue',...args);
+const enqueueStudy=async(_game,...args)=>command('enqueueStudy',...args);
+const destroyIsland=async(_game,...args)=>command('destroyIsland',...args);
+const randomizeHeads=async(_game,...args)=>command('randomizeHeads',...args);
+const takeOver=async(_game,...args)=>command('takeOver',...args);
+const switchControl=async(_game,...args)=>command('switchControl',...args);
+const cancelAction=async(_game,...args)=>command('cancelAction',...args);
+const buyItem=async(_game,...args)=>command('buyItem',...args);
+const sellItem=async(_game,...args)=>(await command('sellItem',...args)).ok;
+const setCareer=async(_game,...args)=>(await command('setCareer',...args)).ok;
+const setAutonomy=async(_game,...args)=>command('setAutonomy',...args);
+const updateResident=async(_game,...args)=>command('updateResident',...args);
+const loadShipFood=async(_game,...args)=>command('loadShipFood',...args);
+const loadShipMaterials=async(_game,...args)=>command('loadShipMaterials',...args);
+const unloadShipMaterials=async(_game,...args)=>command('unloadShipMaterials',...args);
 $('#app').innerHTML='<div id="loading"><h2>正在读取星湾存档</h2><p>从服务器恢复你的生活进度…</p></div>';
-try{game=await persistence.load();}catch(error){
+try{game=hosted?await online.load():await persistence.load();}catch(error){
  console.error('游戏存档读取失败',error);
  $('#app').innerHTML='<div id="loading"><h2>暂时无法读取存档</h2><p>请检查游戏服务后重试，现有存档不会被覆盖。</p><button id="retry-load">重新读取</button></div>';
  $('#retry-load').onclick=()=>location.reload();throw error;
 }
 let navigationIsland=game.viewIsland,lastViewedIsland=game.viewIsland;
+if(hosted)presentation.push(game);
 let lastLifeState='';let world,tab='needs',build=false,speedBeforeBuild=1,pack='全部',selectedItem=null,context=null,toastTimer,portraits={},portraitKey='',selectedResident='player',lastMajorEvents='',lastPanel='',saveBlocked=false,epochRestarting=false;
 const fmt=n=>Math.floor(n).toLocaleString('zh-CN');
 const buttons=(items)=>items.map(([label,i,attr])=>`<button ${attr} title="${label}" aria-label="${label}">${icon(i)}</button>`).join('');
@@ -72,6 +104,7 @@ $('#app').innerHTML=`
 
 function toast(message){$('#toast').innerHTML=`${icon('Sparkles')} ${message}`;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3500);}
 async function save(manual=false,leaving=false){
+ if(hosted){if(!manual)return true;try{await online.mutate('/api/checkpoint');toast('服务器进度已保存。');return true;}catch(error){toast(error.message);return false;}}
  if(epochRestarting)return false;
  if(saveBlocked)return false;
  $('#save-status').dataset.state='saving';
@@ -89,7 +122,7 @@ async function save(manual=false,leaving=false){
   return false;
  }
 }
-$('#save-status').textContent='已恢复服务器存档 · 每分钟自动保存';
+$('#save-status').textContent=hosted?'服务器持续运行 · 每 5 秒存档':'已恢复服务器存档 · 每分钟自动保存';
 const floatingButton=document.createElement('button');floatingButton.id='float-island';floatingButton.title='开启浮窗';floatingButton.setAttribute('aria-label','开启浮窗');floatingButton.innerHTML=icon('PictureInPicture2');floatingButton.disabled=true;$('.view-tools').append(floatingButton);
 $('#save-status').dataset.state='ready';
 setInterval(()=>save(),60000);
@@ -98,14 +131,23 @@ window.addEventListener('pagehide',()=>save(false,true));
 window.addEventListener('beforeunload',()=>save(false,true));
 if(import.meta.hot)import.meta.hot.on('vite:beforeFullReload',()=>save(false,true));
 
+if(hosted){
+ const bar=document.createElement('div');bar.className='online-controls';bar.innerHTML='<span id="online-status">连接中</span><button id="operator-login">验证 Token</button><button id="claim-control" hidden>获取操作权</button><button id="operator-logout" hidden>退出验证</button>';$('#app').append(bar);
+ const dialog=document.createElement('dialog');dialog.id='operator-dialog';dialog.innerHTML='<form id="operator-form"><h2>操作验证</h2><label>Token<input id="operator-token" type="password" required autocomplete="off" maxlength="256"></label><p id="operator-error" role="alert"></p><button type="button" id="operator-close">取消</button><button type="submit">验证</button></form>';$('#app').append(dialog);
+ $('#operator-login').onclick=()=>dialog.showModal();$('#operator-close').onclick=()=>{dialog.close();$('#operator-token').value='';};
+ $('#operator-form').onsubmit=async event=>{event.preventDefault();const input=$('#operator-token'),token=input.value;input.value='';try{await online.login(token);dialog.close();toast('验证成功，点击获取操作权后可以操作。');}catch(error){$('#operator-error').textContent=error.message;}};
+ $('#claim-control').onclick=()=>online.claim().catch(error=>toast(error.message));$('#operator-logout').onclick=()=>online.logout().catch(error=>toast(error.message));online.start();
+}
 const flightDialog=document.createElement('dialog');flightDialog.id='flight-dialog';$('#app').append(flightDialog);
+const mutationControls='[data-speed],#autonomy,[data-character],[data-inherit],#new-life,[data-cancel],[data-action],[data-career],[data-item],[data-destroy-island],[data-star-voyage],[data-load-ship],[data-load-materials],[data-unload-materials],[data-sell],#work,#study,#save,#config-reset,#restart-epoch,#config-project-default,#build-button,#randomize-heads,#study-focus,#family-desire,#confirm-flight,#config-form input,#config-form button[type="submit"],#resident-form input,#resident-form select,#resident-form button[type="submit"]';
+if(hosted)for(const type of ['click','change','submit'])$('#app').addEventListener(type,event=>{if(!online.canOperate&&(event.target.closest(mutationControls)||type==='submit'&&['resident-form','config-form'].includes(event.target.id))){event.preventDefault();event.stopImmediatePropagation();toast('当前为只读，请先获取操作权');}},true);
 function openFlight(id,shipId=null){
  const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));
  const passengers=neighbors(game).filter(n=>sameSide(n,game.player)&&n.queue.length<6&&!n.queue.some(q=>['voyage','boardUfo'].includes(q.type)));
  flightDialog.innerHTML=`<button class="dialog-close" aria-label="关闭登船安排">${icon('X')}</button><h2>前往${islandDefinition(game,id).name}</h2><p>由${game.player.name}发起，UFO 自动导航；勾选随行居民（含幼体）。乘客完成当前队列后登船。</p><div class="flight-passengers">${passengers.map(n=>`<label><input type="checkbox" value="${n.id}"/> ${n.name} · ${prayerRaceName(n)||'星湾居民'} · ${n.queue.length?'先完成 '+n.queue.length+' 个安排':'可登船'}</label>`).join('')||'<p>附近暂无可邀请乘客，可独自出航。</p>'}</div><p id="flight-reason"></p><button class="primary" id="confirm-flight">安排登船</button>`;
  const selection=()=>[...flightDialog.querySelectorAll('input:checked')].map(el=>el.value);
  const update=()=>{const error=portal?voyageError(game,game.player,game.skills,id,selection().length+1,null,shipId):'请在当前岛面放置跃迁星门作为停机坪。';flightDialog.querySelector('#flight-reason').textContent=error||`共 ${selection().length+1} 人；尽量装入往返食物；当前星球有星厨时须备齐本航段食物；无星厨时每缺 1 份，每人扣 10 营养、5 能量，取消不扣。`;flightDialog.querySelector('#confirm-flight').disabled=!!error;};
- flightDialog.onchange=update;flightDialog.querySelector('#confirm-flight').onclick=()=>{const result=enqueue(game,'voyage',portal.id,undefined,null,id,selection(),shipId);if(result.ok){flightDialog.close();toast('已安排集合登船，乘客先完成已有行动。');refresh();}else{toast(result.message);update();}};
+ flightDialog.onchange=update;flightDialog.querySelector('#confirm-flight').onclick=async()=>{const result=await enqueue(game,'voyage',portal.id,undefined,null,id,selection(),shipId);if(result.ok){flightDialog.close();toast('已安排集合登船，乘客先完成已有行动。');refresh();}else{toast(result.message);update();}};
  update();flightDialog.showModal();
 }
 function showUfo(id){
@@ -142,13 +184,13 @@ async function applyConfig(event){
  event.preventDefault();const form=event.target;if(!form.checkValidity()){form.reportValidity();return;}
  const next=structuredClone(game.config);for(const input of form.querySelectorAll('[data-config-path]')){const path=input.dataset.configPath.split('.');let target=next;for(const key of path.slice(0,-1))target=target[key];target[path.at(-1)]=Number(input.value);}
  const normalized=normalizeConfig(next);if(!validConfig(normalized)){toast('配置范围无效：生命阶段必须按年龄递增，且变异概率总和不能超过 100%。');return;}
- game.config=normalized;lastPanel='';refresh();renderConfig();if(await save(true))toast('参数配置已保存并开始生效。');
+ if(!(await command('config',normalized)).ok)return;lastPanel='';refresh();renderConfig();if(await save(true))toast('参数配置已保存并开始生效。');
 }
-function resetConfig(){game.config=normalizeConfig();lastPanel='';refresh();renderConfig();toast('已恢复默认参数，点击应用并保存配置后持久化。');}
-async function persistProjectConfig(){if(!confirm('将当前参数永久覆盖为项目默认配置，之后新建的星湾会使用这些参数。确定继续吗？'))return;try{await persistence.saveProjectConfig(game.config);toast('当前配置已固化为项目默认配置。');}catch(error){console.error('项目配置保存失败',error);toast('项目配置保存失败，请检查游戏服务。');}}
+async function resetConfig(){if(!(await command('config',normalizeConfig())).ok)return;lastPanel='';refresh();renderConfig();toast('已恢复默认参数，点击应用并保存配置后持久化。');}
+async function persistProjectConfig(){if(!confirm('将当前参数永久覆盖为项目默认配置，之后新建的星湾会使用这些参数。确定继续吗？'))return;try{hosted?await online.mutate('/api/project-config'):await persistence.saveProjectConfig(game.config);toast('当前配置已固化为项目默认配置。');}catch(error){console.error('项目配置保存失败',error);toast('项目配置保存失败，请检查游戏服务。');}}
 async function startNewLife(){
- if(epochRestarting)return;epochRestarting=true;const speed=game.speed;game.speed=0;
- try{game=await persistence.createNewGame();saveBlocked=false;$('#save-status').dataset.state='saved';$('#save-status').textContent='新纪元已保存 · 从第 1 天开始';selectedResident='player';portraitKey='';lastPanel='';lastMajorEvents='';selectedItem=null;build=false;world.setBuild(null);$('#build-button').classList.remove('active');$('#build-hint').hidden=true;document.querySelectorAll('dialog[open]').forEach(d=>d.close());closeContext();closeCharacterSwitcher();world.resetCamera();changeTab('needs');refresh();toast('纪元已重启，从第 1 天重新开始。');}
+ if(epochRestarting||hosted&&!online.canOperate)return;epochRestarting=true;const speed=game.speed;if(!hosted)game.speed=0;
+ try{game=hosted?(await online.mutate('/api/new-game')).state:await persistence.createNewGame();saveBlocked=false;$('#save-status').dataset.state='saved';$('#save-status').textContent='新纪元已保存 · 从第 1 天开始';selectedResident='player';portraitKey='';lastPanel='';lastMajorEvents='';selectedItem=null;build=false;world.setBuild(null);$('#build-button').classList.remove('active');$('#build-hint').hidden=true;document.querySelectorAll('dialog[open]').forEach(d=>d.close());closeContext();closeCharacterSwitcher();world.resetCamera();changeTab('needs');refresh();toast('纪元已重启，从第 1 天重新开始。');}
  catch(error){game.speed=speed;console.error('重启纪元失败',error);toast('重启失败，当前进度未替换；请检查存档服务。');}
  finally{epochRestarting=false;}
 }
@@ -225,6 +267,7 @@ function refresh(){
  refreshWonderMenu();refreshProjectMenu();refreshProfessionMenu();
  if(context?.kind==='object'){const o=game.objects.find(o=>o.id===context.id);if(!o)closeContext();else if(CROPS[o.type]&&$('#plant-status')){$('#plant-status').innerHTML=plantDetails(o);for(const b of document.querySelectorAll('#context-menu [data-action]')){const error=actionAccessError(game,{id:'player',position:game.player,skills:game.skills},b.dataset.action)||plantActionError(o,b.dataset.action);b.disabled=!!error;b.title=error||'';}}}
  renderPanel();
+ if(hosted)document.querySelectorAll(mutationControls).forEach(el=>el.setAttribute('aria-disabled',String(!online.canOperate)));
 }
 function selectIsland(id){
  if(!discovered(game,id))return;navigationIsland=id;
@@ -232,7 +275,7 @@ function selectIsland(id){
  else {tab='exploration';document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));toast('已发现星岛，先满足出航条件并完成首次登陆。');}
  const select=$('#island-select');if(select)select.value=navigationIsland;refresh();
 }
- document.addEventListener('change',e=>{if(e.target.id==='island-select')selectIsland(e.target.value);});
+ document.addEventListener('change',async e=>{if(e.target.id==='island-select')selectIsland(e.target.value);});
 function refreshWonderMenu(){
  if(!context||!$('#wonder-status'))return;const o=game.objects.find(o=>o.id===context.id);if(!o)return;
  $('#wonder-status').textContent=o.type==='portal'?`文明记忆 ${game.wonders.archive} / 3 · 共享微尘 ${game.wonders.dust} 份 · 星城探访每天一次`:wonderStatus(game,o);
@@ -262,9 +305,9 @@ function refreshProfessionMenu(){
 }
 function closeCharacterSwitcher(){const menu=$('#character-switcher');if(!menu)return;menu.hidden=true;$('#active-character')?.setAttribute('aria-expanded','false');}
 function toggleCharacterSwitcher(){const menu=$('#character-switcher');if(!menu)return;const open=menu.hidden;menu.hidden=!open;$('#active-character').setAttribute('aria-expanded',String(open));}
-function showContext(target,x,y){
+async function showContext(target,x,y){
  if(target.kind==='ufo'){showUfo(target.id);return;}
- if(target.kind==='ground'){closeContext();const result=enqueue(game,'walk',null,target.point);if(!result.ok)toast(result.message);refresh();return;}
+ if(target.kind==='ground'){closeContext();const result=await enqueue(game,'walk',null,target.point);if(!result.ok)toast(result.message);refresh();return;}
  if(target.kind==='npc'&&!game.npcs[target.id])return;
  if(target.kind==='player'){changeTab('needs');world.focus('player');return;}
  context=target;let title,subtitle,actions;
@@ -284,9 +327,9 @@ function showContext(target,x,y){
  refreshProjectMenu();refreshProfessionMenu();el.style.maxHeight=`${innerHeight-105}px`;el.style.top=`${Math.max(85,Math.min(y-40,innerHeight-el.offsetHeight-16))}px`;
  if(target.kind==='npc'){const n=game.npcs[target.id],status=document.createElement('p');status.id='npc-status';status.textContent=`${n.activity} · ${n.ai.reason}`;el.querySelector('.context-heading').after(status);}
 }
-function selectItem(id){selectedItem=id;if(!build){speedBeforeBuild=game.speed;game.speed=0;}build=true;$('#build-button').classList.add('active');world.setBuild(id);$('#build-hint').hidden=false;lastPanel='';renderPanel();closeContext();toast(`已选择${ITEMS.find(i=>i.id===id).name}，点击地面摆放。`);}
+async function selectItem(id){if(hosted&&!online.canOperate){toast('当前为只读，请先获取操作权');return;}selectedItem=id;if(!build){speedBeforeBuild=game.speed;await command('speed',0);}build=true;$('#build-button').classList.add('active');world.setBuild(id);$('#build-hint').hidden=false;lastPanel='';renderPanel();closeContext();toast(`已选择${ITEMS.find(i=>i.id===id).name}，点击地面摆放。`);}
 function cancelPlacement(){selectedItem=null;world.setBuild(null);$('#build-hint').hidden=true;lastPanel='';renderPanel();}
-function toggleBuild(){build=!build;$('#build-button').classList.toggle('active',build);if(build){speedBeforeBuild=game.speed;game.speed=0;}else{cancelPlacement();game.speed=speedBeforeBuild;}changeTab(build?'items':'needs');closeContext();refresh();}
+async function toggleBuild(){if(hosted&&!online.canOperate){toast('当前为只读，请先获取操作权');return;}build=!build;$('#build-button').classList.toggle('active',build);if(build){speedBeforeBuild=game.speed;await command('speed',0);}else{cancelPlacement();await command('speed',speedBeforeBuild);}changeTab(build?'items':'needs');closeContext();refresh();}
 const DASHBOARD_MIN_WIDTH=300,DASHBOARD_MAX_WIDTH=760;
 function setDashboardWidth(width){
  const dashboard=$('.dashboard'),handle=$('#dashboard-resize-handle');if(!dashboard||!handle)return;
@@ -301,37 +344,37 @@ function setupDashboardResize(){
  handle.addEventListener('pointerup',stop);handle.addEventListener('pointercancel',stop);handle.addEventListener('lostpointercapture',()=>stop({}));
  handle.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const current=dashboard.getBoundingClientRect().width;const next=event.key==='Home'?DASHBOARD_MIN_WIDTH:event.key==='End'?DASHBOARD_MAX_WIDTH:current+(event.key==='ArrowLeft'?16:-16);setDashboardWidth(next);event.preventDefault();});
 }
-$('#app').addEventListener('click',e=>{
+$('#app').addEventListener('click',async e=>{
  if(epochRestarting)return;
  const b=e.target.closest('button');if(!b)return;
- if(b.dataset.speed!==undefined){game.speed=Number(b.dataset.speed);refresh();}
- if(b.id==='autonomy'){setAutonomy(game,!game.autonomy.enabled);toast(game.autonomy.enabled?'自主行为已开启，手动安排随时优先。':'自主行为已关闭，保留你的手动安排。');refresh();}
+ if(b.dataset.speed!==undefined){await command('speed',Number(b.dataset.speed));refresh();}
+ if(b.id==='autonomy'){await setAutonomy(game,!game.autonomy.enabled);toast(game.autonomy.enabled?'自主行为已开启，手动安排随时优先。':'自主行为已关闭，保留你的手动安排。');refresh();}
  if(b.id==='active-character')toggleCharacterSwitcher();
  if(b.dataset.tab)changeTab(b.dataset.tab);
- if(b.dataset.character){const result=switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
- if(b.dataset.inherit){const result=takeOver(game,b.dataset.inherit);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';refresh();save();toast(`现在由你陪伴${game.player.name}生活。`);}else toast(result.message);}
+ if(b.dataset.character){const result=await switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
+ if(b.dataset.inherit){const result=await takeOver(game,b.dataset.inherit);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';refresh();save();toast(`现在由你陪伴${game.player.name}生活。`);}else toast(result.message);}
  if(b.id==='new-life'&&confirm('重新开始将覆盖当前存档，确定开始新的星湾生活吗？'))startNewLife();
- if(b.dataset.cancel){cancelAction(game,Number(b.dataset.cancel));refresh();}
+ if(b.dataset.cancel){await cancelAction(game,Number(b.dataset.cancel));refresh();}
  if(b.dataset.npc){const r=b.getBoundingClientRect();showContext({kind:'npc',id:b.dataset.npc},r.left,r.top-260);}
  if(b.dataset.action==='voyage'&&context){openFlight(b.dataset.destination);closeContext();return;}
- if(b.dataset.action&&context){const result=enqueue(game,b.dataset.action,context.id,undefined,(WONDER_ACTIONS[b.dataset.action]?.paired?$('#wonder-partner')?.value:$('#birth-partner')?.value)||null,b.dataset.destination||null);if(!result.ok)toast(result.message);else toast(`已安排：${actionLabel(b.dataset.action)}`);closeContext();refresh();}
- if(b.dataset.career){const id=b.dataset.career;if(setCareer(game,id)){toast(`已加入${CAREERS[id].name}职业。`);lastPanel='';refresh();}else toast(careerEntryMessage(game,id)||'请先完成或取消当前工作班次。');}
+ if(b.dataset.action&&context){const result=await enqueue(game,b.dataset.action,context.id,undefined,(WONDER_ACTIONS[b.dataset.action]?.paired?$('#wonder-partner')?.value:$('#birth-partner')?.value)||null,b.dataset.destination||null);if(!result.ok)toast(result.message);else toast(`已安排：${actionLabel(b.dataset.action)}`);closeContext();refresh();}
+ if(b.dataset.career){const id=b.dataset.career;if(await setCareer(game,id)){toast(`已加入${CAREERS[id].name}职业。`);lastPanel='';refresh();}else toast(careerEntryMessage(game,id)||'请先完成或取消当前工作班次。');}
  if(b.dataset.pack){pack=b.dataset.pack;lastPanel='';renderPanel();}
  if(b.dataset.item)selectItem(b.dataset.item);
  if(b.dataset.destroyIsland){
   const id=b.dataset.destroyIsland,name=islandDefinition(game,id).name;
   if(!confirm(`确定摧毁「${name}」？地貌、建筑、家具与工程进度将永久删除，无法撤销。居民、飞船、库存食物和孕育中的星芽会撤回主岛；后续星岛保留。`))return;
-  const result=destroyIsland(game,id);if(result.ok){navigationIsland=game.viewIsland;closeContext();$('#tooltip').hidden=true;lastPanel='';world.resetCamera();refresh();save();}toast(result.message);
+  const result=await destroyIsland(game,id);if(result.ok){navigationIsland=game.viewIsland;closeContext();$('#tooltip').hidden=true;lastPanel='';world.resetCamera();refresh();save();}toast(result.message);
  }
  if(b.dataset.islandStep){const islands=Object.keys(islandCatalog(game)).filter(id=>discovered(game,id)),index=islands.indexOf(navigationIsland),id=islands[index+Number(b.dataset.islandStep)];if(id)selectIsland(id);}
- if(b.dataset.starVoyage){const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));const result=enqueue(game,'starVoyage',portal?.id,undefined,null,b.dataset.starVoyage);toast(result.ok?'已安排独自通过星门航行。':result.message);closeContext();refresh();}
- if(b.dataset.loadShip){const result=loadShipFood(game,b.dataset.loadShip);toast(result.message);b.closest('dialog').close();showUfo(b.dataset.loadShip);refresh();}
- if(b.dataset.loadMaterials||b.dataset.unloadMaterials){const id=b.dataset.loadMaterials||b.dataset.unloadMaterials,result=b.dataset.loadMaterials?loadShipMaterials(game,id,Number($('#cargo-amount').value)):unloadShipMaterials(game,id);toast(result.message);if(result.ok){showUfo(id);refresh();save();}}
+ if(b.dataset.starVoyage){const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));const result=await enqueue(game,'starVoyage',portal?.id,undefined,null,b.dataset.starVoyage);toast(result.ok?'已安排独自通过星门航行。':result.message);closeContext();refresh();}
+ if(b.dataset.loadShip){const result=await loadShipFood(game,b.dataset.loadShip);toast(result.message);b.closest('dialog').close();showUfo(b.dataset.loadShip);refresh();}
+ if(b.dataset.loadMaterials||b.dataset.unloadMaterials){const id=b.dataset.loadMaterials||b.dataset.unloadMaterials,result=b.dataset.loadMaterials?await loadShipMaterials(game,id,Number($('#cargo-amount').value)):await unloadShipMaterials(game,id);toast(result.message);if(result.ok){showUfo(id);refresh();save();}}
  if(b.dataset.voyage){openFlight(b.dataset.voyage,b.dataset.ship||null);closeContext();}
  if(b.dataset.ufo){const ship=game.space.ships.find(s=>s.id===b.dataset.ufo);if(ship){game.viewIsland=ship.island;game.viewSide=ship.side;world.focusUfo(ship.id);showUfo(ship.id);refresh();}}
- if(b.dataset.sell){if(sellItem(game,b.dataset.sell)){toast('家具已出售，返还 70% 星币。');refresh();}else toast('请先取消与这件家具相关的行动。');closeContext();}
- if(b.id==='work'){const lab=game.objects.find(o=>sameSide(o,game.player)&&canWorkAt(game.career.id,o.type));const result=enqueue(game,'work',lab?.id);toast(result.ok?`已安排工作班次，${game.player.name}将前往${game.career.id==='chef'?'孢火星釜':'研究台'}。`:result.message);refresh();}
- if(b.id==='study'){const result=enqueueStudy(game);toast(result.ok?'已安排学习。':result.message);refresh();}
+ if(b.dataset.sell){if(await sellItem(game,b.dataset.sell)){toast('家具已出售，返还 70% 星币。');refresh();}else toast('请先取消与这件家具相关的行动。');closeContext();}
+ if(b.id==='work'){const lab=game.objects.find(o=>sameSide(o,game.player)&&canWorkAt(game.career.id,o.type));const result=await enqueue(game,'work',lab?.id);toast(result.ok?`已安排工作班次，${game.player.name}将前往${game.career.id==='chef'?'孢火星釜':'研究台'}。`:result.message);refresh();}
+ if(b.id==='study'){const result=await enqueueStudy(game);toast(result.ok?'已安排学习。':result.message);refresh();}
  if(b.id==='save')save(true);
   if(b.id==='config'){renderConfig();$('#config-dialog').showModal();}
   if(b.id==='config-reset')resetConfig();
@@ -350,15 +393,15 @@ $('#app').addEventListener('click',e=>{
  if(b.id==='zoom-in')world.zoom(.15);if(b.id==='zoom-out')world.zoom(-.15);if(b.id==='reset-view')world.resetCamera();if(b.id==='focus-player'){game.viewIsland=islandOf(game.player);game.viewSide=sideOf(game.player);world.focus('player');refresh();}
  if(b.id==='context-close')closeContext();if(b.id==='sound')toggleSound();
 });
-$('#app').addEventListener('click',e=>{if(e.target.closest('#randomize-heads')){randomizeHeads(game);refreshPortraits();lastPanel='';refresh();toast('所有居民的头型与触角长度已随机。');}});
-$('#app').addEventListener('change',e=>{if(e.target.id==='study-focus'){game.player.education.focus=e.target.value||null;e.target.blur();save();lastPanel='';renderPanel();}if(e.target.id==='family-desire'){e.target.blur();resident().familyDesire=Number(e.target.value);lastPanel='';renderPanel();}});
-$('#app').addEventListener('submit',e=>{
+$('#app').addEventListener('click',async e=>{if(e.target.closest('#randomize-heads')){await randomizeHeads(game);refreshPortraits();lastPanel='';refresh();toast('所有居民的头型与触角长度已随机。');}});
+$('#app').addEventListener('change',async e=>{if(e.target.id==='study-focus'){await command('studyFocus',e.target.value||null);e.target.blur();save();lastPanel='';renderPanel();}if(e.target.id==='family-desire'){e.target.blur();await command('familyDesire',selectedResident,Number(e.target.value));lastPanel='';renderPanel();}});
+$('#app').addEventListener('submit',async e=>{
  if(e.target.id==='config-form'){applyConfig(e);return;}if(e.target.id!=='resident-form')return;e.preventDefault();
  const headShape=Object.fromEntries(Object.keys(HEAD_SHAPE).map(key=>[key,Number($(`[name="${key}"]`).value)/100]));
- const result=updateResident(game,selectedResident,{gender:$('#resident-gender').value,age:Number($('#resident-age').value),devotion:Number($('#resident-devotion').value),headShape});
+ const result=await updateResident(game,selectedResident,{gender:$('#resident-gender').value,age:Number($('#resident-age').value),devotion:Number($('#resident-devotion').value),headShape});
  if(!result.ok){toast(result.message);return;}refreshPortraits();lastPanel='';refresh();toast('人物设定已更新。');
 });
-document.addEventListener('keydown',e=>{if(document.body.classList.contains('island-floating')||document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();game.speed=game.speed?0:1;refresh();}if(e.key==='1'||e.key==='3'){game.speed=Number(e.key);refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();}});
+document.addEventListener('keydown',async e=>{if(document.body.classList.contains('island-floating')||document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();await command('speed',game.speed?0:1);refresh();}if(e.key==='1'||e.key==='3'){await command('speed',Number(e.key));refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();if(!e.target.closest('#character-switcher')&&!e.target.closest('#active-character'))closeCharacterSwitcher();});
 setupDashboardResize();
 let audioContext=null,audioOn=false;
@@ -395,12 +438,12 @@ try{
  world=await createWorld($('#world'),()=>game,{
   onClick:showContext,
   onHover(target,x,y){lastHover={target,x,y};showHoverTooltip(target,x,y);},
-  onPlace(type,x,z,rotation){const result=buyItem(game,type,x,z,rotation);if(result.ok){toast(type==='mushroom'?'已安排人物前往种植。':`${ITEMS.find(i=>i.id===type).name}已放入家园。`);cancelPlacement();refresh();}else toast(result.message);}
+  async onPlace(type,x,z,rotation){const result=await buyItem(game,type,x,z,rotation);if(result.ok){toast(type==='mushroom'?'已安排人物前往种植。':`${ITEMS.find(i=>i.id===type).name}已放入家园。`);cancelPlacement();refresh();}else toast(result.message);}
  });
  refreshPortraits();
  $('#loading').hidden=true;refresh();
  let previous=performance.now(),uiElapsed=0,frameWindow=window,frameId;
- function frame(){frameId=frameWindow.requestAnimationFrame(frame);const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;tick(game,dt);world.render(now/1000);uiElapsed+=dt;if(uiElapsed>.2){refresh();if(lastHover&&!$('#tooltip').hidden)showHoverTooltip(lastHover.target,lastHover.x,lastHover.y);uiElapsed=0;}}
+ function frame(){frameId=frameWindow.requestAnimationFrame(frame);const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;if(!hosted)tick(game,dt);else visualGame=presentation.sample(game,now);world.render(visualGame);uiElapsed+=dt;if(uiElapsed>.2){refresh();if(lastHover&&!$('#tooltip').hidden)showHoverTooltip(lastHover.target,lastHover.x,lastHover.y);uiElapsed=0;}}
  const floating=createFloatingIsland($('#world'),{returnIcon:icon('ArrowLeft'),
   onEnter(){if(build)toggleBuild();cancelPlacement();closeContext();closeCharacterSwitcher();$('#tooltip').hidden=true;world.setSceneOnly(true);},
   onLeave(){world.setSceneOnly(false);floatingButton.focus();},

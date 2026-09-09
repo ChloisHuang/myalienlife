@@ -1,0 +1,8 @@
+{
+  "host": "192.0.2.10",
+  "sshPort": 22,
+  "user": "root",
+  "domain": "game.example.com",
+  "httpsPort": 6443,
+  "backendPort": 18080
+}
