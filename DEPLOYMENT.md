@@ -1,4 +1,4 @@
-# VPS Deployment
+# 服务器部署
 
 ## 使用
 
@@ -11,9 +11,9 @@ npm ci
 npm run deploy
 ```
 
-脚本部署当前工作目录的代码（包括未提交修改），不是自动拉取 Git 远端。每次先运行单元测试、本机构建，再上传压缩产物；VPS 不安装 npm 依赖、不保存 node_modules 或源码仓库。也可运行 deploy.command / deploy.cmd。
+脚本部署当前工作目录的代码（包括未提交修改），不是自动拉取 Git 远端。每次先运行单元测试、本机构建，再上传压缩产物；服务器 不安装 npm 依赖、不保存 node_modules 或源码仓库。也可运行 deploy.command / deploy.cmd。
 
-首次迁移必须先在本地游戏点击保存，然后运行 `npm run deploy -- --seed-local`。首次无存档时会拒绝默默新建世界；后续即使携带该参数也不会覆盖 VPS 进度。迁移后只使用线上地址继续生活，本地保留的存档是独立副本，不会与云端合并。
+首次迁移必须先在本地游戏点击保存，然后运行 `npm run deploy -- --seed-local`。首次无存档时会拒绝默默新建世界；后续即使携带该参数也不会覆盖 服务器 进度。迁移后只使用线上地址继续生活，本地保留的存档是独立副本，不会与云端合并。
 
 部署前必须创建被 Git 忽略的 deploy.config.json，格式见 deploy.config.example.json，将示例地址替换为自己的服务器信息。脚本不内置真实服务器地址，缺少配置会终止部署。默认新增 6443，不碰已有网站监听端口。现有部署不接受自动更换端口。
 
@@ -71,7 +71,7 @@ Token 位于 `/opt/myalienlife/secrets/operator-token`；不要贴到聊天或�
 
 IP 国家 / 地区通过本地 geoip-country 数据库解析，不向外部接口发送访客 IP，不提供城市级定位。该产品包含 MaxMind 创建的 GeoLite2 数据（https://www.maxmind.com），发布包包含其 LICENSE 和 EULA。代理和共享出口可能影响归属地及人数估计。nginx 覆盖传入的 X-Real-IP，后端只绑定本机端口；不要将后端端口直接暴露到公网。
 
-统计保存在 `.data/visitors.json`（VPS 为 `/opt/myalienlife/data/visitors.json`），只保存加盐 HMAC 标识，不保存原始 IP。每日明细保留 30 天，总人次和国家 / 地区累计数持续保留；每 30 秒及正常关机时原子保存。单日最多记录 10000 个独立 IP，超限会显示提示。统计文件随现有存档备份，不进入公开仓库。
+统计保存在 `.data/visitors.json`（服务器 为 `/opt/myalienlife/data/visitors.json`），只保存加盐 HMAC 标识，不保存原始 IP。每日明细保留 30 天，总人次和国家 / 地区累计数持续保留；每 30 秒及正常关机时原子保存。单日最多记录 10000 个独立 IP，超限会显示提示。统计文件随现有存档备份，不进入公开仓库。
 
 ## 公开仓库
 
