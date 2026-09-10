@@ -18,14 +18,17 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
  const configStore=createProjectConfigStore(join(directory,'project-config.json'));
  const authority=await createAuthority({directory,initial,config:await configStore.read(),autoStart});
  const visitors=await createVisitors({directory,lookup:geoLookup});
- const sessions=new Map(),limits=new Map();let controller=null,epoch=0,stateSerial=0;
+ const sessions=new Map(),limits=new Map(),onlineSockets=new Set();let controller=null,epoch=0,stateSerial=0;
  const snapshot=()=>({state:authority.state,revision:authority.revision,serial:++stateSerial});
- function sessionFor(req){const header=req.headers.authorization;const key=typeof header==='string'&&header.startsWith('Bearer ')?header.slice(7):'';const session=sessions.get(key);if(!session||session.expires<Date.now()){sessions.delete(key);return null;}return key;}
+ function releaseController(){if(controller){controller=null;epoch++;}}
+ function purgeController(now=Date.now()){const session=controller&&sessions.get(controller.session);if(controller&&(!session||session.expires<=now))releaseController();}
+ function sessionFor(req){const header=req.headers.authorization;const key=typeof header==='string'&&header.startsWith('Bearer ')?header.slice(7):'';const session=sessions.get(key);if(!session||session.expires<Date.now()){sessions.delete(key);purgeController();return null;}return key;}
  function clientFor(req){const client=req.headers['x-orbit-client'];if(typeof client!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(client))fail(400,'无效的浏览器标识');return client;}
  function owns(req,session){return !!session&&controller?.session===session&&controller.client===req.headers['x-orbit-client'];}
  function status(req){const session=sessionFor(req);return{authenticated:!!session,canOperate:owns(req,session),epoch,release,error:authority.error?'世界已因存档或模拟异常暂停':null};}
+ const liveStatus=()=>{purgeController();return{onlineCount:[...onlineSockets].filter(socket=>socket.readyState===WebSocket.OPEN).length,operatorHeld:!!controller};};
  function rate(req,kind,max){const key=`${req.socket.remoteAddress}:${kind}`,now=Date.now();let entry=limits.get(key);if(!entry||entry.until<now){entry={count:0,until:now+60000};limits.set(key,entry);}if(++entry.count>max)fail(429,'请求过于频繁，请稍后再试');}
- const cleanup=setInterval(()=>{const now=Date.now();for(const [id,s] of sessions)if(s.expires<now)sessions.delete(id);for(const [id,l]of limits)if(l.until<now)limits.delete(id);},60000);cleanup.unref();
+ const cleanup=setInterval(()=>{const now=Date.now();for(const [id,s] of sessions)if(s.expires<now)sessions.delete(id);purgeController(now);for(const [id,l]of limits)if(l.until<now)limits.delete(id);},60000);cleanup.unref();
  async function body(req){let size=0;const parts=[];for await(const chunk of req){size+=chunk.length;if(size>65536)fail(413,'请求过大');parts.push(chunk);}try{return JSON.parse(Buffer.concat(parts).toString());}catch{fail(400,'无效的 JSON');}}
  function json(res,value,status=200){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));}
  const server=createServer(async(req,res)=>{
@@ -40,7 +43,7 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
      if(typeof req.headers['x-orbit-client']==='string'&&/^[a-zA-Z0-9-]{1,80}$/.test(req.headers['x-orbit-client']))visitors.record(trustProxy?req.headers['x-real-ip']:req.socket.remoteAddress);
      return json(res,{...status(req),...snapshot(req)});
     }
-    if(req.method==='GET'&&path==='/api/visitors'){if(!sessionFor(req))fail(401,'请先验证操作 Token');return json(res,visitors.summary());}
+    if(req.method==='GET'&&path==='/api/visitors'){if(!sessionFor(req))fail(401,'请先验证操作 Token');return json(res,{...visitors.summary(),...liveStatus()});}
     if(req.method==='GET'&&path==='/api/session')return json(res,status(req));
     if(req.method!=='POST'||!['/api/login','/api/logout','/api/control/claim','/api/command','/api/checkpoint','/api/new-game','/api/project-config'].includes(path))fail(404,'接口不存在');
     if(req.headers.origin!==allowedOrigin)fail(403,'请求来源不匹配');
@@ -84,7 +87,7 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
   sockets.handleUpgrade(req,socket,head,ws=>sockets.emit('connection',ws,req));
  });
  sockets.on('connection',(ws,req)=>{
-  const states=createStateStream({limit:1,maxBytes:512*1024});let baseId,ready=false,authVersion=0,lastVisit=0;
+  const states=createStateStream({limit:1,maxBytes:512*1024});let baseId,ready=false,authVersion=0,lastVisit=0;ws.authSession='';ws.authClient='';
   ws.alive=true;ws.on('pong',()=>{ws.alive=true;});ws.on('error',()=>ws.terminate());
   const handshake=setTimeout(()=>{if(!ready)ws.terminate();},5000);
   ws.on('message',data=>{
@@ -92,7 +95,7 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
     rate(req,'socket-message',120);const message=JSON.parse(data);
     if(message.type!=='auth'||typeof message.client!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(message.client)||typeof message.session!=='string'||message.session.length>128||!Number.isSafeInteger(message.authVersion)||message.authVersion<authVersion)throw new Error('Invalid handshake');
     if(ready&&req.headers['x-orbit-client']!==message.client)throw new Error('Client changed');
-    req.headers['x-orbit-client']=message.client;req.headers.authorization=message.session?`Bearer ${message.session}`:'';authVersion=message.authVersion;ready=true;clearTimeout(handshake);
+    req.headers['x-orbit-client']=message.client;req.headers.authorization=message.session?`Bearer ${message.session}`:'';ws.authSession=message.session;ws.authClient=message.client;authVersion=message.authVersion;ready=true;onlineSockets.add(ws);clearTimeout(handshake);
    }catch{ws.close(1008,'Invalid message');}
   });
   ws.pushState=()=>{
@@ -102,11 +105,11 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
    ws.send(JSON.stringify(value));
    if(Date.now()-lastVisit>60000){visitors.record(trustProxy?req.headers['x-real-ip']:req.socket.remoteAddress);lastVisit=Date.now();}
   };
-  ws.on('close',()=>clearTimeout(handshake));
+  ws.on('close',()=>{onlineSockets.delete(ws);clearTimeout(handshake);if(controller?.session===ws.authSession&&controller.client===ws.authClient&&!([...onlineSockets].some(socket=>socket.readyState===WebSocket.OPEN&&socket.authSession===ws.authSession&&socket.authClient===ws.authClient)))releaseController();});
  });
  const pushTimer=setInterval(()=>{for(const ws of sockets.clients)ws.pushState?.();},200);
  const heartbeat=setInterval(()=>{for(const ws of sockets.clients){if(!ws.alive){ws.terminate();continue;}ws.alive=false;ws.ping();}},15000);
  pushTimer.unref();heartbeat.unref();
  server.requestTimeout=10000;server.headersTimeout=10000;server.keepAliveTimeout=5000;server.maxHeadersCount=40;server.maxConnections=128;
- return{server,authority,async close(){clearInterval(cleanup);clearInterval(pushTimer);clearInterval(heartbeat);for(const ws of sockets.clients)ws.terminate();await new Promise(resolve=>sockets.close(resolve));server.closeAllConnections();await new Promise(resolve=>server.close(resolve));try{await authority.close();}finally{await visitors.close();}}};
+ return{server,authority,async close(){clearInterval(cleanup);clearInterval(pushTimer);clearInterval(heartbeat);for(const ws of sockets.clients)ws.terminate();onlineSockets.clear();await new Promise(resolve=>sockets.close(resolve));server.closeAllConnections();await new Promise(resolve=>server.close(resolve));try{await authority.close();}finally{await visitors.close();}}};
 }

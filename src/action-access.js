@@ -1,4 +1,4 @@
-import {skillProgress} from './characters.js';
+import {DEFAULT_LIFE_STAGES,skillProgress} from './characters.js';
 
 export const ACTION_REQUIREMENTS={
  developBlueprint:{career:'architect',careerLevel:1},
@@ -16,6 +16,8 @@ export const ACTION_REQUIREMENTS={
 export function actionAccessError(g,person,type){
  const rule=ACTION_REQUIREMENTS[type];if(!rule)return null;
  const career=person.id==='player'?g.career:person.position.career;
+ const adultStart=g.config?.lifeStages?.teenEnd??DEFAULT_LIFE_STAGES.teenEnd;
+ if(rule.career&&person.position.age<adultStart)return '成年后才能从事职业。';
  if(rule.career&&(career?.id!==rule.career||career.level<rule.careerLevel))return `需要${{chef:'星云膳造',scientist:'量子科学',architect:'星穹营造',botanist:'异星植物'}[rule.career]}职业 ${rule.careerLevel} 阶。`;
  if(!rule.cooking&&!rule.science)return null;
  const skill=rule.cooking?'cooking':'science',required=rule[skill],level=skillProgress(person.skills[skill]).level;

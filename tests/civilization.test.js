@@ -12,15 +12,15 @@ test('discovery, technology, manufacture and food each gate landing',()=>{
  const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];assert.ok(discovered(g,'spore'));
  assert.match(voyageError(g,g.player,g.skills,'spore'),/科技/);g.civilization.technology=40;
  g.skills.science=0;
- assert.match(voyageError(g,g.player,g.skills,'spore'),/制造/);ship(g);g.career.id='chef';g.space.provisions.home=0;
+ assert.match(voyageError(g,g.player,g.skills,'spore'),/制造/);ship(g);assert.ok(buyItem(g,'stove',5,5).object);g.career.id='chef';g.space.provisions.home=0;
  assert.match(voyageError(g,g.player,g.skills,'spore'),/食物/);g.space.provisions.home=8;
  assert.equal(voyageError(g,g.player,g.skills,'spore'),null);g.player.age=12;g.skills.science=0;assert.equal(voyageError(g,g.player,g.skills,'spore'),null);
  g.player.age=28;g.wonders.archive=3;g.civilization.discoveryPath.push('city');assert.match(voyageError(g,g.player,g.skills,'city'),/科技 2/);
 });
-test('a real UFO voyage creates a playable island and reserves return food',()=>{
+test('a real UFO voyage creates a playable island and consumes one-way food',()=>{
  const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];g.civilization.technology=40;ship(g);
  assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);
- assert.equal(g.player.island,'spore');assert.equal(g.viewIsland,'spore');assert.equal(g.civilization.visits.spore,1);assert.equal(g.space.ships[0].food,1);
+ assert.equal(g.player.island,'spore');assert.equal(g.viewIsland,'spore');assert.equal(g.civilization.visits.spore,1);assert.equal(g.space.ships[0].food,0);
  assert.equal(enqueue(g,'research','lab').ok,false);assert.equal(enqueue(g,'explore','spore-portal').ok,true);run(g,35);assert.equal(g.civilization.surveys.spore,1);
  assert.equal(enqueue(g,'explore','spore-portal').ok,false);assert.equal(g.civilization.technology,40);assert.equal(g.civilization.knowledge,6);
  g.player.preferences={};g.skills.botany=0;const loaded=restore(serialize(g));assert.equal(enqueue(loaded,'voyage','spore-portal',undefined,null,'home').ok,true);run(loaded,35);assert.equal(loaded.player.island,'home');assert.equal(loaded.space.ships[0].food,0);

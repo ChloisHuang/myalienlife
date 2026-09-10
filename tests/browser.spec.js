@@ -35,15 +35,22 @@ test('radiant halo floats above the head in world and portrait',async({page})=>{
  await page.locator('#player-portrait').screenshot({path:'artifacts/radiant-halo-avatar.png'});expect(errors).toEqual([]);
 });
 
-test('nether translucency appears in the world and regenerated portraits',async({page})=>{
+test('nether eye appears in the world and regenerated portraits',async({page})=>{
  const state=createGame();state.speed=0;state.autonomy.enabled=false;fixtures.set(page,state);
  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  const ordinary=await page.locator('#player-portrait').getAttribute('src');
  state.player.prayer.nether=10;state.player.x=0;state.player.z=3;fixtures.set(page,state);await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  expect(await page.locator('#player-portrait').getAttribute('src')).not.toBe(ordinary);
- for(const width of [1440,390]){await page.setViewportSize({width,height:900});await page.waitForTimeout(400);await page.screenshot({path:`artifacts/nether-translucent-${width}.png`});}
- await page.locator('#player-portrait').screenshot({path:'artifacts/nether-translucent-avatar.png'});
+ const purplePixels=await page.locator('#player-portrait').evaluate(img=>{
+  const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;
+  const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);const pixels=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+  let purple=0;for(let i=0;i<pixels.length;i+=4)if(pixels[i]>pixels[i+1]*1.3&&pixels[i+2]>pixels[i+1]*1.5&&pixels[i+2]>80)purple++;return purple;
+ });expect(purplePixels).toBeGreaterThan(5);
+ for(const width of [1440,390]){await page.setViewportSize({width,height:900});await page.waitForTimeout(400);await page.screenshot({path:`artifacts/nether-eye-${width}.png`});}
+ await page.locator('#player-portrait').evaluate(img=>{img.style.width='240px';img.style.height='300px';img.style.maxWidth='none';});
+ await page.locator('#player-portrait').screenshot({path:'artifacts/nether-eye-avatar.png'});
  expect(errors).toEqual([]);
 });
 
@@ -89,6 +96,22 @@ test('catalog mushroom placement queues a resident walking and planting on the c
  const saved=await savedState(page),crop=saved.objects.find(o=>o.type==='mushroom');expect(crop.x).toBe(-5);expect(crop.z).toBe(4);expect(crop.plant.growth).toBeLessThan(.15);
 });
 
+test('build mode exposes selling for fixed default furniture',async({page})=>{
+ const state=createGame();state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;state.objects.push({id:'fixed-default-sofa',type:'sofa',x:0,z:4,rotation:0,island:'home',side:'front',fixed:true});fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.getByRole('button',{name:'建造模式',exact:true}).click();
+ const bounds=await page.locator('#world canvas').boundingBox(),point=new Vector3(0,.8,4).project(sceneCamera(bounds));await page.mouse.click(bounds.x+(point.x+1)*bounds.width/2,bounds.y+(1-point.y)*bounds.height/2);
+ await expect(page.locator('[data-sell="fixed-default-sofa"]')).toBeVisible();await page.locator('[data-sell="fixed-default-sofa"]').click();await expect(page.locator('#toast')).toContainText('家具已出售');await page.locator('#save').click();expect((await savedState(page)).objects.some(o=>o.id==='fixed-default-sofa')).toBe(false);
+});
+
+test('weather indicator stays visible below the location and above the station panel',async({page})=>{
+ const state=createGame();state.speed=0;state.majorEvents=[{type:'birth',text:'测试事件',day:1,at:510}];fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.locator('.location').evaluate(el=>{const bar=document.createElement('div');bar.className='online-controls';bar.innerHTML='<span>连接中</span>';el.prepend(bar);});
+ const weather=page.locator('#weather'),journal=page.locator('#journal');
+ await expect(weather).toContainText('°');await expect(weather).toBeVisible();
+ for(const width of [1440,1200]){await page.setViewportSize({width,height:900});const weatherBox=await weather.boundingBox(),journalBox=await journal.boundingBox();expect(journalBox.y).toBeGreaterThanOrEqual(weatherBox.y+weatherBox.height);}
+});
+
 test('repaired school record displays real foundation requirements and persists without inflated credits',async({page})=>{
  const {switchControl}=await import('../src/simulation.js');const g=createGame();switchControl(g,'pip');g.speed=0;g.player.education={version:2,credits:55,focus:null,foundation:{practical:2,logic:0,nature:1,expression:2,arts:2},major:null};fixtures.set(page,g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="career"]').click();
@@ -102,8 +125,8 @@ test('education stages show foundations, readonly specialization and adult conti
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden();await page.locator('[data-tab="career"]').click();
  await expect(page.locator('.education-path')).toHaveText('幼儿园 → 小学 → 中学 → 高中 → 大学 → 研究生 → 博士');await expect(page.locator('#study-focus option[value="music"]')).toHaveText('艺术感知');await expect(page.locator('.learning-panel')).toContainText('基础能力');await expect(page.locator('.learning-panel')).toContainText('兴趣 24.12');await expect(page.locator('#panel-content')).not.toContainText('123456789');await page.screenshot({path:'artifacts/education-foundations.png'});
  await page.locator('[data-tab="resident"]').click();await expect(page.locator('.prayer-status')).toContainText('曦光属性 2');await expect(page.locator('.prayer-status')).not.toContainText('123456789');
- g.player.age=24;g.player.education.credits=60;for(const key in g.player.education.foundation)g.player.education.foundation[key]=18;g.player.education.major='music';g.skills.music=3.123456789;fixtures.set(page,g);await page.reload();await expect(page.locator('#loading')).toBeHidden();await page.locator('[data-tab="career"]').click();await page.locator('.continuing-education summary').click();
- await expect(page.locator('.education-major')).toContainText('星律艺术');await expect(page.locator('.education-major')).toContainText('音乐 · 学习效率 ×2');await expect(page.locator('.education-major select')).toHaveCount(0);await page.locator('#study-focus').selectOption('science');await expect(page.locator('.continuing-education')).toHaveAttribute('open','');await expect(page.locator('.education-major')).toContainText('星律艺术');
+ g.player.age=24;g.player.education.credits=72;for(const key in g.player.education.foundation)g.player.education.foundation[key]=18;g.player.education.major='music';g.skills.music=3.123456789;fixtures.set(page,g);await page.reload();await expect(page.locator('#loading')).toBeHidden();await page.locator('[data-tab="career"]').click();await page.locator('.continuing-education summary').click();
+ await expect(page.locator('.education-major')).toContainText('星律艺术');await expect(page.locator('.education-major')).toContainText('音乐 · 学习效率 ×2');await expect(page.locator('.education-major select')).toHaveCount(0);await expect(page.locator('#study-focus')).toHaveCount(0);await expect(page.locator('#study')).toHaveCount(0);await page.getByRole('button',{name:'加入继续学习'}).click();await expect(page.locator('#study-focus')).toBeVisible();await page.locator('#study-focus').selectOption('science');await expect(page.locator('.continuing-education')).toHaveAttribute('open','');await expect(page.locator('.education-major')).toContainText('星律艺术');
  await page.locator('#study').click();await expect(page.locator('#toast')).toContainText('已安排学习');await page.setViewportSize({width:390,height:844});await page.locator('.education-major').scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/education-university-mobile.png'});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.locator('[data-tab="skills"]').click();await expect(page.locator('[data-skill="music"]')).toContainText('经验 0.12 / 6');await expect(page.locator('#panel-content')).not.toContainText('123456789');expect(errors).toEqual([]);
 });
@@ -123,14 +146,14 @@ test('resident dossier uses consistent typography and controls across desktop an
 });
 
 test('minor learning panel selects subjects, displays skill levels and switches back to adult careers',async({page})=>{
- const {switchControl}=await import('../src/simulation.js');const state=createGame();switchControl(state,'pip');state.speed=0;fixtures.set(page,state);
+ const {switchControl}=await import('../src/simulation.js');const state=createGame();switchControl(state,'pip');state.config.education.studySuccessChance=100;state.speed=0;fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  await expect(page.locator('[data-tab="career"]')).toContainText('学习');await page.locator('[data-tab="career"]').click();await expect(page.locator('.learning-panel')).toContainText('幼儿园');await expect(page.locator('[data-career]')).toHaveCount(0);
  await page.locator('#study-focus').selectOption('music');await page.locator('#study').click();await expect(page.locator('#toast')).toContainText('已安排学习');await page.screenshot({path:'artifacts/education-desktop.png'});
  await page.setViewportSize({width:390,height:844});await expect(page.locator('#study-focus')).toBeVisible();await page.screenshot({path:'artifacts/education-mobile.png'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
- await page.keyboard.press('3');await expect(page.locator('.learning-heading')).toContainText('1 学分 / 6 学分',{timeout:25000});await page.keyboard.press('Space');await page.locator('.learning-panel .skill-card').last().scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/education-mobile-skills.png'});
- state.player.age=18;state.player.education.credits=144;for(const key in state.player.education.foundation)state.player.education.foundation[key]=18;fixtures.set(page,state);await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="career"]').click();await expect(page.locator('[data-tab="career"]')).toContainText('职业');await expect(page.locator('.career-current')).toContainText('博士 ×1.6');expect(errors).toEqual([]);
+ await page.keyboard.press('3');await expect(page.locator('.learning-heading')).toContainText('1 学分 / 6 学分',{timeout:40000});await page.keyboard.press('Space');await page.locator('.learning-panel .skill-card').last().scrollIntoViewIfNeeded();await page.screenshot({path:'artifacts/education-mobile-skills.png'});
+ state.player.age=18;state.player.education.credits=240;for(const key in state.player.education.foundation)state.player.education.foundation[key]=30;fixtures.set(page,state);await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('[data-tab="career"]').click();await expect(page.locator('[data-tab="career"]')).toContainText('职业');await expect(page.locator('.career-current')).toContainText('博士 ×1.6');await expect(page.locator('#study')).toHaveCount(0);await page.getByRole('button',{name:'加入继续学习'}).click();await expect(page.locator('#study')).toBeVisible();await expect(page.locator('.career-current')).toContainText('无收入');expect(errors).toEqual([]);
 });
 
 test('hovering cargo shelves and UFOs shows local stock and loaded capacity without opening a dialog',async({page})=>{
@@ -443,7 +466,7 @@ test('spirit tree interaction menu schedules prayer instead of admire',async({pa
  const bounds=await page.locator('#world canvas').boundingBox(),camera=sceneCamera(bounds);const p=new Vector3(0,1.3,4).project(camera);
  await page.mouse.click(bounds.x+(p.x+1)*bounds.width/2,bounds.y+(1-p.y)*bounds.height/2);
  await expect(page.locator('#context-menu')).toContainText('星灵垂光树');await expect(page.locator('[data-action="admire"]')).toHaveCount(0);
- await expect(page.locator('#context-menu')).toContainText('10%');await page.locator('[data-action="pray"]').click();
+ await expect(page.locator('#context-menu')).toContainText('1%');await page.locator('[data-action="pray"]').click();
  await expect(page.locator('#queue')).toContainText('向星灵树祈祷');
 });
 
@@ -600,9 +623,10 @@ test('configuration button opens the detailed parameter dialog',async({page})=>{
  const dialog=page.getByRole('dialog',{name:'参数配置'});await expect(dialog).toBeVisible();
  await expect(dialog.locator('[data-config-path="time.starYearDays"]')).toHaveValue('8');await expect(dialog).toContainText('动作时长');await expect(dialog).toContainText('职业门槛');await expect(dialog).toContainText('需求衰减');await expect(dialog).toContainText('作物参数');await expect(dialog).toContainText('工作');
  await expect(dialog.locator('[data-config-path="lifeStages.infantEnd"]')).toHaveValue('3');
+ await expect(dialog.locator('[data-config-path="education.studySuccessChance"]')).toHaveValue('60');
  await expect(dialog.locator('[data-config-path="mutationRates.color"]')).toHaveValue('2.4');
  await expect(dialog).toContainText('星灵树祈祷概率');
- for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
+ for(const [key,value]of Object.entries({skillChance:2,radianceChance:1,netherChance:1,mutationChance:.1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
  const prayer={skillChance:27.5,radianceChance:10,netherChance:0,mutationChance:100,rejuvenationChance:.2,racialInheritanceRate:42,racialInheritanceStdDev:13,racialMutationInheritanceChance:7};
  for(const [key,value]of Object.entries(prayer))await dialog.locator(`[data-config-path="prayer.${key}"]`).fill(String(value));
  await dialog.locator('[data-config-path="lifeStages.infantEnd"]').fill('4');
@@ -619,7 +643,7 @@ test('configuration button opens the detailed parameter dialog',async({page})=>{
  for(const [key,value]of Object.entries(prayer))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
  await dialog.locator('[data-config-path="prayer.skillChance"]').scrollIntoViewIfNeeded();await page.screenshot({path:'test-results/prayer-config.png'});
  await dialog.locator('#config-reset').click();
- for(const [key,value]of Object.entries({skillChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
+ for(const [key,value]of Object.entries({skillChance:2,radianceChance:1,netherChance:1,mutationChance:.1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5}))await expect(dialog.locator(`[data-config-path="prayer.${key}"]`)).toHaveValue(String(value));
 });
 test('skills and resident appearance have dedicated panels and retain edits after reload',async({page})=>{
  const state=createGame();state.speed=0;state.skills.science=4;
@@ -701,8 +725,8 @@ test('life panel exposes fertility reasoning, birth countdown and successor sele
  fixtures.set(page,structuredClone(g));await page.reload();await expect(page.locator('#loading')).toBeHidden();await page.getByRole('button',{name:'生命',exact:true}).click();await expect(page.locator('.birth-entry')).toContainText('凯伊');
  g.incubations[0].due=sim.gameMinutes(g);g.speed=1;sim.tick(g,1);g.speed=0;
  fixtures.set(page,structuredClone(g));await page.reload();await expect(page.locator('#loading')).toBeHidden();await page.getByRole('button',{name:'生命',exact:true}).click();await page.locator('#active-character').click();await expect(page.locator('#character-switcher .character-option')).toHaveCount(5);await page.screenshot({path:'test-results/lifecycle-birth.png'});
- g.player.age=120;g.speed=1;sim.tick(g,1);fixtures.set(page,structuredClone(g));await page.reload();await expect(page.locator('#loading')).toBeHidden();await expect(page.locator('#life-alert')).toContainText('离世');await expect(page.locator('.memorial-entry')).toContainText('凯伊');await page.getByRole('button',{name:'接管 诺瓦',exact:true}).click();await expect(page.locator('.profile h2')).toContainText('诺瓦');await expect(page.locator('#life-alert')).toBeHidden();
- await page.getByRole('button',{name:'保存游戏',exact:true}).click();await page.reload();await expect(page.locator('#loading')).toBeHidden();await expect(page.locator('.profile h2')).toContainText('诺瓦');await page.getByRole('button',{name:'生命',exact:true}).click();await page.setViewportSize({width:390,height:844});await expect(page.locator('#family-desire')).toBeVisible();await page.screenshot({path:'test-results/lifecycle-mobile.png'});expect(errors).toEqual([]);
+ g.player.age=120;g.speed=1;sim.tick(g,1);const successorName=g.player.name;fixtures.set(page,structuredClone(g));await page.reload();await expect(page.locator('#loading')).toBeHidden();await page.getByRole('button',{name:'生命',exact:true}).click();await expect(page.locator('.memorial-entry')).toContainText('凯伊');await expect(page.locator('.profile h2')).toContainText(successorName);await expect(page.locator('#life-alert')).toBeHidden();
+ await page.getByRole('button',{name:'保存游戏',exact:true}).click();await page.reload();await expect(page.locator('#loading')).toBeHidden();await expect(page.locator('.profile h2')).toContainText(successorName);await page.getByRole('button',{name:'生命',exact:true}).click();await page.setViewportSize({width:390,height:844});await expect(page.locator('#family-desire')).toBeVisible();await page.screenshot({path:'test-results/lifecycle-mobile.png'});expect(errors).toEqual([]);
 });
 test('3D nursery lets the player choose two parents and the newborn displays inherited family traits',async({page})=>{
  const {OrthographicCamera,Vector3}=await import('three');const sim=await import('../src/simulation.js');const g=sim.createGame();g.speed=0;g.relationships.nova=75;g.objects.push({id:'nursery',type:'nursery',x:-6,z:4,rotation:0});

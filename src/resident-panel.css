@@ -72,7 +72,7 @@
 .learning-heading{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px 10px;padding-bottom:22px;margin-bottom:20px;border-bottom:1px solid var(--panel-line);align-items:end}
 .learning-heading>div{grid-column:1/-1}
 .learning-heading>div>small{display:block;margin-top:8px}
-.learning-heading label{display:grid;gap:6px;min-width:0}
+.learning-heading label{display:grid;gap:6px;min-width:0}.learning-heading .education-lock{grid-column:1/-1;margin:0;color:var(--panel-muted);font-size:12px;line-height:1.6}
 .learning-heading select{width:100%}
 .learning-interest{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--panel-muted);margin-bottom:12px}
 .career-layout{min-height:100%}

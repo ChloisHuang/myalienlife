@@ -36,8 +36,8 @@
 
 /* The information card lives beside the scene; its left edge is the direct resize target. */
 :root{--dashboard-width:380px}
-#world{inset:50px 0 0}.scene-ui{inset:88px 28px 28px}.journal{left:5px;right:auto;top:162px;width:223px}
+#world{inset:50px 0 0}.scene-ui{inset:88px 28px 28px}.journal{left:5px;right:auto;top:190px;width:223px}
 .locations{right:calc(var(--dashboard-width) + 36px)}.camera-controls{right:calc(var(--dashboard-width) + 24px)}#toast,#build-hint{bottom:32px}
-@media(max-width:1200px){:root{--dashboard-width:320px}.journal{display:block;left:0;top:154px;width:200px}.locations{right:calc(var(--dashboard-width) + 24px)}.camera-controls{right:calc(var(--dashboard-width) + 14px)}}
+@media(max-width:1200px){:root{--dashboard-width:320px}.journal{display:block;left:0;top:190px;width:200px}.locations{right:calc(var(--dashboard-width) + 24px)}.camera-controls{right:calc(var(--dashboard-width) + 14px)}}
 @media(max-width:760px){.journal{display:none}#world{inset:30px 0 302px}.scene-ui{inset:70px 14px 316px}.locations{right:0}.camera-controls{right:0}#toast,#build-hint{bottom:321px}}
 #tooltip[data-cargo]{white-space:pre-line}

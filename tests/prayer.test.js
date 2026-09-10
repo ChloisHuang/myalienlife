@@ -1,16 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,buyItem,enqueue,tick,serialize,restore,cancelAction,takeOver,ITEMS,skillProgress} from '../src/simulation.js';
-import {resolvePrayer,PRAYER_MUTATIONS,validBlessing,isRadiant,prayerRaceName} from '../src/prayer.js';
+import {resolvePrayer,PRAYER_RULES,PRAYER_MUTATIONS,validBlessing,isRadiant,prayerRaceName} from '../src/prayer.js';
 
 test('radiance uses an independent ten-percent front roll and never rewards the back',()=>{
  for(const [side,roll,expected]of [['front',.0999,true],['front',.1,false],['back',0,false]]){
-  const g=createGame();g.config.prayer.skillChance=g.config.prayer.netherChance=g.config.prayer.mutationChance=0;
+  const g=createGame();g.config.prayer.skillChance=g.config.prayer.netherChance=g.config.prayer.mutationChance=0;g.config.prayer.radianceChance=10;
   const result=resolvePrayer(g.player,g.skills,side,g.config.prayer,g.config.lifeStages,()=>roll);
   assert.equal(result.radiance,expected);assert.equal(g.player.prayer.radiance,expected?1:0);
  }
  const g=createGame();g.player.prayer.radiance=1e9;
  assert.equal(resolvePrayer(g.player,g.skills,'front',g.config.prayer,g.config.lifeStages,()=>0).radiance,false);
+});
+
+test('radiance and nether stop at their awakening caps and legacy over-cap values are normalized',()=>{
+ const g=createGame();Object.assign(g.config.prayer,{skillChance:0,rejuvenationChance:0,radianceChance:100,netherChance:100,mutationChance:0});
+ g.player.prayer.radiance=PRAYER_RULES.radianceThreshold;let result=resolvePrayer(g.player,g.skills,'front',g.config.prayer,g.config.lifeStages,()=>0);
+ assert.equal(result.radiance,false);assert.equal(g.player.prayer.radiance,PRAYER_RULES.radianceThreshold);
+ g.player.prayer.nether=PRAYER_RULES.netherThreshold;result=resolvePrayer(g.player,g.skills,'back',g.config.prayer,g.config.lifeStages,()=>0);
+ assert.equal(result.nether,false);assert.equal(g.player.prayer.nether,PRAYER_RULES.netherThreshold);
+ const legacy=structuredClone(g);legacy.player.prayer.radiance=12;legacy.player.prayer.nether=13;const restored=restore(serialize(legacy));
+ assert.equal(restored.player.prayer.radiance,PRAYER_RULES.radianceThreshold);assert.equal(restored.player.prayer.nether,PRAYER_RULES.netherThreshold);
 });
 
 test('player and NPC dawn awakening persists without rerolling and coexists with nether',t=>{
@@ -28,14 +38,14 @@ test('player and NPC dawn awakening persists without rerolling and coexists with
   const loaded=restore(serialize(g)),resident=npc?loaded.npcs.nova:loaded.player;
   advance(loaded,()=>!(npc?resident.queue:loaded.queue).length);assert.equal(resident.prayer.radiance,10);
   const next=resolvePrayer(resident,npc?resident.skills:loaded.skills,'front',loaded.config.prayer,loaded.config.lifeStages,()=>.5);
-  assert.equal(next.radiance,true);assert.equal(next.radianceTransformed,false);
+  assert.equal(next.radiance,false);assert.equal(next.radianceTransformed,false);assert.equal(resident.prayer.radiance,PRAYER_RULES.radianceThreshold);
  }
 });
 
 test('old saves gain zero radiance, while malformed radiance and wrong-side blessings are rejected',()=>{
  const g=createGame();for(const person of [g.player,...Object.values(g.npcs)])delete person.prayer.radiance;
  delete g.config.prayer.radianceChance;
- const loaded=restore(serialize(g));assert.equal(loaded.player.prayer.radiance,0);assert.equal(loaded.config.prayer.radianceChance,10);
+ const loaded=restore(serialize(g));assert.equal(loaded.player.prayer.radiance,0);assert.equal(loaded.config.prayer.radianceChance,1);
  for(const value of [-1,.5,'10',null,1e9+1]){const invalid=structuredClone(loaded);invalid.player.prayer.radiance=value;assert.throws(()=>restore(serialize(invalid)));}
  const blessing={side:'front',skill:null,nether:false,mutation:null,transformed:false,radiance:true,radianceTransformed:true};
  assert.ok(validBlessing(blessing));assert.equal(validBlessing({...blessing,side:'back'}),false);
@@ -79,12 +89,12 @@ test('configured prayer percentages control actual player and NPC rewards indepe
 });
 
 test('prayer configuration persists, migrates older saves and rejects invalid percentages',()=>{
- const g=createGame();assert.deepEqual(g.config.prayer,{skillChance:10,radianceChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5});
+ const g=createGame();assert.deepEqual(g.config.prayer,{skillChance:2,radianceChance:1,netherChance:1,mutationChance:.1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5});
  g.config.prayer={skillChance:27.5,radianceChance:10,netherChance:0,mutationChance:100,rejuvenationChance:.2,racialInheritanceRate:42,racialInheritanceStdDev:13,racialMutationInheritanceChance:7};assert.deepEqual(restore(serialize(g)).config.prayer,g.config.prayer);
  for(const key of Object.keys(g.config.prayer))for(const value of [-1,100.1,'10',null]){
   const invalid=structuredClone(g);invalid.config.prayer[key]=value;assert.throws(()=>restore(serialize(invalid)));
  }
- delete g.config.prayer;assert.deepEqual(restore(serialize(g)).config.prayer,{skillChance:10,radianceChance:10,netherChance:10,mutationChance:1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5});
+ delete g.config.prayer;assert.deepEqual(restore(serialize(g)).config.prayer,{skillChance:2,radianceChance:1,netherChance:1,mutationChance:.1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5});
 });
 
 test('tree offers prayer only and rejects prayer at other furniture',()=>{
@@ -180,11 +190,11 @@ test('version 9 gains independent prayer state and version 10 rejects corrupt pr
 
 test('probability boundaries distinguish a ten-percent blessing from a one-percent mutation',()=>{
  for(const [roll,success]of [[.0999,true],[.1,false]]){
-  const {g}=setup();const rolls=[roll,0],result=resolvePrayer(g.player,g.skills,'front',g.config.prayer,g.config.lifeStages,()=>rolls.shift());
+  const {g}=setup();g.config.prayer.skillChance=10;const rolls=[roll,0],result=resolvePrayer(g.player,g.skills,'front',g.config.prayer,g.config.lifeStages,()=>rolls.shift());
   assert.equal(result.skill!==null,success);
  }
  for(const [roll,success]of [[.0099,true],[.01,false]]){
-  const {g}=setup('back'),rolls=[.9,roll,0],result=resolvePrayer(g.player,g.skills,'back',g.config.prayer,g.config.lifeStages,()=>rolls.shift());
+  const {g}=setup('back');g.config.prayer.netherChance=0;g.config.prayer.mutationChance=1;const rolls=[.9,roll,0],result=resolvePrayer(g.player,g.skills,'back',g.config.prayer,g.config.lifeStages,()=>rolls.shift());
   assert.equal(result.nether,false);assert.equal(result.mutation!==null,success);
  }
  const {g}=setup();for(const key in g.skills)g.skills[key]=135;

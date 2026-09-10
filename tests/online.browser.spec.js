@@ -13,7 +13,7 @@ test('hosted world renders on phones, transfers authority, and runs with every b
  const deltas=[];let polls=0;a.on('request',request=>{if(request.url().endsWith('/api/state'))polls++;});
  a.on('websocket',socket=>socket.on('framereceived',event=>{const value=JSON.parse(event.payload);if(value.patch)deltas.push(value);}));
  try{
-  for(const page of [a,b]){page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});page.on('console',m=>{if(m.type()==='error')console.error(m.text());});await page.goto('http://127.0.0.1:18191');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#online-status')).toHaveText('访客 · 只读');}
+  for(const page of [a,b]){page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});page.on('console',m=>{if(m.type()==='error')console.error(m.text());});await page.goto('http://127.0.0.1:18191');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#online-status')).toHaveText('访客 · 只读');await expect(page.locator('#online-status')).toHaveAttribute('data-status','guest');await expect(page.locator('#online-status')).toHaveCSS('color','rgb(47, 111, 186)');}
   await a.locator('[data-speed="3"]').dispatchEvent('click');expect(service.authority.state.speed).toBe(0);
   const authBox=await a.locator('.online-controls').boundingBox(),labelBox=await a.locator('.location .eyebrow').boundingBox();
   expect(authBox.y+authBox.height).toBeLessThanOrEqual(labelBox.y);
@@ -33,11 +33,11 @@ test('hosted world renders on phones, transfers authority, and runs with every b
    await page.locator('#operator-login').click();await page.locator('#operator-token').fill(token);await page.locator('#operator-form button[type="submit"]').click();await expect(page.locator('#operator-dialog')).not.toBeVisible();
    const heights=await page.locator('.online-controls button:visible').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height));
    expect(Math.max(...heights)-Math.min(...heights)).toBeLessThanOrEqual(1);
-   await page.locator('#visitor-stats').click();await expect(page.locator('#visitor-results')).toBeVisible();await expect(page.locator('#visitor-total')).toHaveText('1');
+   await page.locator('#visitor-stats').click();await expect(page.locator('#visitor-results')).toBeVisible();await expect(page.locator('#visitor-total')).toHaveText('1');await expect(page.locator('#visitor-online')).toHaveText('2');await expect(page.locator('#visitor-operator')).toHaveText(page===a?'无人持有':'有人持有');
    await page.screenshot({path:`artifacts/visitors-${page===a?'desktop':'mobile'}.png`});await page.getByRole('button',{name:'关闭访问统计',exact:true}).click();
-   await page.locator('#claim-control').click();await expect(page.locator('#online-status')).toHaveText('操作中');
+   await page.locator('#claim-control').click();await expect(page.locator('#online-status')).toHaveText('操作中');await expect(page.locator('#online-status')).toHaveAttribute('data-status','operator');await expect(page.locator('#online-status')).toHaveCSS('color','rgb(230, 126, 34)');
   }
-  await expect(a.locator('#online-status')).toHaveText('已验证 · 只读');
+  await expect(a.locator('#online-status')).toHaveText('已验证 · 只读');await expect(a.locator('#online-status')).toHaveAttribute('data-status','verified');await expect(a.locator('#online-status')).toHaveCSS('color','rgb(196, 154, 26)');
   await a.locator('[data-speed="3"]').dispatchEvent('click');expect(service.authority.state.speed).toBe(0);
   await b.locator('[data-speed="1"]').click();await expect.poll(()=>service.authority.state.speed).toBe(1);
   await b.locator('#autonomy').click();await expect.poll(()=>service.authority.state.autonomy.enabled).toBe(false);
@@ -53,8 +53,8 @@ test('hosted world renders on phones, transfers authority, and runs with every b
   }
   expect(deltas.length).toBeGreaterThan(2);expect(deltas.every(value=>!Object.hasOwn(value,'state'))).toBe(true);
   expect(polls).toBe(0);
-  await a.context().setOffline(true);await expect(a.locator('#online-status')).toContainText('连接中断',{timeout:20000});
-  await a.context().setOffline(false);await expect(a.locator('#online-status')).toHaveText('已验证 · 只读',{timeout:20000});
+  await a.context().setOffline(true);await expect(a.locator('#online-status')).toContainText('连接中断',{timeout:20000});await expect(a.locator('#online-status')).toHaveAttribute('data-status','offline');
+  await a.context().setOffline(false);await expect(a.locator('#online-status')).toHaveText('已验证 · 只读',{timeout:20000});await expect(a.locator('#online-status')).toHaveAttribute('data-status','verified');
   const before=service.authority.state.minute;await a.close();await b.close();await new Promise(r=>setTimeout(r,1500));expect(service.authority.state.minute).toBeGreaterThan(before);expect(errors).toEqual([]);
  }finally{await a.close();await b.close();await service.close();await rm(directory,{recursive:true,force:true});}
 });

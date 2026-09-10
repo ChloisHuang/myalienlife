@@ -6,9 +6,10 @@
 #visitor-dialog header button{display:grid;place-items:center;width:40px;height:40px;flex-shrink:0}
 #visitor-dialog header svg{width:20px;height:20px}
 #visitor-dialog h3{font-size:14px;margin:20px 0 12px;font-weight:600}
-.visitor-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:18px 0;margin:0;border-block:1px solid #dce4e1}
+.visitor-totals{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;padding:18px 0;margin:0;border-block:1px solid #dce4e1}
 .visitor-totals dt{font-size:12px;color:#707c82}.visitor-totals dd{font-size:23px;font-variant-numeric:tabular-nums;margin:6px 0 0;overflow-wrap:anywhere}
+#visitor-operator[data-held=true]{color:#9b4f3a}#visitor-operator[data-held=false]{color:#34745f}
 .visitor-chart{position:relative;height:240px;width:100%;min-width:0}
 .visitor-countries{max-height:180px;overflow:auto}.visitor-countries table{width:100%;border-collapse:collapse;font-size:12px}.visitor-countries th,.visitor-countries td{padding:8px 4px;border-bottom:1px solid #e0e5e6;text-align:right}.visitor-countries th:first-child,.visitor-countries td:first-child{text-align:left}
 #visitor-dialog .visitor-note,#visitor-message{font-size:11px;line-height:1.7;color:#707c82;margin:12px 0}
-@media(max-width:760px){#visitor-dialog{padding:16px}.visitor-chart{height:210px}.visitor-totals dd{font-size:20px}.visitor-totals dt{font-size:11px}}
+@media(max-width:760px){#visitor-dialog{padding:16px}.visitor-chart{height:210px}.visitor-totals{grid-template-columns:repeat(2,minmax(0,1fr))}.visitor-totals dd{font-size:20px}.visitor-totals dt{font-size:11px}}

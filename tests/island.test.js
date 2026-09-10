@@ -11,6 +11,12 @@ test('new games place the default teleport gates in the open southwest clearing'
  assert.deepEqual(({x:g.objects.find(o=>o.id==='portal').x,z:g.objects.find(o=>o.id==='portal').z}),{x:9,z:-4});
 });
 
+test('build mode can sell fixed furniture from every item pack',()=>{
+ const g=game(),items=[['pod',420],['spiritTree',380],['lab',560],['gate',420]];
+ for(const [i,[type,price]] of items.entries())g.objects.push({id:`fixed-${type}`,type,x:i*2,z:4,rotation:0,island:'home',side:'front',fixed:true});
+ const before=g.money;for(const [type] of items)assert.equal(sellItem(g,`fixed-${type}`),true);assert.equal(g.money,before+items.reduce((sum,[,price])=>sum+Math.floor(price*.7),0));assert.equal(g.objects.some(o=>o.id.startsWith('fixed-')),false);
+});
+
 test('legacy saves move only the original teleport gates to the new clearing',()=>{
  const g=game();for(const gate of g.objects.filter(o=>o.type==='gate'&&o.fixed)){gate.x=-10;gate.z=0;}
  const restored=restore(serialize(g));
@@ -29,7 +35,7 @@ test('opposite faces can hold furniture at the same coordinates',()=>{
 
 test('gate network transports to a chosen destination and returns home',()=>{
  const g=game(),front=g.objects.find(o=>o.type==='gate'&&o.side==='front'),back=g.objects.find(o=>o.type==='gate'&&o.side==='back');
- assert.ok(front);assert.ok(back);assert.equal(sellItem(g,front.id),false);
+ assert.ok(front);assert.ok(back);
  g.objects.push({id:'back-food',type:'food',side:'back',x:3,z:0,rotation:0});const money=g.money;
  assert.equal(enqueue(g,'travel',front.id,null,null,back.id).ok,true);
  assert.equal(enqueue(g,'eat','back-food').ok,true);tick(g,.1);assert.equal(g.player.side,'front');

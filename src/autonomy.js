@@ -30,12 +30,12 @@ export function autonomyBonus(g,p,c,people){
  if(type==='developBlueprint'||type==='constructIsland'){if(Math.min(p.needs.energy,p.needs.hunger)<40)return null;bonus+=22;}
  if(type==='settleIsland')bonus+=12;
  if(type==='voyage'||type==='starVoyage'){
-  const lowestNeed=Math.min(...Object.values(p.needs)),home=p.position.homeIsland??'home',remote=islandOf(p.position)!==home;
-  const unfinishedReturn=remote&&c.destinationId===home&&!projectComplete(g,islandOf(p.position));
+  const lowestNeed=Math.min(...Object.values(p.needs)),current=islandOf(p.position),home=p.position.homeIsland??'home',remote=current!==home;
+  const unfinishedReturn=remote&&c.destinationId===home&&!projectComplete(g,current);
   if(p.queue.some(q=>['voyage','boardUfo'].includes(q.type))||!unfinishedReturn&&['voyage','starVoyage'].includes(p.ai.lastAction))return null;
   if(c.destinationId===home){
    if(unfinishedReturn)bonus+=lowestNeed<40?70:50;
-   else if(remote&&hasSettlementEssentials(g,p.position)){if(lowestNeed>=12)return null;bonus+=36;}
+   else if(remote&&current!=='home'&&hasSettlementEssentials(g,p.position)){if(lowestNeed>=12)return null;bonus+=36;}
    else bonus+=lowestNeed<25?36:12;
   }else{
    if(remote)return null;

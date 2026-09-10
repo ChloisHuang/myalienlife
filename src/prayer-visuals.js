@@ -2,38 +2,45 @@ import * as THREE from 'three';
 import {isNether,isRadiant} from './prayer.js';
 
 export function createPrayerVisuals(rig){
- const skinMaterials=new Map();
- rig.body.traverse(mesh=>{if(mesh.isMesh&&mesh.material.name==='Alien skin'){const material=mesh.material;skinMaterials.set(material,{opacity:material.opacity,transparent:material.transparent,depthWrite:material.depthWrite});}});
- const skinUniforms={nether:{value:0},freckles:{value:0}};
+ const skinUniforms={freckles:{value:0}};
  const skin=rig.limbs.LeftLeg.mesh.material,originalCompile=skin.onBeforeCompile.bind(skin),originalKey=skin.customProgramCacheKey();
  skin.onBeforeCompile=shader=>{
-  originalCompile(shader);shader.uniforms.nether=skinUniforms.nether;shader.uniforms.freckles=skinUniforms.freckles;
+  originalCompile(shader);shader.uniforms.freckles=skinUniforms.freckles;
   shader.vertexShader='varying vec3 prayerSkinPosition;\n'+shader.vertexShader;
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nprayerSkinPosition=position;');
-  shader.fragmentShader=`uniform float nether,freckles;varying vec3 prayerSkinPosition;
-   vec3 spiritEye(vec2 p){float outline=p.x*p.x+abs(p.y)*2.2;
-    float fill=1.0-smoothstep(.94,1.04,outline);
-    float rim=smoothstep(.65,.85,outline)*fill;
-    float iris=(1.0-smoothstep(.2,.3,length(p*vec2(1.0,1.4))))*fill;
-    float pupil=(1.0-smoothstep(.04,.09,abs(p.x)))*(1.0-smoothstep(.22,.35,abs(p.y)));
-    return vec3(fill,rim,max(0.0,iris-pupil));}
-  `+shader.fragmentShader;
+  shader.fragmentShader='uniform float freckles;varying vec3 prayerSkinPosition;\n'+shader.fragmentShader;
   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
    vec3 p=prayerSkinPosition;
-   vec3 eyes=spiritEye((p.xy-vec2(0.0,1.26))/vec2(.145,.13));
-   eyes=max(eyes,spiritEye((vec2(abs(p.x),p.y)-vec2(.355,.85))/vec2(.075,.09)));
-   eyes*=nether*smoothstep(.055,.11,abs(p.z));
    float spots=pow(max(0.0,sin(p.x*87.0)*sin(p.y*93.0)*sin(p.z*79.0)),10.0)*freckles;
-   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.075,.025,.19),eyes.x*.9);
-   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.45,.22,.8),eyes.y);
    diffuseColor.rgb+=vec3(.3,.85,.75)*spots;
   `);
   shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
    // HDR radiance must exceed the shared bloom threshold before tone mapping.
-   totalEmissiveRadiance+=vec3(3.0,1.2,8.0)*eyes.y+vec3(1.5,9.0,12.0)*eyes.z+vec3(3.0,12.0,9.0)*spots;
+   totalEmissiveRadiance+=vec3(3.0,12.0,9.0)*spots;
   `);
  };
- skin.customProgramCacheKey=()=>originalKey+'-prayer-skin-v2';
+ skin.customProgramCacheKey=()=>originalKey+'-prayer-skin-v3';
+ const netherEye={value:0},eyeMaterial=rig.body.getObjectByName('RightEye').material;
+ const eyeCompile=eyeMaterial.onBeforeCompile.bind(eyeMaterial),eyeKey=eyeMaterial.customProgramCacheKey();
+ eyeMaterial.onBeforeCompile=shader=>{
+  eyeCompile(shader);shader.uniforms.netherEye=netherEye;
+  shader.vertexShader='varying vec3 netherEyePosition;\n'+shader.vertexShader;
+  shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nnetherEyePosition=position;');
+  shader.fragmentShader='uniform float netherEye;varying vec3 netherEyePosition;\n'+shader.fragmentShader;
+  shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+   float eyeRadius=length(netherEyePosition.xy*vec2(1.0,1.38));
+   float eyeFront=smoothstep(.3,.6,netherEyePosition.z)*netherEye;
+   float irisRing=smoothstep(.24,.32,eyeRadius)*(1.0-smoothstep(.48,.58,eyeRadius))*eyeFront;
+   float eyePupil=(1.0-smoothstep(.12,.2,eyeRadius))*eyeFront;
+   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.035,.008,.075),netherEye);
+   diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.35,.035,.7),irisRing);
+  `);
+  shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+   totalEmissiveRadiance=mix(totalEmissiveRadiance,vec3(.035,.008,.075),netherEye);
+   totalEmissiveRadiance+=vec3(1.1,.08,3.2)*irisRing+vec3(2.0,1.0,2.8)*eyePupil;
+  `);
+ };
+ eyeMaterial.customProgramCacheKey=()=>eyeKey+'-nether-eye-v1';
  const crystalMaterial=new THREE.MeshStandardMaterial({color:0x9783ce,emissive:0xbca2ff,emissiveIntensity:6,roughness:.3,metalness:.15});
  const crown=new THREE.Group();rig.joints.Head.add(crown);
  const dawnMaterial=new THREE.MeshStandardMaterial({color:0xfff3ce,emissive:0xffe5a3,emissiveIntensity:4.2,roughness:.4,metalness:0});
@@ -51,16 +58,10 @@ export function createPrayerVisuals(rig){
  const eyes=['Left','Right'].map(side=>rig.body.getObjectByName(side+'Eye'));
  const originalEyes=eyes.map(eye=>({color:eye.material.color.clone(),emissive:eye.material.emissive.clone(),intensity:eye.material.emissiveIntensity}));
  crown.visible=spines.visible=dawnHalo.visible=false;
- return {skinUniforms,crown,spines,dawnHalo,
+ return {skinUniforms,netherEye,crown,spines,dawnHalo,
   update(person,time=0){
    const mutations=person.prayer?.mutations??[];
-   const nether=isNether(person);
-   for(const [material,original]of skinMaterials){
-    const transparent=nether||original.transparent;
-    if(material.transparent!==transparent){material.transparent=transparent;material.needsUpdate=true;}
-    material.opacity=nether?.42:original.opacity;material.depthWrite=nether?false:original.depthWrite;
-   }
-   skinUniforms.nether.value=isNether(person)?1:0;skinUniforms.freckles.value=mutations.includes('freckles')?1:0;
+   netherEye.value=isNether(person)?1:0;skinUniforms.freckles.value=mutations.includes('freckles')?1:0;
    crown.visible=mutations.includes('crown');spines.visible=mutations.includes('spines');
    dawnHalo.visible=isRadiant(person);
    dawnHalo.position.y=.82+Math.sin(time*1.5)*.025;

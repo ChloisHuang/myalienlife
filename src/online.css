@@ -1,4 +1,5 @@
 .online-controls{position:relative;z-index:25;display:flex;width:fit-content;gap:8px;align-items:center;background:#fff;color:#243b36;border:1px solid #cbd5d0;padding:6px 10px;margin-bottom:12px;border-radius:6px;font-size:12px;max-width:100%;flex-wrap:wrap;pointer-events:auto}
+#online-status{font-weight:600}#online-status[data-status=guest]{color:#2f6fba}#online-status[data-status=verified]{color:#c49a1a}#online-status[data-status=operator]{color:#e67e22}#online-status[data-status=offline]{color:#707c82}#online-status[data-status=error]{color:#b34a45}
 .online-controls button{display:inline-flex;align-items:center;justify-content:center;height:36px;min-height:36px;flex-shrink:0;padding:0 8px;line-height:1;border:1px solid #a6bab1;border-radius:4px;background:#f4faf7;color:#245548;cursor:pointer}
 #operator-form{display:grid;gap:16px;min-width:0}#operator-form label{display:grid;gap:8px}#operator-token{width:100%;min-width:0;padding:10px;font-size:16px}#operator-dialog{width:360px;max-width:calc(100vw - 32px)}
 [aria-disabled="true"]{opacity:.5;cursor:not-allowed}

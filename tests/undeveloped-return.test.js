@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,tick,enqueue,restore,serialize} from '../src/simulation.js';
+import {createGame,tick,enqueue,restore,serialize,autonomousCandidates} from '../src/simulation.js';
 import {autonomyBonus} from '../src/autonomy.js';
 
 function setup(){
@@ -39,6 +39,13 @@ test('higher return weight still permits other activities rather than forcing de
 test('the return preference does not interrupt an existing manual activity',()=>{
  const g=setup();assert.equal(enqueue(g,'research','city-lab').ok,true);const id=g.queue[0].id;
  tick(g,.1,()=>0);assert.equal(g.queue[0].id,id);assert.equal(g.queue[0].type,'research');assert.equal(g.player.island,'city');
+});
+
+test('a resident can autonomously travel from the main island to their settled island while healthy',()=>{
+ const g=setup();g.player.island='home';g.player.homeIsland='city';g.objects.push(...[['portal',-5,3],['food',-2,3],['pod',2,3],['shower',5,3]].map(([type,x,z])=>({id:`home-${type}`,type,x,z,island:'home',side:'front',rotation:0})));
+ g.space.ships=[{id:'home-ship',tier:2,island:'home',side:'front',food:10,durability:100,reservedBy:null}];
+ assert.ok(bonus(g,'city')>0);
+ assert.ok(autonomousCandidates(g,'player').some(q=>q.type==='voyage'&&q.destinationId==='city'));
 });
 
 test('loading interim visit records removes abandoned countdown data without moving residents',()=>{

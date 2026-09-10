@@ -27,34 +27,36 @@ test('prayer kneels on both knees, joins hands and keeps the pose through blessi
  }
 });
 
-test('nether tattoos and multiple acquired mutations update a paused character without affecting another resident',async()=>{
+test('nether eye and multiple acquired mutations update a paused character without affecting another resident',async()=>{
  const {createCharacter,updateCharacter}=await import('../src/character-rig.js');const {createGame}=await import('../src/simulation.js');
  const person=createGame().player,rig=createCharacter(asset.scene,person),other=createCharacter(asset.scene,person);
  updateCharacter(rig,{person,time:0,delta:0});updateCharacter(other,{person,time:0,delta:0});
  person.prayer={nether:10,mutations:['crown','spines','freckles','eyes']};
  updateCharacter(rig,{person,time:0,delta:0});
- assert.equal(rig.prayerVisuals.skinUniforms.nether.value,1);assert.equal(other.prayerVisuals.skinUniforms.nether.value,0);
+ assert.equal(rig.prayerVisuals.netherEye.value,1);assert.equal(other.prayerVisuals.netherEye.value,0);
  assert.equal(rig.prayerVisuals.crown.visible,true);assert.equal(rig.prayerVisuals.spines.visible,true);
  const bumps=rig.prayerVisuals.spines.children;assert.equal(bumps.length,3);
  for(const [i,bump] of bumps.entries()){assert.equal(bump.geometry.type,'SphereGeometry');assert.ok(bump.scale.z<=.6);assert.equal(bump.position.x,0);assert.ok(bump.material.emissiveIntensity>=1.5&&bump.material.emissiveIntensity<=2.5);if(i)assert.ok(bumps[i-1].position.y-bump.position.y>bump.geometry.parameters.radius*3);}
  assert.equal(rig.prayerVisuals.skinUniforms.freckles.value,1);
  assert.notEqual(rig.body.getObjectByName('LeftEye').material.color.getHex(),other.body.getObjectByName('LeftEye').material.color.getHex());
 });
-test('nether skin is translucent, isolated per resident, and restores when no longer awakened',async()=>{
+test('nether skin stays opaque and its eye awakening is isolated and reversible',async()=>{
  const {createCharacter,updateCharacter}=await import('../src/character-rig.js');const {createGame}=await import('../src/simulation.js');
  const person=createGame().player,rig=createCharacter(asset.scene,person),other=createCharacter(asset.scene,person);
  person.prayer.nether=10;updateCharacter(rig,{person,time:0,delta:0});
- rig.body.traverse(n=>{if(n.isMesh&&n.material.name==='Alien skin'){assert.equal(n.material.transparent,true);assert.equal(n.material.opacity,.42);assert.equal(n.material.depthWrite,false);}});
+ rig.body.traverse(n=>{if(n.isMesh&&n.material.name==='Alien skin'){assert.equal(n.material.transparent,false);assert.equal(n.material.opacity,1);assert.equal(n.material.depthWrite,true);}});
+ assert.equal(rig.prayerVisuals.netherEye.value,1);assert.equal(other.prayerVisuals.netherEye.value,0);
  assert.equal(other.limbs.LeftLeg.mesh.material.opacity,1);
- person.prayer.radiance=10;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.limbs.LeftLeg.mesh.material.opacity,.42);
+ person.prayer.radiance=10;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.limbs.LeftLeg.mesh.material.opacity,1);
  person.prayer.nether=0;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.limbs.LeftLeg.mesh.material.opacity,1);assert.equal(rig.limbs.LeftLeg.mesh.material.transparent,false);
+ assert.equal(rig.prayerVisuals.netherEye.value,0);
 });
 test('dawn halo appears at awakening and coexists with nether without changing other residents',async()=>{
  const {createCharacter,updateCharacter}=await import('../src/character-rig.js');const {createGame}=await import('../src/simulation.js');
  const person=createGame().player,rig=createCharacter(asset.scene,person),other=createCharacter(asset.scene,person);
  person.prayer.radiance=9;updateCharacter(rig,{person,time:0,delta:0});assert.equal(rig.prayerVisuals.dawnHalo.visible,false);
  person.prayer.radiance=10;person.prayer.nether=10;updateCharacter(rig,{person,time:0,delta:0});
- assert.equal(rig.prayerVisuals.dawnHalo.visible,true);assert.equal(rig.prayerVisuals.skinUniforms.nether.value,1);
+ assert.equal(rig.prayerVisuals.dawnHalo.visible,true);assert.equal(rig.prayerVisuals.netherEye.value,1);
  assert.equal(rig.prayerVisuals.dawnHalo.parent,rig.joints.Head);assert.equal(other.prayerVisuals.dawnHalo.visible,false);
  assert.ok(rig.prayerVisuals.dawnHalo.position.y>.65);
  const ring=rig.prayerVisuals.dawnHalo.getObjectByName('dawn-halo-ring');assert.ok(ring);assert.equal(ring.rotation.x,Math.PI/2);

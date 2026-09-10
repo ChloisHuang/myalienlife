@@ -41,7 +41,7 @@ function destinationError(g,p,id){
  return null;
 }
 export function starVoyageError(g,p,skills,id){const career=p===g.player?g.career:p.career;return destinationError(g,p,id)||(career?.id!=='scientist'||skillProgress(skills.science).level<10?'需要量子科学职业且科学满级（10 级），才能独自通过星门航行。':null);}
-export function voyageError(g,p,skills,id,count=1,actionId=null,shipId=null){return destinationError(g,p,id)||equipmentError(g,p,islandDefinition(g,id).level,count,id==='home',actionId,shipId);}
+export function voyageError(g,p,skills,id,count=1,actionId=null,shipId=null){return destinationError(g,p,id)||equipmentError(g,p,islandDefinition(g,id).level,count,actionId,shipId);}
 export function civilizationError(g,type,o,p,skills,id,count=1,actionId=null,shipId=null){
  if(type==='extractMaterials')return plantActionError(materialSource(g.objects,o),type);
  const issue=projectError(g,type,o,p);if(issue)return issue;
@@ -58,7 +58,11 @@ export function contributeCivilization(g,type,p,skills,career,random=Math.random
  const c=g.civilization,id=islandOf(p);
  const knowledge={research:1,observe:1,traceRelic:2,decodeRelic:3,decodeTogether:3,restoreMemory:5,memoryExpedition:4,explore:id==='home'?1:6}[type]??0;c.knowledge+=knowledge;
  if(type==='spaceResearch')c.technology=Math.min(MAX_TECH,c.technology+spaceResearchYield(career,skills));
- if(type==='observe'||type==='explore'){c.observations++;discoverAdjacentIsland(g,id,random);}
+ if(type==='observe')c.observations++;
+ if(type==='explore'){
+  c.observations++;const next=discoverAdjacentIsland(g,id,random);
+  if(next)g.log.unshift({text:`在${islandDefinition(g,id).name}勘察时发现${next.name}。`,at:g.minute});
+ }
  if(type==='explore'&&id!=='home'){c.surveys[id]++;c.surveyDays[id]=g.day;}
 }
 export function validCivilization(c){

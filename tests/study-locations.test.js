@@ -4,7 +4,7 @@ import {createGame,switchControl,enqueue,enqueueStudy,tick,serialize,restore,aut
 import {studyFacilitySkill,FOUNDATION_FOR} from '../src/education.js';
 
 function setup(){const g=createGame();switchControl(g,'pip');g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const k in g.config.needDecay)g.config.needDecay[k]=0;return g;}
-function finish(g){for(let i=0;i<3000&&g.queue.length;i++)tick(g,.1);assert.equal(g.queue.length,0);}
+function finish(g){for(let i=0;i<3000&&g.queue.length;i++)tick(g,.1,()=>0);assert.equal(g.queue.length,0);}
 test('each lesson uses its own scene and awards the corresponding foundation',()=>{
  for(const [type,skill] of Object.entries({music:'music',garden:'botany',lab:'science',stove:'cooking'})){
   const g=setup();let target=g.objects.find(o=>o.type===type);

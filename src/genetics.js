@@ -1,4 +1,4 @@
-import {DEFAULT_PRAYER_CHANCES} from './prayer.js';
+import {DEFAULT_PRAYER_CHANCES,PRAYER_RULES} from './prayer.js';
 
 export const HEAD_SHAPE={headWidth:'头部宽度',headHeight:'头部长度',headDepth:'前后厚度',jaw:'下颌收窄'};
 export const defaultHeadShape=()=>Object.fromEntries(Object.keys(HEAD_SHAPE).map(key=>[key,1]));
@@ -36,7 +36,7 @@ function inheritRacialTraits(parents,random,config=DEFAULT_PRAYER_CHANCES){
   const values=parents.map(parent=>Math.max(0,parent.prayer?.[key]??0)),mean=values.reduce((sum,value)=>sum+value,0)/values.length,baseline=mean*inheritanceRate;
   if(!baseline)return[key,0];
   const spread=baseline*standardDeviation;
-  return[key,Math.round(clamp(baseline+normal(random)*spread,0,1e9))];
+  return[key,Math.round(clamp(baseline+normal(random)*spread,0,PRAYER_RULES[`${key}Threshold`]))];
  }));
  const mutations=[...new Set(parents.flatMap(parent=>parent.prayer?.mutations||[]))].filter(()=>random()<mutationChance);
  return{...attributes,mutations};

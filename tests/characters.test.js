@@ -31,7 +31,7 @@ test('racial attributes use thirty-percent parent-value baselines with normal va
  a.prayer={radiance:20,nether:0,mutations:['crown']};b.prayer={radiance:0,nether:50,mutations:['spines']};
  const baseline=sim.inheritTraits([a,b],()=>.25,rates);assert.equal(baseline.prayer.radiance,3);assert.equal(baseline.prayer.nether,8);assert.deepEqual(baseline.prayer.mutations,[]);
  const varied=sim.inheritTraits([a,b],()=>.01,rates);assert.ok(varied.prayer.radiance>3);assert.ok(varied.prayer.nether>8);assert.deepEqual(new Set(varied.prayer.mutations),new Set(['crown','spines']));
- const configured=sim.inheritTraits([a,b],()=>.25,rates,{racialInheritanceRate:50,racialInheritanceStdDev:0,racialMutationInheritanceChance:100});assert.equal(configured.prayer.radiance,5);assert.equal(configured.prayer.nether,13);assert.deepEqual(new Set(configured.prayer.mutations),new Set(['crown','spines']));
+ const configured=sim.inheritTraits([a,b],()=>.25,rates,{racialInheritanceRate:50,racialInheritanceStdDev:0,racialMutationInheritanceChance:100});assert.equal(configured.prayer.radiance,5);assert.equal(configured.prayer.nether,10);assert.deepEqual(new Set(configured.prayer.mutations),new Set(['crown','spines']));
  const absent=sim.inheritTraits([structuredClone(g.player),structuredClone(g.npcs.nova)],()=>.01,rates);assert.deepEqual(absent.prayer,{radiance:0,nether:0,mutations:[]});
 });
 test('v6 saves gain head shape once while retaining existing appearance and progress',()=>{

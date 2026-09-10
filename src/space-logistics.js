@@ -1,28 +1,34 @@
 import {islandOf,sideOf,sameSide} from './island.js';
 import {remainingConstructionMaterials} from './settlements.js';
+import {DEFAULT_LIFE_STAGES} from './characters.js';
 export const UFOS=[
  {tier:1,name:'萤舟 UFO',technology:1,range:1,seats:2,cargoCapacity:20,price:600},
  {tier:2,name:'星梭 UFO',technology:2,range:2,seats:5,cargoCapacity:60,price:1400},
  {tier:3,name:'方舟 UFO',technology:3,range:18,seats:12,cargoCapacity:120,price:2600}
 ];
 export const UFO_WEAR_PER_FLIGHT=10;
-export function fleetLimit(g){return Math.floor(new Set([g.player,...Object.values(g.npcs)].filter(p=>p.alive).map(p=>p.uid)).size*2/3);}
-export function fleetBuildError(g,actionId=null){const pending=new Set([g.queue,...Object.values(g.npcs).map(p=>p.queue)].flat().filter(q=>/^buildUfo[123]$/.test(q.type)&&q.id!==actionId).map(q=>q.id)).size;return g.space.ships.length+pending>=fleetLimit(g)?`UFO 数量上限 ${fleetLimit(g)} 艘（存活人数的 2/3，向下取整），含已排队制造。`:null;}
+export function fleetLimit(g){return g.civilization.discoveryPath.filter(id=>!g.civilization.destroyedIslands.includes(id)).length*2;}
+export function fleetBuildError(g,actionId=null){const pending=new Set([g.queue,...Object.values(g.npcs).map(p=>p.queue)].flat().filter(q=>/^buildUfo[123]$/.test(q.type)&&q.id!==actionId).map(q=>q.id)).size;return g.space.ships.length+pending>=fleetLimit(g)?`UFO 数量上限 ${fleetLimit(g)} 艘（每座未摧毁星岛 2 艘），含已排队制造。`:null;}
 export function retireUfo(g,ship,reason){depositShipCargo(g,ship);const refund=Math.floor(ufoDefinition(ship).price*.5*ship.durability/100);g.space.provisions[ship.island]=(g.space.provisions[ship.island]??0)+ship.food;g.money+=refund;g.space.ships.splice(g.space.ships.indexOf(ship),1);g.log.unshift({text:`${ufoDefinition(ship).name}因${reason}回收，返还 ${refund} 星币及 ${ship.food} 份食物。`,at:g.minute});}
 export const createSpaceLogistics=()=>({backs:{home:true},ships:[],provisions:{},materials:{},cargo:{}});
 export const backDiscovered=(g,id)=>id==='home'||g.space.backs[id]===true;
 export const ufoDefinition=ship=>UFOS[ship.tier-1];
-export function hasLocalChef(g,island){return (g.player.alive&&islandOf(g.player)===island&&g.career.id==='chef')||Object.entries(g.npcs).some(([id,p])=>id!==g.controlledId&&p.uid!==g.player.uid&&p.alive&&islandOf(p)===island&&p.career.id==='chef');}
-export function flightFoodAvailable(g,ship){return ship.food+(ship.reservedBy===null?(g.space.provisions[ship.island]??0):0);}
-export function availableUfo(g,p,level,count=1,returning=false,actionId=null,shipId=null){
- return g.space.ships.filter(s=>sameSide(s,p)&&(shipId===null||s.id===shipId)&&(actionId===null?s.reservedBy===null:s.reservedBy===actionId)&&ufoDefinition(s).range>=level&&ufoDefinition(s).seats>=count&&s.durability>=UFO_WEAR_PER_FLIGHT*(returning?1:2)&&(!hasLocalChef(g,islandOf(p))||flightFoodAvailable(g,s)>=count)).sort((a,b)=>a.tier-b.tier)[0];
+const adultStart=g=>g.config?.lifeStages?.teenEnd??DEFAULT_LIFE_STAGES.teenEnd;
+export function hasLocalChef(g,island){
+ if(!g.objects.some(o=>o.type==='stove'&&islandOf(o)===island))return false;
+ const adult=adultStart(g);
+ return g.player.alive&&g.player.age>=adult&&islandOf(g.player)===island&&g.career.id==='chef'||Object.entries(g.npcs).some(([id,p])=>id!==g.controlledId&&p.uid!==g.player.uid&&p.alive&&p.age>=adult&&islandOf(p)===island&&p.career.id==='chef');
 }
-export function equipmentError(g,p,level,count,returning,actionId,shipId=null){
+export function flightFoodAvailable(g,ship){return ship.food+(ship.reservedBy===null?(g.space.provisions[ship.island]??0):0);}
+export function availableUfo(g,p,level,count=1,actionId=null,shipId=null){
+ return g.space.ships.filter(s=>sameSide(s,p)&&(shipId===null||s.id===shipId)&&(actionId===null?s.reservedBy===null:s.reservedBy===actionId)&&ufoDefinition(s).range>=level&&ufoDefinition(s).seats>=count&&s.durability>=UFO_WEAR_PER_FLIGHT&&(!hasLocalChef(g,islandOf(p))||flightFoodAvailable(g,s)>=count)).sort((a,b)=>a.tier-b.tier)[0];
+}
+export function equipmentError(g,p,level,count,actionId,shipId=null){
  const ships=g.space.ships.filter(s=>sameSide(s,p)&&(shipId===null||s.id===shipId)&&(actionId===null?s.reservedBy===null:s.reservedBy===actionId)&&ufoDefinition(s).range>=level);
  if(!ships.length)return '所在星岛没有空闲且航程足够的 UFO，请先研发并制造。';
  if(!ships.some(s=>ufoDefinition(s).seats>=count))return 'UFO 座位不足，请减少乘客或制造更大级别的 UFO。';
- if(!ships.some(s=>ufoDefinition(s).seats>=count&&s.durability>=UFO_WEAR_PER_FLIGHT*(returning?1:2)))return returning?'UFO 耐久不足，无法返航。':'UFO 耐久不足 20 点，只能返航，无法继续探索。';
- if(hasLocalChef(g,islandOf(p))&&!availableUfo(g,p,level,count,returning,actionId,shipId))return '当前星球有星厨，食物不足，请先在本星球储备足够本航段全员食用的食物。';
+ if(!ships.some(s=>ufoDefinition(s).seats>=count&&s.durability>=UFO_WEAR_PER_FLIGHT))return 'UFO 耐久不足，无法航行。';
+ if(hasLocalChef(g,islandOf(p))&&!availableUfo(g,p,level,count,actionId,shipId))return '当前星球有星厨，食物不足，请先在本星球储备足够本航段全员食用的食物。';
  return null;
 }
 export function finishLogistics(g,type,p,career,nextId,actionId=null){

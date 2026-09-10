@@ -21,3 +21,8 @@ test('NPC autonomous choices obey the same profession and level rules',()=>{
  n.queue=[];n.ai.cooldown=0;n.career={id:'scientist',level:2,shifts:0};tick(g,.1,()=>0);assert.equal(n.queue[0]?.type,'spaceResearch');
  assert.match(actionAccessError(g,{id:'player',position:g.player,skills:{science:8}},'restoreMemory'),/科学技能 3 级/);
 });
+test('career actions reject minors even when an imported career is stale',()=>{
+ const g=setup(),n=g.npcs.pip;n.career={id:'chef',level:1,shifts:0};n.skills.cooking=3;
+ assert.match(actionAccessError(g,{id:'pip',position:n,skills:n.skills},'prepareRations'),/成年/);
+ n.age=g.config.lifeStages.teenEnd;assert.equal(actionAccessError(g,{id:'pip',position:n,skills:n.skills},'prepareRations'),null);
+});

@@ -9,12 +9,14 @@ test('Luowa legacy credits are repaired from actual foundations, once, without c
  const fixed=restore(serialize(g));assert.equal(fixed.npcs.pip.education.credits,3);assert.equal(educationLevel(fixed.npcs.pip).name,'幼儿园');assert.deepEqual(fixed.npcs.pip.skills,before);assert.deepEqual(restore(serialize(fixed)),fixed);
 });
 test('credits alone cannot skip foundation requirements and college cannot award professional XP early',()=>{
- const g=createGame(),p=g.npcs.pip;p.education.credits=144;assert.equal(educationLevel(p).name,'幼儿园');assert.equal(higherEducation(p),false);
+ const g=createGame(),p=g.npcs.pip;p.education.credits=240;assert.equal(educationLevel(p).name,'幼儿园');assert.equal(higherEducation(p),false);
  completeStudy(p,p.skills,'music',()=>0);assert.equal(p.skills.music,0);assert.equal(p.education.foundation.arts,1);
  for(const key in p.education.foundation)p.education.foundation[key]=9;
  assert.equal(educationLevel(p).name,'高中');assert.equal(higherEducation(p),false);
  for(const key in p.education.foundation)p.education.foundation[key]=18;
- assert.equal(educationLevel(p).name,'博士');assert.equal(higherEducation(p),true);
+ assert.equal(educationLevel(p).name,'研究生');assert.equal(higherEducation(p),true);
+ for(const key in p.education.foundation)p.education.foundation[key]=30;
+ assert.equal(educationLevel(p).name,'博士');
 });
 test('repair preserves supported higher education and does not invent foundation XP',()=>{
  const p=createGame().player;p.education.version=2;p.education.credits=150;p.education.major='science';for(const key in p.education.foundation)p.education.foundation[key]=18;
