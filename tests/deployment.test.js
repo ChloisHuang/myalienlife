@@ -4,6 +4,21 @@ import {mkdtemp,mkdir,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {deploymentConfig} from '../scripts/deploy-config.js';
+import {deploymentTransport,uploadRelease} from '../scripts/deploy-transport.js';
+test('deployment uses one explicit SSH route for commands and resumable file transfers',()=>{
+ const c=deploymentConfig({host:'192.0.2.10',sshPort:22,user:'root',domain:'game.example',sshProxy:{host:'127.0.0.1',port:7890}}),t=deploymentTransport(c);
+ assert.ok(t.ssh.includes('ProxyCommand=nc -X 5 -x 127.0.0.1:7890 %h %p'));
+ assert.ok(t.upload('release.tgz','/incoming/release.tgz').includes('--inplace'));
+ assert.equal(t.upload('a','b')[5],t.download('b','a')[3]);
+ assert.throws(()=>deploymentConfig({...c,sshProxy:{host:'host;id',port:7890}}));
+ assert.throws(()=>deploymentConfig({...c,sshProxy:{host:'localhost',port:0}}));
+ assert.ok(!deploymentTransport({...c,sshProxy:undefined}).ssh.some(s=>s.startsWith('ProxyCommand')));
+});
+test('transfer retry is bounded and never retries configuration errors',()=>{
+ let calls=0;uploadRelease(()=>({status:++calls<3?12:0}),[]);assert.equal(calls,3);
+ calls=0;assert.throws(()=>uploadRelease(()=>{calls++;return {status:30};},[]));assert.equal(calls,3);
+ calls=0;assert.throws(()=>uploadRelease(()=>{calls++;return {status:1};},[]));assert.equal(calls,1);
+});
 test('deployment configuration rejects shell injection and conflicting private/public ports',()=>{
  const c={host:'192.0.2.10',sshPort:22,user:'root',domain:'game.example.com',httpsPort:6443,backendPort:18080};
  assert.equal(deploymentConfig(c).origin,'https://game.example.com:6443');

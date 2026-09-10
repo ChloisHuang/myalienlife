@@ -4,6 +4,7 @@ import {mkdtemp,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {WebSocket} from 'ws';
+import {setTimeout as delay} from 'node:timers/promises';
 
 test('public viewers cannot mutate; last explicit claim fences all old browser commands',async()=>{
  const {createHttpService}=await import('../server/http-service.js');const dir=await mkdtemp(join(tmpdir(),'orbit-http-'));
@@ -50,6 +51,9 @@ test('closing the controller websocket releases stale edit ownership',async()=>{
   const frame=new Promise((resolve,reject)=>{socket.once('message',data=>resolve(JSON.parse(data)));socket.once('error',reject);});socket.send(JSON.stringify({type:'auth',client:'browser-a',session,authVersion:0}));await frame;
   const claim=await(await request('/api/control/claim',{},headers)).json();assert.equal(claim.canOperate,true);assert.equal((await(await request('/api/visitors',undefined,headers)).json()).operatorHeld,true);
   await new Promise((resolve,reject)=>{socket.once('close',resolve);socket.once('error',reject);socket.close();});
-  const stats=await(await request('/api/visitors',undefined,headers)).json();assert.equal(stats.onlineCount,0);assert.equal(stats.operatorHeld,false);
+  // The client close event can precede the server's close handler.
+  let stats;const deadline=Date.now()+2000;
+  do{stats=await(await request('/api/visitors',undefined,headers)).json();if(stats.onlineCount===0&&!stats.operatorHeld)break;await delay(20);}while(Date.now()<deadline);
+  assert.equal(stats.onlineCount,0);assert.equal(stats.operatorHeld,false);
  }finally{socket?.terminate();await service?.close();await rm(dir,{recursive:true,force:true});}
 });

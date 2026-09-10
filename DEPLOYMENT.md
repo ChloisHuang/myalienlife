@@ -4,7 +4,7 @@
 
 地址由本地配置的 domain 和 httpsPort 决定，例如 https://game.example.com:6443 。手机、Windows 和 macOS 使用同一个地址，支持 WebGL 的现代浏览器即可。
 
-部署电脑需要 Node.js 22.12+、npm、OpenSSH 的 ssh/scp、tar。macOS 自带后三项；Windows 10/11 可启用 OpenSSH 客户端。先配置 SSH 密钥并通过可信渠道核对服务器指纹。脚本使用 StrictHostKeyChecking=yes，不自动接受陌生主机，不收集密码。
+部署电脑需要 Node.js 22.12+、npm、OpenSSH 的 ssh、tar、rsync；服务器也需要 rsync。Windows 需使用具备这些工具的环境（例如 WSL）。先配置 SSH 密钥并通过可信渠道核对服务器指纹。脚本使用 StrictHostKeyChecking=yes，不自动接受陌生主机，不收集密码。
 
 ```sh
 npm ci
@@ -16,6 +16,10 @@ npm run deploy
 首次迁移必须先在本地游戏点击保存，然后运行 `npm run deploy -- --seed-local`。首次无存档时会拒绝默默新建世界；后续即使携带该参数也不会覆盖 服务器 进度。迁移后只使用线上地址继续生活，本地保留的存档是独立副本，不会与云端合并。
 
 部署前必须创建被 Git 忽略的 deploy.config.json，格式见 deploy.config.example.json，将示例地址替换为自己的服务器信息。脚本不内置真实服务器地址，缺少配置会终止部署。默认新增 6443，不碰已有网站监听端口。现有部署不接受自动更换端口。
+
+直连不稳定时，在私有配置中明确添加 `"sshProxy": {"host": "127.0.0.1", "port": 7890}`，使用该 SOCKS5 代理；本机需有支持 `-X 5 -x` 的 OpenBSD nc，且代理已启动。不配置则直连，脚本不会猜测或自动切换路线。SSH 命令、上传与 Token 下载统一使用此配置；HTTP_PROXY 不会自动作用于 SSH。
+
+脚本先检查 SSH 路线及两端 rsync，再运行测试、构建。上传统一使用 rsync 保留部分文件，网络中断最多尝试三次，在同一发布包上复用已有数据；配置错误立即停止。上传成功后仍由服务器校验整个包的 SHA-256，校验、存档预检通过后才切换版本。重试全部失败则退出，不会激活半包。
 
 ## 操作权
 
