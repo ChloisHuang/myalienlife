@@ -10,6 +10,14 @@ import {StarToonMaterial} from '../src/npr.js';
 import * as THREE from 'three';
 import {fairytaleBlocked} from '../src/fairytale-definition.js';
 
+test('authored plants sway independently while their roots and buildings remain fixed',()=>{
+ const asset=new THREE.Group(),face=new THREE.Group();face.name='fairytale-front';asset.add(face);
+ const plant=new THREE.Group();plant.userData.windPlant='tree';plant.position.set(3,1,2);face.add(plant);
+ const terrain=createFairytaleKit(asset).terrain('front');let animated;terrain.root.traverse(o=>{if(o.userData.windPlant)animated=o;});
+ const position=animated.position.clone();terrain.update(0,.4);const before=animated.rotation.clone();terrain.update(2,.4);
+ assert.notEqual(animated.rotation.z,before.z);assert.deepEqual(animated.position,position);assert.equal(terrain.root.rotation.z,0);terrain.dispose();
+});
+
 test('authored construction stages reveal both faces from shared saved progress',()=>{
  const asset=new THREE.Group();
  for(const side of ['front','back']){

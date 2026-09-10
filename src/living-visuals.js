@@ -5,6 +5,8 @@ import {islandOf,sideOf,sameSide} from './island.js';
 import {livingResident,livingSite,livingPeople,bondTo} from './living-state.js';
 import {inForest,lightActive} from './living-world.js';
 import {livingAppearance} from './living-adaptation.js';
+import {shadowCompanionOffset} from './living-spatial.js';
+import {LIVING_TRAILS,visibleTrail} from './living-routes.js';
 
 function dispose(root){
  const geometries=new Set(),materials=new Set();root.traverse(n=>{if(n.geometry)geometries.add(n.geometry);if(n.material)materials.add(n.material);});
@@ -48,9 +50,14 @@ export function createLivingVisual(rig){
    const reset=!initialized||lastIsland!==islandOf(p)||lastSide!==sideOf(p)||Math.hypot(shadow.position.x-p.x,shadow.position.z-p.z)>5;
    const lag=forest?Math.min(1,delta*(s.fear>=30?2:5)):1;
    if(reset)shadow.position.set(p.x,height,p.z);else if(delta>0)shadow.position.lerp(new THREE.Vector3(p.x,height,p.z),lag);
+   if(forest){
+    const next=action?.path?.find(point=>point.livingTrail==='shadow');
+    if(next&&action.scoutElapsed<3.2){const phase=action.scoutElapsed,reach=phase<2?Math.sin(phase/2*Math.PI/2):Math.max(0,1-(phase-2)/1.2),dx=next.x-p.x,dz=next.z-p.z,d=Math.max(1,Math.hypot(dx,dz));shadow.position.set(p.x+dx/d*reach*2,height,p.z+dz/d*reach*2);}
+    else {const offset=shadowCompanionOffset(g,p,time);shadow.position.x+=offset.x*Math.min(1,delta*3);shadow.position.z+=offset.z*Math.min(1,delta*3);}
+   }
    const reach=forest&&s.shadow>=40?Math.sin(time*.7)*.3:0;
    shadow.rotation.z=-rig.root.rotation.y+(forest?Math.sin(time*.9)*.12:0);shadow.scale.set(.65,forest?1+reach:.55,1);
-   aura.visible=lightActive(g,p)&&(action?.type==='shareLight'&&action.phase==='acting'||forest&&livingPeople(g).some(other=>other.uid!==p.uid&&sameSide(p,other)&&livingResident(g,other).fear>0&&Math.hypot(p.x-other.x,p.z-other.z)<=3));
+   aura.visible=lightActive(g,p)&&(action?.type==='shareLight'&&action.phase==='acting'||livingPeople(g).some(other=>other.uid!==p.uid&&sameSide(p,other)&&livingResident(g,other).fear>0&&Math.hypot(p.x-other.x,p.z-other.z)<=3));
    aura.position.set(p.x,height+.005,p.z);aura.material.opacity=.12+Math.sin(time*2)*.035;rays.rotation.z=time*.08;
    lastIsland=islandOf(p);lastSide=sideOf(p);initialized=true;
   },
@@ -79,5 +86,26 @@ export function createGardenBondVisual(parent){
 
 export function livingPose(g,p,partner){
  const s=livingResident(g,p),bond=partner?bondTo(g,p,partner):null;
- return {fear:s.fear,tension:bond?.resentment??0};
+ return {fear:s.fear,tension:bond?.resentment??0,mode:s.mode};
+}
+
+export function createLivingTrailVisual(side){
+ const trail=LIVING_TRAILS.find(t=>t.side===side),root=new THREE.Group(),growth=new THREE.Group(),steps=new THREE.Group();root.name=`living-trail-${side}`;root.add(growth,steps);
+ const leaf=new THREE.SphereGeometry(1,10,6),wood=new THREE.CylinderGeometry(.018,.028,1,6),stone=new THREE.BoxGeometry(.34,.035,.28);
+ const foliage=new StarToonMaterial({color:side==='front'?0x57976e:0x485c57}),bloom=new StarToonMaterial({color:0xefa7c7}),bark=new StarToonMaterial({color:0x52625b}),glow=new THREE.MeshBasicMaterial({color:0xa4c7b5,transparent:true,opacity:0,depthWrite:false});
+ for(let i=0;i<23;i++){
+  const stem=new THREE.Group(),sign=i%2?1:-1,x=trail.x-1.3+((i*.61803398875)%1)*2.6;stem.userData.sign=sign;stem.userData.x=x;stem.userData.offset=.16+((i*.41421356)%1)*.36;stem.scale.setScalar(.42+((i*.73205)%1)*.48);
+  const twig=new THREE.Mesh(wood,foliage);twig.position.y=.28;twig.scale.y=.56;stem.add(twig);
+  for(let j=0;j<2;j++){const blade=new THREE.Mesh(leaf,foliage);blade.scale.set(.035,.09,.035);blade.position.set((j%2?1:-1)*.04,.16+j*.12,0);blade.rotation.z=(j%2?1:-1)*.65;stem.add(blade);}
+  if(side==='front'){const head=new THREE.Group();head.position.set(0,.6,0);head.rotation.x=.25*Math.sin(i);for(let j=0;j<5;j++){const petal=new THREE.Mesh(leaf,bloom),a=j*Math.PI*2/5;petal.scale.set(.105,.035,.065);petal.position.set(Math.cos(a)*.105,0,Math.sin(a)*.105);petal.rotation.y=-a;head.add(petal);}const center=new THREE.Mesh(leaf,bark);center.scale.set(.055,.045,.055);head.add(center);stem.add(head);}
+  growth.add(stem);
+ }
+ for(let i=0;i<9;i++){const step=new THREE.Mesh(stone,glow),x=trail.x-1.25+i*.31;step.position.set(x,groundHeight(x,trail.z,side,'spore')+.04,trail.z+(i%2?.13:-.13));steps.add(step);}
+ let openness=null;
+ return {root,growth,steps,update(g,time,delta){
+  root.visible=g.viewIsland==='spore';if(!root.visible)return;
+  const open=visibleTrail(g,trail)?1:0;openness=openness===null?open:openness+(open-openness)*Math.min(1,delta*4);
+  for(const stem of growth.children){const {x,sign,offset}=stem.userData;stem.position.set(x,groundHeight(x,trail.z,side,'spore'),trail.z+sign*offset);stem.rotation.x=sign*openness*1.05;stem.rotation.z=Math.sin(time*1.2+x*3+offset*9)*.06;}
+  steps.visible=side==='back';glow.opacity=side==='back'?openness*.6:0;
+ },dispose(){dispose(root);}};
 }

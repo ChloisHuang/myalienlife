@@ -21,9 +21,10 @@ export function createFairytaleKit(asset,environment){
   prop(type,island){const name=FAIRYTALE_ITEMS.some(i=>i.id===type)?type:island==='spore'?skins[type]:null;if(!name)return null;const root=model(name);if(type==='fairyLantern'){const light=new THREE.PointLight(0xffd38b,7,4,2);light.position.y=1.6;root.add(light);}return root;},
   terrain(side){
    const root=model(`fairytale-${side}`);root.name=`fairytale-${side}`;
-   const stages=[];root.traverse(o=>{if(typeof o.userData.revealAt==='number')stages.push(o);});
+   const stages=[],plants=[];root.traverse(o=>{if(typeof o.userData.revealAt==='number')stages.push(o);if(o.userData.windPlant)plants.push({node:o,rotation:o.rotation.clone(),phase:o.position.x*.71+o.position.z*.43});});
    root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])if(m.name.startsWith('painted '))meadowMaterial(m,side==='back');});
    const water=createStoryWater(side==='back');root.add(water.root);
+   const updateWind=(seconds,wind)=>{for(const {node,rotation,phase}of plants){const strength=(node.userData.windPlant==='tree'?.018:.07)*(1+wind);node.rotation.z=rotation.z+Math.sin(seconds*1.3+phase)*strength;node.rotation.x=rotation.x+Math.sin(seconds*.83+phase+1)*strength*.6;}};
    const edgeLights=[];
    if(side==='back'){
     for(const [i,angle]of [.22,.92,1.64,2.52,3.47,4.21,5.42].entries()){
@@ -34,7 +35,7 @@ export function createFairytaleKit(asset,environment){
     }
    }
    const lights=[[-11,1.8,3.5,.4],[side==='back'?6.5:0,2,-6.8,1],[-8,1.6,6,.8],[8,1.6,6,.8],[-7,1.6,-6,.8],[7,1.6,-6,.8]].map(([x,y,z,revealAt])=>{const light=new THREE.PointLight(side==='front'?0xffd394:0xffb75e,12,7,2);light.userData.revealAt=revealAt;light.position.set(x,fairytaleHeight(x,z)+y,z);root.add(light);return light;});
-   return {root,setProgress(progress){for(const o of [...stages,...lights])o.visible=progress>=o.userData.revealAt;},update(seconds,wind,night=0){water.update(seconds);for(const {mesh,light,phase}of edgeLights){const pulse=.65+.35*Math.sin(seconds*.38+phase);mesh.material.opacity=.32+pulse*.18;light.intensity=2.3+pulse*1.3;}for(const [i,light]of lights.entries())light.intensity=(side==='back'?16:7+night*12)*(1+.035*Math.sin(seconds*2+i));},dispose(){water.root.removeFromParent();water.dispose();for(const {mesh}of edgeLights)mesh.geometry.dispose();root.removeFromParent();root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});}};
+   return {root,setProgress(progress){for(const o of [...stages,...lights])o.visible=progress>=o.userData.revealAt;},update(seconds,wind,night=0){water.update(seconds);updateWind(seconds,wind);for(const {mesh,light,phase}of edgeLights){const pulse=.65+.35*Math.sin(seconds*.38+phase);mesh.material.opacity=.32+pulse*.18;light.intensity=2.3+pulse*1.3;}for(const [i,light]of lights.entries())light.intensity=(side==='back'?16:7+night*12)*(1+.035*Math.sin(seconds*2+i));},dispose(){water.root.removeFromParent();water.dispose();for(const {mesh}of edgeLights)mesh.geometry.dispose();root.removeFromParent();root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])m.dispose();});}};
   }
  };
 }

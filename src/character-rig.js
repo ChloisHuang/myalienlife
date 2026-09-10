@@ -41,7 +41,7 @@ export function createCharacter(source,spec){
 }
 
 export function updateCharacter(rig,{person,action,object,partner,time,delta,config,living={fear:0,tension:0}}){
- const look=appearance(person,config?.lifeStages),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}-${JSON.stringify(person.prayer)}`,state=`${action?`${action.id}-${action.type}-${action.phase}`:'idle'}:${living.fear}:${living.tension}`;
+ const look=appearance(person,config?.lifeStages),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}-${JSON.stringify(person.prayer)}`,state=`${action?`${action.id}-${action.type}-${action.phase}`:'idle'}:${living.fear}:${living.tension}:${living.mode}`;
  if(rig.initialized&&delta===0&&rig.profile===profile&&rig.state===state)return;
  const previousTips=Object.fromEntries(SIDES.map(side=>[side,rig.joints[side+'TendrilTip'].position.clone()])),poseBlend=rig.initialized&&delta>0?1-Math.exp(-delta*12):1;
  for(const [node,rest]of rig.rest){node.scale.copy(rest.scale);node.position.copy(rest.position);node.quaternion.copy(rest.quaternion);}
@@ -59,7 +59,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  const type=['acting','celebrating'].includes(action?.phase)?(action.type==='lounge'?'relax':action.type):null;
  if(type){
   const wave=Math.sin(action.elapsed*3),settle=action.phase==='celebrating'?1:THREE.MathUtils.smoothstep(action.elapsed,0,.65);
-  if(object){
+  if(object&&type!=='treeRest'){
    let local=[0,0,1.05],facing=Math.PI;
    if(type==='sleep'){local=[0,.99,-.9+1.78*look.scale];facing=0;tilt=-Math.PI/2*settle;bob=0;compression=.98;tips.Left=[-.28,-.54,.075];tips.Right=[.28,-.54,.075];}
    if(type==='relax'){local=[.05,.66-.9*look.scale,SOFA_SEATS[action.seat]];facing=Math.PI/2;compression=.96;bob=0;tips.Left=[-.25,-.34,.48];tips.Right=[.25,-.34,.48];
@@ -88,6 +88,8 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
    if(type==='sootheOrb'){local=[0,0,1.15];rig.joints.Core.rotation.x=.18;tips.Right=[.25,-.05+wave*.06,.5];}
    if(type==='memoryExpedition'){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
    const p=localToWorld(object,local);if(type==='pray')p.y=groundHeight(p.x,p.z,object.side,object.island);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
+  }else if(['treeRest','seekLight'].includes(type)){kneel=settle;tips.Left=[-.28,-.32,.4];tips.Right=[.28,-.32,.4];rig.joints.Head.rotation.x=.12;
+  }else if(type==='witnessPrayer'){tips.Left=[-.15,.05,.4];tips.Right=[.15,.05,.4];rig.joints.Head.rotation.x=-.15;
   }else if(type==='care'){rig.joints.Core.rotation.x=.22;target.y-=.1;tips.Left=[-.15,-.30,.46];tips.Right=[.12,-.20+wave*.07,.48];rig.effects.meal.visible=true;
   }else if(type==='shareLight'){tips.Left=[-.6,.1,.3];tips.Right=[.6,.1,.3];rig.joints.Head.rotation.x=-.1;
   }else if(type==='confront'){tips.Left=[.1,-.15,.38];tips.Right=[.4,.1+wave*.04,.6];rig.joints.Head.rotation.x=-.08;
@@ -143,6 +145,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  for(const limb of Object.values(rig.limbs))poseSkin(rig,limb);
  const skin=rig.limbs.LeftLeg.mesh;skin.skeleton.update();skin.computeBoundingSphere();
  if(rig.effects.wash.visible){for(let i=0;i<60;i++){const angle=i*2.399;rig.particles[i*3]=Math.cos(angle)*(.4+(i%3)*.035);rig.particles[i*3+1]=(2.2-(time*1.2+i*.13)%2.2)*look.scale;rig.particles[i*3+2]=Math.sin(angle)*(.4+(i%3)*.035);}rig.drops.geometry.attributes.position.needsUpdate=true;rig.halo.position.y=(.4+(Math.sin(time*2)+1)*.65)*look.scale;}
- rig.prayerVisuals.update(person,time);
+ if(action?.scoutElapsed!==undefined&&action.scoutElapsed<3.2){rig.joints.Head.rotation.x=.35;rig.joints.Head.rotation.y=Math.sin(action.scoutElapsed*2)*.3;}
+ rig.prayerVisuals.update(person,time,living.mode);
  rig.last={x:person.x,z:person.z};rig.profile=profile;rig.state=state;rig.initialized=true;
 }

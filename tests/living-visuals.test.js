@@ -22,5 +22,15 @@ test('living visuals have visible buds, an independent shadow and a bounded ligh
  s.imprint='bloom';v.update(g,p,null,13,0);assert.equal(v.buds.visible,true);
  s.imprint='roots';v.update(g,p,null,13,0);assert.equal(v.imprint.visible,true);
  s.imprint='shade';v.update(g,p,null,13,0);assert.equal(v.shadow.visible,true);
+ p.side='back';p.x=0;p.z=0;v.update(g,p,{type:'walk',phase:'walking',scoutElapsed:1,path:[{x:2,z:0,livingTrail:'shadow'}]},15,.1);assert.ok(v.shadow.position.x>.5);
  v.dispose();assert.equal(v.root.parent,null);
+});
+
+test('living paths visibly open with a nearby guide, close on departure and never write save state',async()=>{
+ const module=await import('../src/living-visuals.js');assert.equal(typeof module.createLivingTrailVisual,'function');
+ const g=createGame();g.viewIsland='spore';Object.assign(g.player,{island:'spore',side:'front',x:-4,z:2});
+ const v=module.createLivingTrailVisual('front');v.update(g,0,.1);const closed=v.growth.children[0].rotation.x,root=v.growth.children[0].position.clone();
+ Object.assign(mutableResident(g,g.player),{garden:40,charge:60});const saved=JSON.stringify(g);v.update(g,1,1);
+ assert.notEqual(v.growth.children[0].rotation.x,closed);assert.deepEqual(v.growth.children[0].position,root);assert.equal(JSON.stringify(g),saved);
+ g.player.island='home';v.update(g,2,1);assert.equal(v.growth.children[0].rotation.x,closed);v.dispose();
 });

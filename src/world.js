@@ -20,7 +20,7 @@ import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {ITEMS,neighbors,canPlace} from './simulation.js';
 import {appearance,groundHeight} from './characters.js';
 import {createCharacter,updateCharacter} from './character-rig.js';
-import {createLivingVisual,createGardenBondVisual,livingPose} from './living-visuals.js';
+import {createLivingVisual,createGardenBondVisual,createLivingTrailVisual,livingPose} from './living-visuals.js';
 import {livingSite} from './living-state.js';
 import {createStoryMoon} from './story-moon.js';
 import {prepareSurroundings,updateSurroundings} from './storybook-surroundings.js';
@@ -136,6 +136,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
   if(remoteHousing){const project=g.civilization.projects[g.viewIsland];remoteHousing.root.visible=true;remoteHousing.update(project.construction/600);if(project.construction>0&&!remoteHousing.root.userData.cleared){remoteTerrain.front.clearConstruction(project.plan.rooms);remoteHousing.root.userData.cleared=true;}}
  }
  const interactive=new THREE.Group();faces.front.add(interactive);const backInteractive=new THREE.Group();faces.back.add(backInteractive);const surfaceItems={front:interactive,back:backInteractive};const objectMeshes=new Map();
+ const livingTrails=['front','back'].map(side=>{const visual=createLivingTrailVisual(side);faces[side].add(visual.root);return visual;});
  const prop=createPropFactory({mushroomAsset,mushroomVariants,model,crystal,fairytaleKit});
  function syncObjects(g=getGame()){
   for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.userData.gardenBond?.dispose();o.removeFromParent();objectMeshes.delete(id);}
@@ -216,6 +217,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(selected);
    container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects(g);syncActors(g);syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=visualSeconds??((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
 
+   for(const trail of livingTrails)trail.update(g,time,delta);
    for(const[id,rig]of actors){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];
     let partner=g.queue[0]?.targetId===id?g.player:action&&g.npcs[action.targetId]?g.npcs[action.targetId]:Object.values(g.npcs).find(n=>n.queue[0]?.targetId===id);

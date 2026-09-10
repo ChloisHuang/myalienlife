@@ -3,7 +3,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
-import {createGame,ensureStarIsland,enqueue} from '../src/simulation.js';
+import {createGame,ensureStarIsland,enqueue,buyItem} from '../src/simulation.js';
 import {mutableResident,mutableSite,changeBond} from '../src/living-state.js';
 import {createSaveStore} from '../server/save-store.js';
 
@@ -20,6 +20,14 @@ test.beforeEach(async({page})=>{
 });
 test.afterEach(async({page})=>{const {directory,errors}=sessions.get(page);await page.close();await rm(directory,{recursive:true,force:true});expect(errors).toEqual([]);});
 function quiet(){const g=createGame();g.speed=0;g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;return g;}
+test('saved cross-face tree rest does not trap a starving autonomous resident',async({page})=>{
+ const g=quiet();g.autonomy.enabled=true;g.needs.hunger=5;g.needs.energy=0;g.player.prayer.nether=10;
+ const tree=buyItem(g,'spiritTree',0,0,0,{island:'home',side:'back'}).object;
+ enqueue(g,'treeRest',tree.id);g.queue[0].source='ai';g.queue[0].phase='waiting';
+ await load(page,g);await page.locator('[data-speed="3"]').click();
+ await expect.poll(async()=>{const state=await saved(page);return state.needs.hunger;},{timeout:30000}).toBeGreaterThan(20);
+ await page.locator('[data-speed="0"]').click();const state=await saved(page);expect(state.player.alive).toBe(true);
+});
 async function load(page,g){const {store}=sessions.get(page),current=await store.read();await store.write({state:g,baseRevision:current.revision,clientId:crypto.randomUUID(),sequence:1});await page.goto('/');await expect(page.locator('#loading')).toBeHidden({timeout:45000});}
 async function saved(page){await page.locator('#save').click();await expect(page.locator('#save-status')).toHaveAttribute('data-state','saved');return(await sessions.get(page).store.read()).state;}
 async function clickWorld(page,x,y,z){
@@ -87,4 +95,34 @@ test('a permanent flower imprint remains visible and named after ordinary adapta
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
  }
  const state=await saved(page);expect(state.living.residents[g.player.uid].imprint).toBe('bloom');
+});
+
+test('tree rest and light gathering use distinct physical positions with the journal hidden',async({page})=>{
+ const g=quiet();g.log=[];g.objects.push({id:'rest-tree',type:'spiritTree',x:0,z:3,side:'front',rotation:0});mutableSite(g,g.objects.at(-1)).vitality=35;
+ g.player.x=0;g.player.z=1;g.player.prayer.radiance=10;g.player.prayer.nether=10;mutableResident(g,g.player).mode='light';
+ Object.assign(g.npcs.nova,{x:2,z:2});mutableResident(g,g.npcs.nova).fear=75;
+ g.npcs.nova.queue=[{id:g.nextId++,type:'seekLight',targetId:'player',target:{x:1.7,z:1,island:'home',side:'front'},source:'manual',phase:'walking',elapsed:0,path:null}];
+ enqueue(g,'treeRest','rest-tree');g.speed=1;
+ await load(page,g);await page.addStyleTag({content:'#journal,#toast{display:none!important}'});await page.waitForTimeout(2500);await page.locator('[data-speed="0"]').click();
+ const state=await saved(page);expect(Math.hypot(state.player.x-state.npcs.nova.x,state.player.z-state.npcs.nova.z)).toBeGreaterThan(.6);
+ for(const width of [1440,390]){await page.setViewportSize({width,height:1000});expect((await canvasStats(page)).bright).toBeGreaterThan(15000);await page.screenshot({path:`artifacts/living-gather-${width}.png`});}
+});
+
+test('a forest shortcut is visibly scouted, recalled and then walked without a log',async({page})=>{
+ const g=quiet();g.civilization.discoveryPath.push('spore');g.civilization.visits.spore=1;Object.assign(g.civilization.projects.spore,{blueprint:300,construction:600});ensureStarIsland(g,'spore');g.space.backs.spore=true;g.viewIsland='spore';g.viewSide='back';
+ Object.assign(g.player,{island:'spore',side:'back',x:-5,z:-2});mutableResident(g,g.player).shadow=60;
+ enqueue(g,'walk',null,{x:-1,z:-2});g.queue[0].path=[{x:-4,z:-2,island:'spore',side:'back',livingTrail:'shadow'},{x:-3,z:-2,island:'spore',side:'back',livingTrail:'shadow'},{x:-2,z:-2,island:'spore',side:'back',livingTrail:'shadow'},{x:-1,z:-2,island:'spore',side:'back'}];g.queue[0].scoutElapsed=1.3;
+ await load(page,g);await page.addStyleTag({content:'#journal,#toast{display:none!important}'});
+ for(const width of [1440,390]){await page.setViewportSize({width,height:1000});expect((await canvasStats(page)).bright).toBeGreaterThan(15000);await page.screenshot({path:`artifacts/living-scout-${width}.png`});}
+ await page.locator('[data-speed="1"]').click();await expect.poll(async()=>{await page.locator('#save').click();return (await sessions.get(page).store.read()).state.player.x;},{timeout:20000}).toBeCloseTo(-1,1);
+});
+
+test('a garden guide bends the path vegetation and takes an ordinary friend through',async({page})=>{
+ const g=quiet();g.civilization.discoveryPath.push('spore');g.civilization.visits.spore=1;Object.assign(g.civilization.projects.spore,{blueprint:300,construction:600});ensureStarIsland(g,'spore');g.viewIsland='spore';
+ Object.assign(g.player,{island:'spore',side:'front',x:-5,z:2});Object.assign(g.npcs.nova,{island:'spore',side:'front',x:-4,z:3});Object.assign(mutableResident(g,g.npcs.nova),{garden:48,charge:60});
+ changeBond(g,g.player,g.npcs.nova,{trust:35});changeBond(g,g.npcs.nova,g.player,{trust:35});enqueue(g,'walk',null,{x:-1,z:2});
+ g.npcs.nova.queue=[{id:g.nextId++,type:'accompany',targetId:'player',target:{x:-5,z:3,island:'spore',side:'front'},source:'manual',phase:'walking',elapsed:0,path:null}];
+ await load(page,g);await page.addStyleTag({content:'#journal,#toast{display:none!important}'});await page.locator('[data-speed="1"]').click();await page.waitForTimeout(1500);await page.locator('[data-speed="0"]').click();
+ for(const width of [1440,390]){await page.setViewportSize({width,height:1000});expect((await canvasStats(page)).bright).toBeGreaterThan(15000);await page.screenshot({path:`artifacts/living-passage-${width}.png`});}
+ await page.locator('[data-speed="1"]').click();await page.waitForTimeout(5000);await page.locator('[data-speed="0"]').click();const state=await saved(page);expect(state.player.x).toBeCloseTo(-1,1);expect(state.living.residents.nova.charge).toBeLessThan(60);
 });

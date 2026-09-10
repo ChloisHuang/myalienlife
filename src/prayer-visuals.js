@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {isNether,isRadiant} from './prayer.js';
+import {isNether,isRadiant,isDual} from './prayer.js';
 
 export function createPrayerVisuals(rig){
  const skinUniforms={freckles:{value:0}};
@@ -59,13 +59,15 @@ export function createPrayerVisuals(rig){
  const originalEyes=eyes.map(eye=>({color:eye.material.color.clone(),emissive:eye.material.emissive.clone(),intensity:eye.material.emissiveIntensity}));
  crown.visible=spines.visible=dawnHalo.visible=false;
  return {skinUniforms,netherEye,crown,spines,dawnHalo,
-  update(person,time=0){
+  update(person,time=0,mode){
    const mutations=person.prayer?.mutations??[];
-   netherEye.value=isNether(person)?1:0;skinUniforms.freckles.value=mutations.includes('freckles')?1:0;
+   netherEye.value=isNether(person)?isDual(person)&&mode==='light'?.25:1:0;skinUniforms.freckles.value=mutations.includes('freckles')?1:0;
    crown.visible=mutations.includes('crown');spines.visible=mutations.includes('spines');
    dawnHalo.visible=isRadiant(person);
+   dawnHalo.scale.setScalar(isDual(person)&&mode==='shadow'?.5:1);
    dawnHalo.position.y=.82+Math.sin(time*1.5)*.025;
-   dawnMaterial.emissiveIntensity=4.2+Math.sin(time*1.5)*.4;haloGlowMaterial.opacity=.3+Math.sin(time*1.5)*.04;
+   const strength=isDual(person)&&mode==='shadow'?.18:1;
+   dawnMaterial.emissiveIntensity=(4.2+Math.sin(time*1.5)*.4)*strength;haloGlowMaterial.opacity=(.3+Math.sin(time*1.5)*.04)*strength;
    for(const [i,eye]of eyes.entries()){
     const changed=mutations.includes('eyes');eye.material.color.copy(originalEyes[i].color);eye.material.emissive.copy(originalEyes[i].emissive);eye.material.emissiveIntensity=originalEyes[i].intensity;
     if(changed){eye.material.color.set(i?0xb66cff:0x5ef0df);eye.material.emissive.set(i?0xd8a6ff:0x7efff0);eye.material.emissiveIntensity=4.5;}

@@ -1,6 +1,8 @@
 import {createEducation,validEducation,educationWage,studyFacilitySkill,STUDY_LOCATIONS,studyName,completeStudy,migrateEducation,studyInterest,studyError,canStudy,CONTINUING_EDUCATION_CAREER,DEFAULT_STUDY_SUCCESS_CHANCE,studySucceeded} from './education.js';
 import {canBlinkTo,BLINK_SECONDS,undiscoveredBackTarget} from './nether-blink.js';
-import {createLiving,validLiving,migrateLiving,pruneLiving,bondTo,changeBond} from './living-state.js';
+import {createLiving,validLiving,migrateLiving,pruneLiving,bondTo,changeBond,mutableResident,livingResident} from './living-state.js';
+import {trailAt,trailGuide} from './living-routes.js';
+import {spatialTarget,spatialCandidates,waitForCompany,refuses,resourceTurn} from './living-spatial.js';
 import {LIVING_ACTIONS,LIVING_SOCIAL,livingConversation,livingOptions,livingError,livingBonus,finishLiving,advanceLiving,bondWeight,validLivingQueue} from './living-world.js';
 import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
@@ -267,9 +269,11 @@ export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,
  if(isInfant(g,g.player.age))return{ok:false,message:`幼体需要照料，${stageConfig(g).infantEnd} 星岁后开始自主活动。`};
  if(type==='pray'&&!g.objects.some(o=>o.id===targetId&&o.type==='spiritTree'))return{ok:false,message:'请选择星灵垂光树祈祷。'};
  const qualification=actionAccessError(g,actor(g,'player'),type);if(qualification)return{ok:false,message:qualification};
+ if(WONDER_ACTIONS[type]?.paired&&g.npcs[partnerId]&&refuses(g,g.npcs[partnerId],g.player))return {ok:false,message:'对方暂时不愿接受共同活动邀请。'};
  if(type==='boardUfo')return{ok:false,message:'登船由驾驶员统一邀请。'};
  if(type==='voyage'&&g.queue.some(q=>['voyage','boardUfo'].includes(q.type)))return{ok:false,message:'请先完成或取消已有航行安排。'};
  const passengers=passengerIds.map(id=>allActors(g).find(p=>p.id===id));
+ if(type==='voyage'&&passengers.some(p=>p&&refuses(g,p.position,g.player)))return {ok:false,message:'有居民暂时不愿接受同行邀请。'};
  if(type==='voyage'&&(new Set(passengerIds).size!==passengerIds.length||passengers.some(p=>!p||p.id==='player'||!sameSide(p.position,g.player)||p.queue.length>=6||p.queue.some(q=>['voyage','boardUfo'].includes(q.type)))))return{ok:false,message:'请选择同面的居民，每位乘客只需选择一次，且不能重复参与尚未完成的航行。'};
  const civilIssue=civilizationError(g,type,g.objects.find(o=>o.id===targetId),g.player,g.skills,destinationId,1+passengers.length,null,shipId);if(civilIssue)return{ok:false,message:civilIssue};
  const wonderIssue=interactionError(g,type,targetId,partnerId);if(wonderIssue)return{ok:false,message:wonderIssue};
@@ -343,6 +347,7 @@ function preparePaired(g,host,q){
  // Pre-existing saves may contain an invitation that has not yet been dispatched.
  if(!q.invited){const issue=invitePaired(g,host,q);if(issue)return issue;}
  const people=allActors(g),guest=pairedGuest(g,q),o=g.objects.find(o=>o.id===q.targetId);if(!guest)return '邻居已经取消，本次共同活动取消。';
+ if(refuses(g,guest.position,host.position))return '对方暂时不愿参加共同活动。';
  const qualification=actionAccessError(g,host,q.type);if(qualification)return qualification;
  q.partnerId=guest.id;const invitation=guest.queue.find(a=>a.hostActionId===q.id);invitation.hostId=host.id;
  const error=wonderError(g,q.type,o,host,people,q.partnerId,true);if(error)return error;
@@ -370,7 +375,15 @@ function inheritEstate(g,person){
  g.log.unshift({text,at:g.minute});recordMajorEvent(g,text,'inheritance');
 }
 const seatedAction=q=>q&&['relax','lounge'].includes(q.type);
-function freeSofaSeat(g,id,exclude){const used=allActors(g).map(a=>a.queue[0]).filter(q=>q!==exclude&&seatedAction(q)&&q.targetId===id).map(q=>q.seat);return SOFA_SEATS.findIndex((_,i)=>!used.includes(i));}
+function freeSofaSeat(g,id,exclude,person){
+ const occupants=allActors(g).filter(a=>a.queue[0]!==exclude&&seatedAction(a.queue[0])&&a.queue[0].targetId===id),used=occupants.map(a=>a.queue[0].seat);
+ const seats=SOFA_SEATS.map((_,i)=>i).filter(i=>!used.includes(i));
+ if(person)seats.sort((a,b)=>{
+  const cost=seat=>occupants.reduce((sum,other)=>sum+((bondTo(g,person.position,other.position)?.resentment??0)>=20?-1:1)*Math.abs(SOFA_SEATS[seat]-SOFA_SEATS[other.queue[0].seat]),0);
+  return cost(a)-cost(b)||a-b;
+ });
+ return seats[0]??-1;
+}
 function inviteSofaGuests(g,host,q){
  if(q.source==='ai'&&!autonomousCooperationReady(g,host,q))return;
  const candidates=allActors(g).filter(a=>sameSide(a.position,host.position)&&a.id!==host.id&&(bondTo(g,a.position,host.position)?.resentment??0)<40&&!isInfant(g,a.position.age)&&Math.min(a.needs.hunger,a.needs.energy,a.needs.hygiene)>20&&a.queue.length<6&&(q.source!=='ai'||autonomousCooperationReady(g,a))&&!a.queue.some(q=>q.type==='lounge')&&!conversationWith(g,a.id)).sort((a,b)=>bondWeight(g,host.position,b.position)-bondWeight(g,host.position,a.position)+Math.hypot(a.position.x-host.position.x,a.position.z-host.position.z)-Math.hypot(b.position.x-host.position.x,b.position.z-host.position.z));
@@ -394,8 +407,8 @@ function surfacePath(g,start,end){
  if(!sameSide(start,end))return null;
  const key=(x,z)=>`${x},${z}`,sx=Math.round(start.x),sz=Math.round(start.z),ex=Math.round(end.x),ez=Math.round(end.z);
  const nodes=[{x:sx,z:sz}],seen=new Map([[key(sx,sz),null]]);let found=false;
- for(let i=0;i<nodes.length;i++){const p=nodes[i];if(p.x===ex&&p.z===ez){found=true;break;}for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz,k=key(x,z);if(Math.abs(x)>11||Math.abs(z)>7||seen.has(k)||(islandOf(start)==='spore'&&fairytaleBlocked(x,z,.25,sideOf(start)))||g.objects.some(o=>sameSide(o,start)&&Math.hypot(o.x-x,o.z-z)<.8))continue;seen.set(k,p);nodes.push({x,z});}}
- if(!found)return null;const path=[{x:ex,z:ez,island:islandOf(start),side:sideOf(start)}];let prev=seen.get(key(ex,ez));while(prev){path.unshift({...prev,island:islandOf(start),side:sideOf(start)});prev=seen.get(key(prev.x,prev.z));}path.shift();path.push(end);return path;
+ for(let i=0;i<nodes.length;i++){const p=nodes[i];if(p.x===ex&&p.z===ez){found=true;break;}for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz,k=key(x,z),trail=trailAt({x,z,island:islandOf(start),side:sideOf(start)});if(Math.abs(x)>11||Math.abs(z)>7||seen.has(k)||trail&&!trailGuide(g,start,trail.kind)||(islandOf(start)==='spore'&&fairytaleBlocked(x,z,.25,sideOf(start)))||g.objects.some(o=>sameSide(o,start)&&Math.hypot(o.x-x,o.z-z)<.8))continue;seen.set(k,p);nodes.push({x,z});}}
+ if(!found)return null;const path=[{x:ex,z:ez,island:islandOf(start),side:sideOf(start)}];let prev=seen.get(key(ex,ez));while(prev){path.unshift({...prev,island:islandOf(start),side:sideOf(start)});prev=seen.get(key(prev.x,prev.z));}path.shift();path.push(end);for(const p of path){const trail=trailAt(p);if(trail)p.livingTrail=trail.kind;}return path;
 }
 // Dijkstra connects walkable surface paths with deliberate, timed gate crossings.
 function findPath(g,start,end){
@@ -464,7 +477,7 @@ export function autonomousCandidates(g,id){
   }
  }
  if(person.position.age>=adultStart(g))for(const n of neighbors(g))if(isInfant(g,n.age))candidates.push({type:'care',targetId:n.id});
- for(const other of people)if(other.id!==id&&sameSide(person.position,other.position)&&other.position.age>=stageConfig(g).infantEnd&&!other.queue.length&&!conversationWith(g,other.id))for(const type of LIVING_SOCIAL)if(!livingError(g,type,person.position,null,other.position))candidates.push({type,targetId:other.id});
+ for(const other of people)if(other.id!==id&&sameSide(person.position,other.position)&&other.position.age>=stageConfig(g).infantEnd&&!other.queue.length&&!conversationWith(g,other.id))for(const type of LIVING_SOCIAL)if(!['seekLight','witnessPrayer'].includes(type)&&!livingError(g,type,person.position,null,other.position))candidates.push({type,targetId:other.id});
  // Births share the household budget and must pass resource and caregiver checks.
  for(const n of neighbors(g))if(!isInfant(g,n.age)&&n.id!==person.id&&!g.npcs[n.id].queue.length&&!conversationWith(g,n.id))for(const type of ['chat','joke','gift','flirt'])if(type!=='flirt'||person.position.age>=adultStart(g)&&n.age>=adultStart(g)&&(person.id==='player'?g.relationships[n.id]:person.relationships[n.id])>=35)candidates.push({type,targetId:n.id});
  if(studyWindowOpen(g,person))for(const [targetId,n] of Object.entries(g.npcs))if(!studyError(person.position,stageConfig(g),n,careerOf(g,person))&&sameSide(n,person.position)&&!n.queue.length&&!conversationWith(g,targetId))candidates.push({type:'study',targetId,studySkill:'social'});
@@ -475,7 +488,7 @@ export function autonomousCandidates(g,id){
  const fertility=birthDecision(g,person.id);if(fertility.ready)candidates.push({type:'incubate',targetId:fertility.podId,partnerId:fertility.partnerId});
  const point={x:Math.round(Math.sin(g.day+g.minute/60+person.position.age)*8),z:Math.round(Math.cos(g.day+person.position.age)*5),island:islandOf(person.position),side:sideOf(person.position)};
  if(canPlace(g,point.x,point.z,point.side,point.island))candidates.push({type:'walk',targetId:null,point});
- return candidates;
+ return [...candidates,...spatialCandidates(g,person,people,p=>canPlace(g,p.x,p.z,p.side,p.island))];
 }
 function buildDiscoveredGates(g,person){
  const island=islandOf(person.position);if(!isNether(person.position)||person.position.age<adultStart(g)||!backDiscovered(g,island))return false;
@@ -487,20 +500,20 @@ function buildDiscoveredGates(g,person){
  g.log.unshift({text:`${person.position.name}花费 ${price*plans.length} 星币，为${islandDefinition(g,island).name}补齐双面折跃门。`,at:g.minute});person.ai.reason='为发现的幽星面建好了折跃门';person.ai.cooldown=4;return true;
 }
 function decide(g,person,random=Math.random){
- if(buildDiscoveredGates(g,person))return;
+ if(person.needs.hunger>=15&&buildDiscoveredGates(g,person))return;
  const candidates=autonomousCandidates(g,person.id);
  const active=allActors(g).flatMap(a=>a.queue.slice(0,1));
  const weights={hunger:1.8,energy:1.6,social:1.3,fun:1,hygiene:1.4,comfort:.8};
  const scored=[];
   for(const candidate of candidates){
-   if(['relax','lounge'].includes(candidate.type)){if(freeSofaSeat(g,candidate.targetId)<0)continue;}else if(candidate.targetId&&active.some(q=>q.targetId===candidate.targetId&&!WONDER_ACTIONS[candidate.type]?.paired))continue;
+   if(['relax','lounge'].includes(candidate.type)){if(freeSofaSeat(g,candidate.targetId)<0)continue;}else if(candidate.targetId&&!['treeRest','seekLight','witnessPrayer','pray','tendTree'].includes(candidate.type)&&active.some(q=>q.targetId===candidate.targetId&&!WONDER_ACTIONS[candidate.type]?.paired))continue;
    const action=ACTIONS[candidate.type],cost=actionCost(g,candidate.type);if(cost&&!canAfford(g,person,cost))continue;const target=destination(g,candidate.targetId,candidate.point);
   if(!target)continue;
   if(actionAccessError(g,person,candidate.type))continue;
   if(civilizationError(g,candidate.type,g.objects.find(o=>o.id===candidate.targetId),person.position,person.skills,candidate.destinationId))continue;
   if(!WONDER_ACTIONS[candidate.type]?.paired&&wonderError(g,candidate.type,g.objects.find(o=>o.id===candidate.targetId),person,allActors(g),candidate.partnerId))continue;
   const bonus=autonomyBonus(g,person,candidate,allActors(g)),lifeBonus=livingBonus(g,person,candidate,allActors(g));if(bonus===null||lifeBonus===null)continue;
-  let score=bonus+lifeBonus,dominant=null,largest=0;
+  let score=bonus+lifeBonus+(candidate.spaceWithdrawal?180:0),dominant=null,largest=0;
   if(candidate.type==='study'){
    if(Math.min(...Object.values(person.needs))<40)continue;
    const focus=person.position.education.focus;
@@ -528,7 +541,8 @@ function decide(g,person,random=Math.random){
  if(!scored.length){person.ai.reason='暂时没有合适的行动，休息观察';person.ai.cooldown=3;return;}
  // Select the activity first; participant choice has its own subsequent draw.
  for(const c of scored)if(WONDER_ACTIONS[c.type]?.paired||c.type==='lounge')c.score*=AUTONOMOUS_COOPERATION_WEIGHT;
- const best=chooseWeighted(scored,random);
+ const food=person.needs.hunger<15?scored.filter(c=>ACTIONS[c.type].effects.hunger>0):[];
+ const best=chooseWeighted(food.length?food:scored,random);
  if(WONDER_ACTIONS[best.type]?.paired){const partners=cooperationPartners(g,person,best.type,g.objects.find(o=>o.id===best.targetId));if(!partners.length)return;best.partnerId=chooseWeighted(partners.map(p=>({id:p.id,score:Math.max(1,20+bondWeight(g,person.position,p.position)+(person.id==='player'?g.relationships[p.id]:person.relationships[p.id]??0)*.2-p.queue.length*2-Math.hypot(p.position.x-person.position.x,p.position.z-person.position.z)*.3)})),random).id;}
  const q=makeAction(g,best.type,best.targetId,best.target,'ai');q.path=best.path;if(best.partnerId!==undefined)q.partnerId=best.partnerId;if(best.destinationId)q.destinationId=best.destinationId;
  if(q.type==='study'){q.studySkill=best.studySkill;q.studyVersion=2;}
@@ -540,7 +554,8 @@ function autonomousFlightPassengers(g,host,q,random){
  const ship=availableUfo(g,host.position,islandDefinition(g,q.destinationId).level,1);if(!ship)return [];
  const available=Math.floor(ship.food+(g.space.provisions[islandOf(host.position)]??0))-1,limit=Math.min(2,ufoDefinition(ship).seats-1,available);
  const candidates=allActors(g).filter(p=>p.id!==host.id&&sameSide(p.position,host.position)&&!isInfant(g,p.position.age)&&p.queue.length<6&&autonomousCooperationReady(g,p)&&Math.min(p.needs.hunger,p.needs.energy)>45&&actionPreference(p,'voyage')>0);
- const guests=[];while(guests.length<limit&&candidates.length)guests.push(candidates.splice(Math.floor(random()*candidates.length),1)[0]);return guests;
+ const willing=candidates.filter(p=>!refuses(g,p.position,host.position));
+ const guests=[];while(guests.length<limit&&willing.length)guests.push(willing.splice(Math.floor(random()*willing.length),1)[0]);return guests;
 }
 function flightPassengers(g,q){return allActors(g).filter(p=>q.passengerUids?.includes(p.position.uid));}
 function inviteFlight(g,host,q,passengers,shipId=null){
@@ -675,25 +690,36 @@ function advanceAction(g,person,dt,random){
  if(q.phase==='celebrating'){q.elapsed+=dt;if(q.elapsed>=PRAYER_RULES.celebrationSeconds)releaseAction(person,q);return;}
  if(q.hostId&&!pairedHost(g,q)){person.queue.shift();return;}
  if(WONDER_ACTIONS[q.type]?.paired&&!q.hostId){const issue=preparePaired(g,person,q);if(issue){cancelPaired(g,q);person.ai.cooldown=3;g.log.unshift({text:issue,at:g.minute});return;}}
- const currentTarget=['walk','plantMushroom'].includes(q.type)?q.target:q.hostId?guestApproach(g,q.targetId):destination(g,q.targetId);if(currentTarget&&(!sameSide(currentTarget,q.target)||Math.hypot(currentTarget.x-q.target.x,currentTarget.z-q.target.z)>1.5)){q.target=currentTarget;q.path=null;delete q.transit;delete q.blinkTransit;q.phase='walking';}
+ const localTarget=destination(g,q.targetId);
+ const arriving=localTarget&&!sameSide(person.position,localTarget);
+ const spatial=arriving||q.transit||q.blinkTransit?null:spatialTarget(g,person,q,allActors(g),p=>canPlace(g,p.x,p.z,p.side,p.island));
+ if(!arriving&&!q.transit&&!q.blinkTransit&&(['treeRest','seekLight','witnessPrayer','accompany'].includes(q.type)||!resourceTurn(g,person,q,allActors(g)))&&!spatial){person.queue.shift();person.ai.cooldown=3;person.ai.reason='附近没有可用的位置，重新选择行动';return;}
+ if(arriving&&q.phase==='waiting')q.phase='walking';
+ const currentTarget=q.transit||q.blinkTransit?q.target:spatial??(['walk','plantMushroom'].includes(q.type)?q.target:q.hostId?guestApproach(g,q.targetId):destination(g,q.targetId));if(currentTarget&&(!sameSide(currentTarget,q.target)||Math.hypot(currentTarget.x-q.target.x,currentTarget.z-q.target.z)>(spatial||q.phase==='waiting'?.6:1.5))){q.target=currentTarget;q.path=null;delete q.transit;delete q.blinkTransit;q.phase='walking';}
  if(!['walk','plantMushroom'].includes(q.type)&&!destination(g,q.targetId)){person.queue.shift();person.ai.cooldown=3;person.ai.reason='目标已不存在，重新观察';return;}
  if(seatedAction(q)){
   const sofa=g.objects.find(o=>o.id===q.targetId&&isSeating(o));if(!sofa){person.queue.shift();return;}
-  if(!Number.isInteger(q.seat)||q.seat<0){const seat=freeSofaSeat(g,q.targetId,q);if(seat<0){q.phase='waiting';return;}q.seat=seat;q.path=null;q.phase='walking';}
+  if(!Number.isInteger(q.seat)||q.seat<0){const seat=freeSofaSeat(g,q.targetId,q,person);if(seat<0){q.phase='waiting';return;}q.seat=seat;q.path=null;q.phase='walking';}
   const approach=localToWorld(sofa,[1.3,0,SOFA_SEATS[q.seat]]);if(q.target.x!==approach.x||q.target.z!==approach.z){q.target={x:approach.x,z:approach.z,island:islandOf(sofa),side:sideOf(sofa)};q.path=null;}
   if(q.type==='lounge'&&!q.invited){q.invited=true;inviteSofaGuests(g,person,q);}
  }
  if(q.phase==='walking'){
   if(q.path&&!q.path[0]?.blink&&!q.transit&&canBlinkTo(g,person.position,q.target))q.path=null;
-  if(!q.path){if(g.npcs[q.targetId])q.target=destination(g,q.targetId);q.path=findPath(g,person.position,q.target);}
+  if(!q.path){if(g.npcs[q.targetId]&&!spatial)q.target=destination(g,q.targetId);q.path=findPath(g,person.position,q.target);}
   if(!q.path){person.queue.shift();person.ai.cooldown=3;person.ai.reason='通路被挡住了';if(person.id==='player')g.log.unshift({text:'那里被挡住了，请在建造模式中留出通路。',at:g.minute});return;}
-  const speed=person.id==='player'?2.8:1.7;let distance=dt*speed;
+  const shadowRoute=q.path.some(p=>p.livingTrail==='shadow');
+  if(shadowRoute&&!q.scoutElapsed&&!trailGuide(g,person.position,'shadow')){q.path=null;return;}
+  if(shadowRoute&&(q.scoutElapsed??0)<3.2){q.scoutElapsed=Math.min(3.2,(q.scoutElapsed??0)+dt);return;}
+  const escorted=allActors(g).find(a=>a.queue[0]?.type==='accompany'&&a.queue[0]?.targetId===person.id&&sameSide(a.position,person.position));
+  const speed=q.type==='accompany'||escorted?1.7:person.id==='player'?2.8:1.7;let distance=dt*speed;
   while(q.path.length&&distance>0){const p=q.path[0];
+   if(p.livingTrail==='garden'&&!q.gardenPass){const guide=trailGuide(g,person.position,'garden');if(!guide){q.path=null;return;}mutableResident(g,guide).charge=Math.max(0,livingResident(g,guide).charge-8);q.gardenPass=true;}
    if(p.blink){
     if(!canBlinkTo(g,person.position,p)){q.path=null;delete q.blinkTransit;return;}
     q.blinkTransit??={elapsed:0};const before=q.blinkTransit.elapsed,spend=Math.min(distance/speed,BLINK_SECONDS-before);q.blinkTransit.elapsed+=spend;distance-=spend*speed;
     if(before<BLINK_SECONDS/2&&q.blinkTransit.elapsed>=BLINK_SECONDS/2){if(p.side==='back')g.space.backs[islandOf(person.position)]=true;if(person.id==='player'&&g.viewIsland===islandOf(person.position))g.viewSide=p.side;}
     if(q.blinkTransit.elapsed<BLINK_SECONDS)return;
+    for(const friend of allActors(g))if(friend.id!==person.id&&sameSide(friend.position,person.position)&&Math.hypot(friend.position.x-person.position.x,friend.position.z-person.position.z)<3&&(bondTo(g,friend.position,person.position)?.dependence??0)>=15&&(!sameSide(friend.position,p)||Math.hypot(friend.position.x-p.x,friend.position.z-p.z)>5))changeBond(g,friend.position,person.position,{resentment:12,trust:-4});
     Object.assign(person.position,{x:p.x,z:p.z,island:p.island,side:p.side});q.path.shift();delete q.blinkTransit;continue;
    }
    if(p.gateId){
@@ -710,10 +736,11 @@ function advanceAction(g,person,dt,random){
   if(q.path.length)return;q.phase='waiting';dt=distance/speed;
  }
  if(q.type==='boardUfo'){q.phase='waiting';return;}
+ if(!resourceTurn(g,person,q,allActors(g))){q.phase='waiting';return;}
  if(q.type==='voyage'&&flightPassengers(g,q).some(p=>!isInfant(g,p.position.age)&&(p.queue[0]?.hostActionId!==q.id||p.queue[0].phase!=='waiting'||p.queue[0].path?.length!==0))){q.phase='waiting';return;}
  if(q.type==='voyage'&&q.phase!=='acting'){const issue=civilizationError(g,q.type,g.objects.find(o=>o.id===q.targetId),person.position,person.skills,q.destinationId,1+(q.passengerUids?.length??0),q.id,q.shipId);if(issue){cancelFlight(g,q);g.log.unshift({text:issue,at:g.minute});return;}}
  const reserved=allActors(g).some(a=>a.id!==person.id&&a.queue[0]?.targetId===q.targetId&&groupId(a.queue[0])!==groupId(q)&&a.queue[0].phase==='acting');
- if(!['walk','plantMushroom','travel'].includes(q.type)&&!seatedAction(q)&&reserved){q.phase='waiting';return;}
+ if(!['walk','plantMushroom','travel','treeRest','seekLight','witnessPrayer'].includes(q.type)&&!seatedAction(q)&&reserved){q.phase='waiting';return;}
  if(q.type==='voyage'&&q.phase!=='acting'){
   const amount=loadConstructionCargo(g,q);
   if(amount)g.log.unshift({text:`${person.position.name}出航前自动装载 ${amount} 份植生复材，运往${islandDefinition(g,q.destinationId).name}用于建设。`,at:g.minute});
@@ -766,6 +793,12 @@ export function tick(g,seconds,random=Math.random){
   const partner=conversationWith(g,person.id);
   if(partner){if(person.id!=='player')person.position.activity=partner.id==='player'?`和${g.player.name}交谈`:`和${g.npcs[partner.id].name}交谈`;continue;}
   person.ai.cooldown=Math.max(0,person.ai.cooldown-dt);
+  const current=person.queue[0];
+  if(person.ai.enabled&&person.needs.hunger<15&&current&&!current.transit&&!current.blinkTransit&&(current.source==='ai'&&Object.hasOwn(LIVING_ACTIONS,current.type)||current.type==='lounge'&&current.invited)){
+   person.queue.splice(0,person.queue.length,...person.queue.filter(q=>!(q.source==='ai'&&Object.hasOwn(LIVING_ACTIONS,q.type)||q.type==='lounge'&&q.invited)));
+   person.ai.cooldown=0;person.ai.reason='饥饿紧急，先停止休养和聚会去进食';
+  }
+  if(waitForCompany(g,person,allActors(g)))continue;
   if(person.ai.enabled&&!person.queue.length&&person.ai.cooldown===0)decide(g,person,random);
   advanceAction(g,person,dt,random);
   if(person.id!=='player'){const q=person.queue[0];person.position.activity=q?`${q.phase==='walking'?'前往 · ':q.phase==='waiting'?'等候 · ':''}${ACTIONS[q.type].name}`:'享受星湾的微风';}

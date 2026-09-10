@@ -310,6 +310,20 @@ def castle(dark=False):
             curve([(x,.4,z+1),(x-.4,2,z+1.2),(x+.3,4,z),(x-.3,5.7,z)],.15,'bark')
             rod((x+.1,3.7,z),(x+1,4.4,z),.13,'bark',.01)
 
+def wind_plant(build):
+    def wrapped(x,z,*args,**kwargs):
+        before=set(bpy.context.scene.objects)
+        build(x,z,*args,**kwargs)
+        parts=list(set(bpy.context.scene.objects)-before)
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in parts:o.select_set(True)
+        bpy.context.view_layer.objects.active=parts[0];bpy.ops.object.join()
+        o=bpy.context.object;o['windPlant']=build.__name__
+        bpy.context.scene.cursor.location=xyz((x,.3,z))
+        bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+    return wrapped
+
+@wind_plant
 def tree(x,z,s=1,dark=False,apple=False):
     if dark:
         before=set(bpy.context.scene.objects)
@@ -351,6 +365,7 @@ def curled_tree(x,z,s,apple=False):
         rod((x+.95*s,2.60*s,z+.15),(x+.95*s,2.20*s,z+.15),.025,'wood')
         ball((x+.95*s,2.06*s,z+.15),(.25,.28,.24),'poison')
 
+@wind_plant
 def flower(x,z,s=1):
     rod((x,.32,z),(x,.32+s,z),.045,'leaf')
     for i in range(5):
@@ -587,6 +602,9 @@ def asset(name, build):
     objects=list(set(bpy.context.scene.objects)-before)
     if name in ['fairytale-front','fairytale-back']:
         root=bpy.data.objects.new(name,None);bpy.context.collection.objects.link(root)
+        plants=[o for o in objects if 'windPlant' in o]
+        for o in plants:o.parent=root
+        objects=[o for o in objects if 'windPlant' not in o]
         groups={progress:[o for o in objects if o['revealAt']==progress] for progress in set(o['revealAt'] for o in objects)}
         for progress,parts in sorted(groups.items()):
             bpy.ops.object.select_all(action='DESELECT')

@@ -17,6 +17,8 @@ test('nether keeps opaque skin and changes exactly one facial eye, reversibly',(
  const eyeShader={uniforms:{},vertexShader:'#include <begin_vertex>',fragmentShader:'#include <color_fragment>\n#include <emissivemap_fragment>'};
  body.getObjectByName('RightEye').material.onBeforeCompile(eyeShader);
  assert.equal(eyeShader.uniforms.netherEye,visuals.netherEye);assert.match(eyeShader.fragmentShader,/irisRing/);
+ visuals.update(person,0,'shadow');assert.ok(visuals.dawnHalo.scale.x<.7);assert.equal(visuals.netherEye.value,1);
+ visuals.update(person,0,'light');assert.equal(visuals.dawnHalo.scale.x,1);assert.ok(visuals.netherEye.value<1);
  const ordinaryShader={uniforms:{}};body.getObjectByName('LeftEye').material.onBeforeCompile(ordinaryShader);assert.deepEqual(ordinaryShader.uniforms,{});
  person.prayer.nether=0;visuals.update(person);assert.equal(visuals.netherEye.value,0);visuals.dispose();
 });
