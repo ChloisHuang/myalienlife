@@ -1,3 +1,4 @@
+import {layoutPoint,layoutSize} from './viewport.js';
 import {applyCommand} from './game-commands.js';
 import {livingResident,livingSite,supportedIsland} from './living-state.js';
 import {livingAppearance,livingSummary} from './living-adaptation.js';
@@ -31,27 +32,26 @@ import './resident-panel.css';
 import './floating-island.css';
 import {createFloatingIsland} from './floating-island.js';
 import {PictureInPicture2,ArrowLeft} from 'lucide';
-import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins} from 'lucide';
+import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages} from 'lucide';
 import {createWorld} from './world.js';
 import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,actionCost,canAffordAction,isSellableItem} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,isSeating,lifeStage,skillProgress} from './characters.js';
+import {getLanguage,localizePage,toggleLanguage,translateText,translateHtml} from './i18n.js';
 
 const $=s=>document.querySelector(s);
 const UFO_BUILD_ACTIONS=new Set(['buildUfo1','buildUfo2','buildUfo3']);
-const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins};
+const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages};
 const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('class',`icon ${cls}`);el.setAttribute('aria-hidden','true');return el.outerHTML;};
+const githubMark=()=>'<svg class="icon" data-icon="github-mark" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>';
 Object.assign(icons,{PictureInPicture2,ArrowLeft});
 Object.assign(icons,{Handshake,MessageCircleWarning});
 const hosted=import.meta.env.VITE_SERVER_AUTHORITY==='1';
 const persistence=hosted?null:createPersistence();let game;
-const presentation=hosted?createPresentation():null;let visualGame,visitorsUi,watchedResidentUid=null;
+const presentation=hosted?createPresentation():null;let visualGame,visitorsUi,dossierResidentUid=null;
 const online=hosted?createOnlineClient({onState(next){
  if(!game)return;const previous=game;
  if(Object.hasOwn(islandCatalog(next),previous.viewIsland)){next.viewIsland=previous.viewIsland;next.viewSide=previous.viewSide;}
- const findWatched=state=>watchedResidentUid?[state.player,...Object.values(state.npcs)].find(person=>person.uid===watchedResidentUid&&person.alive):state.player;
- const before=findWatched(previous)??previous.player;let after=findWatched(next);
- if(!after){watchedResidentUid=null;after=next.player;}
- if(before.uid!==after.uid||islandOf(before)!==islandOf(after)||sideOf(before)!==sideOf(after)){next.viewIsland=islandOf(after);next.viewSide=sideOf(after);}
+ if(!dossierResidentUid&&(previous.player.uid!==next.player.uid||islandOf(previous.player)!==islandOf(next.player)||sideOf(previous.player)!==sideOf(next.player))){next.viewIsland=islandOf(next.player);next.viewSide=sideOf(next.player);}
  game=next;presentation.push(next);
 },onStatus(value){visitorsUi?.setAuthenticated(value.authenticated);const el=document.querySelector('#online-status');if(!el)return;const status=!value.connected?'offline':value.error?'error':value.canOperate?'operator':value.authenticated?'verified':'guest';el.dataset.status=status;el.textContent=status==='error'?value.error:{offline:'连接中断 · 只读',operator:'操作中',verified:'已验证 · 只读',guest:'访客 · 只读'}[status];document.querySelector('#claim-control').hidden=!value.authenticated;document.querySelector('#operator-login').hidden=value.authenticated;document.querySelector('#operator-logout').hidden=!value.authenticated;if(!value.canOperate&&build){build=false;cancelPlacement();document.querySelector('#build-button').classList.remove('active');}}}):null;
 async function command(name,...args){
@@ -73,10 +73,10 @@ const updateResident=async(_game,...args)=>command('updateResident',...args);
 const loadShipFood=async(_game,...args)=>command('loadShipFood',...args);
 const loadShipMaterials=async(_game,...args)=>command('loadShipMaterials',...args);
 const unloadShipMaterials=async(_game,...args)=>command('unloadShipMaterials',...args);
-$('#app').innerHTML='<div id="loading"><h2>正在读取星湾存档</h2><p>从服务器恢复你的生活进度…</p></div>';
+$('#app').innerHTML=translateHtml('<div id="loading"><h2>正在读取星湾存档</h2><p>从服务器恢复你的生活进度…</p></div>');
 try{game=hosted?await online.load():await persistence.load();}catch(error){
  console.error('游戏存档读取失败',error);
- $('#app').innerHTML='<div id="loading"><h2>暂时无法读取存档</h2><p>请检查游戏服务后重试，现有存档不会被覆盖。</p><button id="retry-load">重新读取</button></div>';
+ $('#app').innerHTML=translateHtml('<div id="loading"><h2>暂时无法读取存档</h2><p>请检查游戏服务后重试，现有存档不会被覆盖。</p><button id="retry-load">重新读取</button></div>');
  $('#retry-load').onclick=()=>location.reload();throw error;
 }
 let navigationIsland=game.viewIsland,lastViewedIsland=game.viewIsland;
@@ -84,13 +84,15 @@ if(hosted)presentation.push(game);
 let lastLifeState='';let world,tab='needs',build=false,speedBeforeBuild=1,pack='全部',selectedItem=null,context=null,toastTimer,portraits={},portraitKey='',selectedResident='player',lastMajorEvents='',lastPanel='',saveBlocked=false,epochRestarting=false;
 const fmt=n=>Math.floor(n).toLocaleString('zh-CN');
 const buttons=(items)=>items.map(([label,i,attr])=>`<button ${attr} title="${label}" aria-label="${label}">${icon(i)}</button>`).join('');
+const languageButtonLabel=getLanguage()==='zh'?'EN':'中';
 
-$('#app').innerHTML=`
+$('#app').innerHTML=translateHtml(`
  <div id="world" aria-label="可交互的外星家园 3D 场景"></div>
  <header class="topbar">
   <a class="brand" href="/" aria-label="星外日常">${icon('Orbit')}<div><b>星外日常<span>ORBIT LIFE</span></b><small>在宇宙的一角，好好生活。</small></div></a>
+  <a id="github-link" class="github-link" href="https://github.com/ChloisHuang/myalienlife/" target="_blank" rel="noreferrer" aria-label="在 GitHub 查看项目" title="在 GitHub 查看项目">${githubMark()}</a>
   <div class="time-control"><div class="day">${icon('Sun')}<span id="day">第 ${game.day} 天</span><b id="clock">08:30</b></div><div class="speed-buttons">${buttons([['暂停','Pause','data-speed="0"'],['正常速度','Play','data-speed="1"'],['三倍速度','FastForward','data-speed="3"']])}</div></div>
-  <div class="top-actions"><div class="wallet">${icon('Sparkles')}<strong id="money">2,400</strong><small>星币</small></div><button id="build-button" class="build-button" aria-label="建造模式">${icon('Hammer')}<span>建造模式</span><kbd>B</kbd></button><button class="icon-button" id="config" title="参数配置" aria-label="参数配置">${icon('Settings')}</button><button class="icon-button" id="save" title="保存游戏" aria-label="保存游戏">${icon('Save')}</button><button class="icon-button" id="help" title="操作指南" aria-label="操作指南">${icon('CircleHelp')}</button></div>
+  <div class="top-actions"><div class="wallet">${icon('Sparkles')}<strong id="money">2,400</strong><small>星币</small></div><button id="build-button" class="build-button" aria-label="建造模式">${icon('Hammer')}</button><button id="language-toggle" class="language-toggle" type="button" data-language="${getLanguage()==='zh'?'en':'zh'}" aria-label="Switch language" title="Switch language">${icon('Languages')}<span data-language-label>${languageButtonLabel}</span></button><button class="icon-button" id="config" title="参数配置" aria-label="参数配置">${icon('Settings')}</button><button class="icon-button" id="save" title="保存游戏" aria-label="保存游戏">${icon('Save')}</button><button class="icon-button" id="help" title="操作指南" aria-label="操作指南">${icon('CircleHelp')}</button></div>
  <span id="save-status" title="每 60 秒保存到服务器；离开页面和刷新前也会保存。"></span></header>
  <main class="scene-ui">
   <div class="location"><span class="eyebrow">KEPLER–186F / 居住区 07</span><h1>露米纳星湾<span class="live-dot"></span></h1><p id="weather" aria-label="当前天气"></p></div>
@@ -101,18 +103,20 @@ $('#app').innerHTML=`
   <div class="scene-caption"><span class="live-dot"></span> 生活正在发生 <i>·</i> 点击人物或物品互动</div>
  </main>
  <div id="build-hint" hidden>${icon('Move')} 点击地面摆放 <span>R 旋转</span><span>Esc 取消</span><button id="cancel-placement">取消</button></div>
- <section class="dashboard">
- <div id="dashboard-resize-handle" class="dashboard-resize-handle" role="separator" aria-orientation="vertical" aria-valuemin="300" aria-valuemax="760" aria-valuenow="380" aria-label="调整人物资料卡宽度" title="拖动调整人物资料卡宽度">${icon('GripVertical')}</div><div class="profile"><div id="character-switcher" class="character-switcher" role="menu" aria-label="选择主控居民" hidden></div><button id="active-character" class="avatar-wrap" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="切换主控居民"><img id="player-portrait" alt="凯伊的外星人头像"/><span class="mood-dot">✦</span></button><div class="profile-copy"><span class="eyebrow" id="player-bio">你的星际居民</span><h2 id="player-name">凯伊 <span>KAÏ</span></h2><span id="mood" class="mood">${icon('Smile')} 心情不错</span></div><div class="profile-traits"><span>${icon('Compass')} 好奇心旺盛</span><span>${icon('Heart')} 热爱生活</span></div><div class="current-activity"><span id="activity">${icon('Coffee')} 享受此刻的宁静</span><button id="autonomy" role="switch" aria-label="自主行为" aria-checked="true" title="自主行为已开启 · 点击关闭">自主</button></div></div>
+ <section class="dashboard" data-collapsed="false" aria-label="居民档案">
+ <button id="dossier-toggle" aria-controls="dossier-body" aria-expanded="true" aria-label="收起居民档案" title="收起居民档案">${icon('ChevronRight')}</button><div id="dossier-body"><div class="dossier-nav"><span class="dossier-label">${icon('BookOpen')} 档案 <small id="dossier-number" class="dossier-number"></small></span><div class="dossier-navigation"><button id="dossier-prev" title="上一份档案" aria-label="上一份档案">${icon('ChevronLeft')}</button><button id="dossier-select" class="dossier-picker" aria-label="选择居民档案" aria-haspopup="listbox" aria-expanded="false" aria-controls="dossier-list"><img id="dossier-selected-portrait" alt=""/><span id="dossier-selected-name"></span>${icon('ChevronRight')}</button><button id="dossier-next" title="下一份档案" aria-label="下一份档案">${icon('ChevronRight')}</button><button id="active-character" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="切换主控居民" title="切换主控居民">${icon('Users')}</button></div></div><div class="dossier-sheet">
+ <div id="dashboard-resize-handle" class="dashboard-resize-handle" role="separator" aria-orientation="vertical" aria-valuemin="300" aria-valuemax="760" aria-valuenow="380" aria-label="调整人物资料卡宽度" title="拖动调整人物资料卡宽度">${icon('GripVertical')}</div><div class="profile"><div id="character-switcher" class="character-switcher" role="menu" aria-label="选择主控居民" hidden></div><div class="avatar-wrap"><img id="player-portrait" alt="凯伊的外星人头像"/><span class="mood-dot">✦</span></div><div class="profile-copy"><span class="eyebrow" id="player-bio">你的星际居民</span><h2 id="player-name">凯伊 <span>KAÏ</span></h2><span id="mood" class="mood">${icon('Smile')} 心情不错</span></div><div class="profile-traits"><span>${icon('Compass')} 好奇心旺盛</span><span>${icon('Heart')} 热爱生活</span></div><div class="current-activity"><span id="activity">${icon('Coffee')} 享受此刻的宁静</span><button id="autonomy" role="switch" aria-label="自主行为" aria-checked="true" title="自主行为已开启 · 点击关闭">自主</button></div></div>
   <div class="details"><nav class="panel-tabs"><button class="active" data-tab="needs">${icon('HeartPulse')} 需求</button><button data-tab="skills">${icon('Sparkles')} 技能</button><button data-tab="resident">${icon('Smile')} 人物</button><button data-tab="relations">${icon('Users')} 关系</button><button data-tab="career">${icon('BriefcaseBusiness')} 职业</button><button data-tab="life">${icon('Sprout')} 生命</button><button data-tab="exploration">${icon('Compass')} 探索</button><button data-tab="items">${icon('PackageOpen')} 物品包</button><span id="panel-tag">一切都刚刚好</span></nav><div id="panel-content"></div></div>
   <div class="neighbors"><div class="card-label">你的邻居 <span>4 位居民</span></div><div id="neighbor-portraits"></div><p>每个星球，都有值得认识的人。</p><button id="all-neighbors">查看关系 ${icon('ArrowUpRight')}</button></div>
- </section>
+ </div></div><div id="dossier-list" role="listbox" aria-label="居民档案列表" hidden></div></section>
  <div id="tooltip" hidden></div><div id="context-menu" hidden></div><div id="toast" role="status" hidden></div>
  <div id="loading"><div class="loading-orbit">${icon('Orbit')}</div><h2>正在降落露米纳星湾</h2><p>唤醒居民，点亮蘑菇，准备新的日常…</p></div>
   <dialog id="help-dialog"><button class="dialog-close" aria-label="关闭指南">${icon('X')}</button><span class="eyebrow">欢迎来到露米纳</span><h2>你的生活，由你安排。</h2><p>你是凯伊，一位刚刚搬来星湾的外星居民。照顾自己、认识邻居、布置家园，再找到一份喜欢的工作。</p><div class="help-grid"><div>${icon('MousePointer2')}<b>点一点，开始生活</b><p>点击人物或物品选择互动；点击空地行走。可以连续安排 6 个行动。</p></div><div>${icon('HeartPulse')}<b>照顾六种需求</b><p>吃饭、星眠、净化、休息、跳舞与社交，会影响你的心情。</p></div><div>${icon('Hammer')}<b>打造异星小家</b><p>B 打开建造，选择家具后点击空地摆放。R 旋转，Esc 取消。建造中点击家具可出售。</p></div><div>${icon('BriefcaseBusiness')}<b>找到银河里的工作</b><p>职业页选择方向，在研究台完成班次赚取星币。入职和晋升都需要达到对应技能门槛。</p></div></div><div class="shortcut-row"><span><kbd>空格</kbd> 暂停</span><span><kbd>1 / 3</kbd> 时间速度</span><span>右键拖动旋转 · 中键平移 · 滚轮缩放</span></div><p class="save-note">每 60 秒保存到服务器文件，离开页面或刷新前也会保存。不同浏览器共享同一份进度；右上角显示保存状态。</p><button class="primary dialog-close">开始我的异星日常 ${icon('ArrowRight')}</button></dialog>
  <dialog id="config-dialog" aria-labelledby="config-title"><button class="dialog-close" aria-label="关闭参数配置">${icon('X')}</button><span class="eyebrow">星湾运行规则</span><h2 id="config-title">参数配置</h2><p>这里展示当前运行中的时间、生命、需求、动作、职业、经济与作物参数。</p><div id="config-content"></div><div class="config-dialog-actions"><button id="restart-epoch" class="island-destroy" type="button">重启纪元（删档）</button><button id="config-project-default" type="button">永久覆盖项目配置</button><button class="primary dialog-close" type="button">关闭参数配置</button></div></dialog>
-`;
+`);
+localizePage();
 
-function toast(message){$('#toast').innerHTML=`${icon('Sparkles')} ${message}`;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3500);}
+function toast(message){$('#toast').innerHTML=`${icon('Sparkles')} ${translateText(message)}`;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3500);}
 async function save(manual=false,leaving=false){
  if(hosted){if(!manual)return true;try{await online.mutate('/api/checkpoint');toast('服务器进度已保存。');return true;}catch(error){toast(error.message);return false;}}
  if(epochRestarting)return false;
@@ -135,6 +139,7 @@ async function save(manual=false,leaving=false){
 $('#save-status').textContent=hosted?'服务器持续运行 · 每 5 秒存档':'已恢复服务器存档 · 每分钟自动保存';
 const floatingButton=document.createElement('button');floatingButton.id='float-island';floatingButton.title='开启浮窗';floatingButton.setAttribute('aria-label','开启浮窗');floatingButton.innerHTML=icon('PictureInPicture2');floatingButton.disabled=true;$('.view-tools').append(floatingButton);
 $('#save-status').dataset.state='ready';
+$('#language-toggle').onclick=()=>{const next=toggleLanguage();localizePage(next);lastPanel='';refresh();};
 setInterval(()=>save(),60000);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save(false,true);});
 window.addEventListener('pagehide',()=>save(false,true));
@@ -155,7 +160,7 @@ function openFlight(id,shipId=null){
  const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));
  const passengers=neighbors(game).filter(n=>sameSide(n,game.player)&&n.queue.length<6&&!n.queue.some(q=>['voyage','boardUfo'].includes(q.type)));
  flightDialog.innerHTML=`<button class="dialog-close" aria-label="关闭登船安排">${icon('X')}</button><h2>前往${islandDefinition(game,id).name}</h2><p>由${game.player.name}发起，UFO 自动导航；勾选随行居民（含幼体）。乘客完成当前队列后登船。</p><div class="flight-passengers">${passengers.map(n=>`<label><input type="checkbox" value="${n.id}"/> ${n.name} · ${prayerRaceName(n)||'星湾居民'} · ${n.queue.length?'先完成 '+n.queue.length+' 个安排':'可登船'}</label>`).join('')||'<p>附近暂无可邀请乘客，可独自出航。</p>'}</div><p id="flight-reason"></p><button class="primary" id="confirm-flight">安排登船</button>`;
- const selection=()=>[...flightDialog.querySelectorAll('input:checked')].map(el=>el.value);
+ localizePage();const selection=()=>[...flightDialog.querySelectorAll('input:checked')].map(el=>el.value);
  const update=()=>{const error=portal?voyageError(game,game.player,game.skills,id,selection().length+1,null,shipId):'请在当前岛面放置跃迁星门作为停机坪。';flightDialog.querySelector('#flight-reason').textContent=error||`共 ${selection().length+1} 人；本次航行每人消耗 1 份食物；当前星球有星厨时须备齐本航段食物；无星厨时每缺 1 份，每人扣 10 营养、5 能量，取消不扣。`;flightDialog.querySelector('#confirm-flight').disabled=!!error;};
  flightDialog.onchange=update;flightDialog.querySelector('#confirm-flight').onclick=async()=>{const result=await enqueue(game,'voyage',portal.id,undefined,null,id,selection(),shipId);if(result.ok){flightDialog.close();toast('已安排集合登船，乘客先完成已有行动。');refresh();}else{toast(result.message);update();}};
  update();flightDialog.showModal();
@@ -167,12 +172,67 @@ function showUfo(id){
  const cargo=game.space.cargo[id]??0,stock=game.space.materials[ship.island]??0,max=Math.min(stock,def.cargoCapacity-cargo),locked=ship.reservedBy!==null||!sameSide(ship,game.player);
  const cargoSection=document.createElement('section');cargoSection.className='cargo-controls';cargoSection.innerHTML=`<h3>植生复材货舱</h3><p>已装 ${cargo} / ${def.cargoCapacity} 份 · 本岛库存 ${stock} 份</p><label>装载数量 <input id="cargo-amount" type="number" min="1" max="${max}" step="1" value="${Math.min(10,max)}" ${locked||max<1?'disabled':''}/></label><div><button data-load-materials="${id}" ${locked||max<1?'disabled':''}>装载材料</button><button data-unload-materials="${id}" ${locked||!cargo?'disabled':''}>卸回本岛</button></div><small>材料随飞船运输，抵达后自动卸入目标星岛仓库。货舱与乘客座位、食物补给独立。</small>`;
  dialog.querySelector('[data-load-ship]').after(cargoSection);
- $('#app').append(dialog);dialog.addEventListener('click',event=>{if(event.target.closest('[data-voyage]'))dialog.close();});dialog.onclose=()=>dialog.remove();dialog.showModal();
+ $('#app').append(dialog);localizePage();dialog.addEventListener('click',event=>{if(event.target.closest('[data-voyage]'))dialog.close();});dialog.onclose=()=>dialog.remove();dialog.showModal();
 }
-function changeTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));lastPanel='';renderPanel();}
+function changeTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));lastPanel='';renderPanel();refreshDossier();}
 function relationName(n){return n>=70?'挚友':n>=35?'朋友':'初识';}
 function activeResidentId(){return game.controlledId??'player';}
-function resident(){return game.player;}
+function dossierEntries(){return [{id:'player',person:game.player},...neighbors(game).map(({id})=>({id,person:game.npcs[id]}))];}
+function resident(){
+ const entry=dossierEntries().find(({person})=>person.uid===dossierResidentUid);
+ selectedResident=entry?.id??'player';
+ if(dossierResidentUid&&!entry)dossierResidentUid=null;
+ return entry?.person??game.player;
+}
+function chooseDossier(uid,direction=1){
+ const entry=dossierEntries().find(({person})=>person.uid===uid);if(!entry)return;
+ const sheet=$('#dossier-body'),animate=uid!==resident().uid&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
+ $('.dossier-outgoing')?.remove();sheet.getAnimations().forEach(a=>a.cancel());
+ const previous=animate?sheet.cloneNode(true):null;
+ if(previous){
+  previous.removeAttribute('id');previous.classList.add('dossier-outgoing');previous.inert=true;previous.setAttribute('aria-hidden','true');
+  for(const element of previous.querySelectorAll('[id]')){element.dataset.snapshotId=element.id;element.removeAttribute('id');}
+  previous.style.top=`${sheet.offsetTop}px`;previous.style.height=`${sheet.offsetHeight}px`;
+ }
+ dossierResidentUid=uid;selectedResident=entry.id;
+ game.viewIsland=islandOf(entry.person);game.viewSide=sideOf(entry.person);
+ world.resetCamera();closeContext();closeCharacterSwitcher();closeDossierList();lastPanel='';refresh();
+ $('#panel-content').scrollTop=0;
+ if(previous){
+  $('.dashboard').append(previous);
+  const timing={duration:300,easing:'cubic-bezier(.2,.7,.2,1)'};
+  previous.animate([{opacity:1,transform:'translateX(0) rotate(0)'},{opacity:1,transform:`translateX(${-direction*44}%) rotate(${-direction*3}deg)`,offset:.8},{opacity:0,transform:`translateX(${-direction*55}%) rotate(${-direction*4}deg)`}],timing).onfinish=()=>previous.remove();
+  sheet.animate([{transform:`translateX(${direction*40}px) rotate(${direction*2}deg)`},{transform:'translateX(0) rotate(0)'}],timing);
+ }
+}
+function closeDossierList(){$('#dossier-list').hidden=true;$('#dossier-select').setAttribute('aria-expanded','false');}
+function setDossierCollapsed(collapsed){
+ closeDossierList();
+ $('.dashboard').dataset.collapsed=String(collapsed);document.body.classList.toggle('dossier-collapsed',collapsed);
+ $('#dossier-body').inert=collapsed;$('#dossier-toggle').setAttribute('aria-expanded',String(!collapsed));
+ const label=collapsed?'展开居民档案':'收起居民档案';$('#dossier-toggle').title=label;$('#dossier-toggle').setAttribute('aria-label',label);
+ $('#dossier-toggle').innerHTML=icon(collapsed?'ChevronLeft':'ChevronRight');closeCharacterSwitcher();
+}
+function refreshDossier(){
+ const person=resident(),entries=dossierEntries(),index=entries.findIndex(e=>e.person.uid===person.uid),key=portraitKey;
+ if($('#dossier-list').dataset.roster!==key){$('#dossier-list').innerHTML=entries.map(({id,person})=>`<button class="dossier-option" role="option" data-dossier-option="${person.uid}"><img src="${portraits[id]}" alt=""/><span>${person.name}<small>${Math.floor(person.age)} 星岁</small></span></button>`).join('');$('#dossier-list').dataset.roster=key;}
+ $('#dossier-selected-name').textContent=person.name;$('#dossier-selected-portrait').src=portraits[selectedResident];for(const option of document.querySelectorAll('[data-dossier-option]'))option.setAttribute('aria-selected',String(option.dataset.dossierOption===person.uid));$('#dossier-number').textContent=`${String(index+1).padStart(2,'0')} / ${entries.length}`;
+ $('.dashboard').dataset.residentUid=person.uid;
+ $('#player-portrait').src=portraits[selectedResident];$('#player-portrait').alt=`${person.name}的外星人头像`;$('#player-name').textContent=person.name;
+ $('.profile-traits').innerHTML=person.trait.split(' · ').map(t=>`<span>${icon('Sparkles')} ${t}</span>`).join('');
+ $('#player-bio').textContent=`${GENDERS[person.gender]} · ${Math.floor(person.age)} 星岁${prayerRaceName(person)?' · '+prayerRaceName(person):''}`;
+ const needs=selectedResident==='player'?game.needs:person.needs,avg=Object.values(needs).reduce((a,b)=>a+b)/6;
+ $('#mood').innerHTML=`${icon(avg<35?'Frown':avg>75?'Sparkles':'Smile')} ${avg<35?'需要一点关照':avg>75?'幸福感满满':'心情不错'}`;$('#mood').classList.toggle('unhappy',avg<35);
+ const q=game.queue[0];
+ if(selectedResident==='player')$('#activity').innerHTML=q?`${icon(ACTIONS[q.type].icon)} ${q.phase==='walking'?'正在走过去…':q.phase==='waiting'?'等待家具空闲…':q.phase==='celebrating'?(q.blessing.side==='front'?'接受晴昼赐福':'接受幽冥赐福'):actionLabel(q.type)}`:`${icon('Coffee')} 享受此刻的宁静`;
+ else $('#activity').textContent=person.activity;
+ if(!person.alive){$('#activity').textContent='这段生命已落幕';$('#mood').textContent='留在星湾的记忆';}
+ $('#autonomy').disabled=selectedResident!=='player'||!person.alive;
+ $('#autonomy').setAttribute('aria-checked',String(selectedResident==='player'?game.autonomy.enabled:person.ai.enabled));
+ $('#autonomy').title=selectedResident!=='player'?'当前档案为只读':game.autonomy.enabled?'自主行为已开启 · 点击关闭，手动指令优先':'自主行为已关闭 · 点击开启';
+ for(const button of document.querySelectorAll('[data-dossier]'))button.setAttribute('aria-pressed',String(button.dataset.dossier===person.uid));
+ for(const el of document.querySelectorAll('#resident-form fieldset,#family-desire,#study-focus,#study,#randomize-heads'))el.disabled=selectedResident!=='player'||!person.alive;
+}
 function residentPicker(){return '';}
 function careerSkillsText(skills,id,level=1){const requirements=careerDefinition(game,id).levels[level-1]?.skills||{};return Object.entries(requirements).map(([key,required])=>`${SKILLS[key].name} ${Math.floor(skills[key]??0)}/${displayNumber(required)}`).join(' · ')||'无';}
 function careerMissingText(skills,id,level=1){return missingCareerSkills(skills,id,level,game.config).map(({key,current,required})=>`${SKILLS[key].name} ${Math.floor(current)}/${displayNumber(required)}`).join('、');}
@@ -189,15 +249,15 @@ function renderConfig(){
  const careerRows=Object.entries(CAREERS).map(([id,career])=>{const current=careerDefinition(game,id);return `<div class="config-career"><h4>${career.name}</h4>${current.levels.map((level,index)=>`<div class="config-row"><span>Lv.${index+1} ${level.title}<small>${index?`晋升班次 ${level.shifts}`:'入职'}</small></span><label class="config-number">工资 ${configInput(`careers.${id}.levels.${index}.wage`,level.wage,0,1e6)} 星币</label><em>${index?`班次 ${configInput(`careers.${id}.levels.${index}.shifts`,level.shifts,0,1e4)} · `:''}技能：${Object.entries(level.skills).map(([key,value])=>`${SKILLS[key].name} ${configInput(`careers.${id}.levels.${index}.skills.${key}`,value,0,1e6)}`).join(' · ')}</em></div>`).join('')}</div>`;}).join('');
  const cropRows=Object.keys(CROPS).map(id=>{const crop=cropDefinition(game,id);return `<div class="config-row"><span>${ITEMS.find(item=>item.id===id).name}<small>${crop.name}</small></span><label class="config-number">成熟 ${configInput(`crops.${id}.minutes`,crop.minutes,1,1e7)} 分钟</label><em>产量 ${configInput(`crops.${id}.yield`,crop.yield,1,1e6)} · 售价 ${configInput(`crops.${id}.price`,crop.price,0,1e9)} 星币 / 份 · 巨型概率 ${configInput(`crops.${id}.giantChance`,crop.giantChance,0,100,.1)}%</em></div>`;}).join('');
  const needRows=Object.entries(NEEDS).map(([key,[name]])=>`<div class="config-row"><span>${name}<small>${key}</small></span><label class="config-number">每秒 -${configInput(`needDecay.${key}`,config.needDecay[key],0,100,.01)}</label><em>满值 100 · 幼体按 15% 速度衰减</em></div>`).join('');
- $('#config-content').innerHTML=`<form id="config-form"><div class="config-scroll"><section class="config-section"><h3>时间与生命</h3><div class="config-grid"><div class="config-value"><span>年龄换算</span><label>1 星岁 = ${configInput('time.starYearDays',config.time.starYearDays,1,100)} 游戏日</label></div><div class="config-value"><span>游戏时钟</span><label>1 现实秒 = ${configInput('time.gameMinutesPerRealSecond',config.time.gameMinutesPerRealSecond,.01,120,.01)} 游戏分钟</label></div><div class="config-value"><span>当前速度</span><b>${game.speed===0?'暂停':`${game.speed} 倍速`}</b></div><div class="config-value"><span>时间档位</span><b>暂停 / 1 倍 / 3 倍</b></div></div><div class="config-list">${stageRows}</div></section><section class="config-section"><h3>教育参数</h3><div class="config-list">${educationRows}</div></section><section class="config-section"><h3>遗传变异概率</h3><p class="config-note">每个部位的数值就是每次出生的变异概率，一次最多变异一个部位，总和为总变异率（默认总计 ${mutationTotal}%）。</p><div class="config-list">${mutationRows}</div></section><section class="config-section"><h3>星灵树祈祷概率</h3><p class="config-note">每次完成祈祷时判定，各项奖励独立抽取，可同时获得；0% 关闭，100% 必定触发（需满足长者、技能未满级或仍有可获得变异等条件）。</p><div class="config-list">${prayerRows}</div></section><section class="config-section"><h3>需求衰减</h3><div class="config-list">${needRows}</div></section><section class="config-section"><h3>动作时长</h3><div class="config-actions">${actionRows}</div></section><section class="config-section"><h3>经济参数</h3><div class="config-grid"><div class="config-value"><span>政府补贴</span><label>${configInput('economy.governmentSubsidy',config.economy.governmentSubsidy,0,1e9)} 星币 / 游戏日</label><small>无父母未成年人、所有老人</small></div><div class="config-value"><span>星际晚餐</span><label>${configInput('actionCosts.eat',config.actionCosts.eat,0,1e9)} 星币 / 份</label><small>从行动执行者或监护家庭扣除</small></div><div class="config-value"><span>星芽孕育</span><label>${configInput('actionCosts.incubate',config.actionCosts.incubate,0,1e9)} 星币 / 次</label><small>完成孕育动作后扣除</small></div><div class="config-value"><span>赠礼</span><label>${configInput('actionCosts.gift',config.actionCosts.gift,0,1e9)} 星币 / 次</label><small>由送礼者承担</small></div></div></section><section class="config-section"><h3>职业门槛与晋升</h3><div class="config-careers">${careerRows}</div></section><section class="config-section"><h3>作物参数</h3><div class="config-list">${cropRows}</div></section></div><div class="config-footer"><button type="button" id="config-reset">恢复默认</button><button class="primary" type="submit">应用并保存配置</button></div></form>`;
+ $('#config-content').innerHTML=translateHtml(`<form id="config-form"><div class="config-scroll"><section class="config-section"><h3>时间与生命</h3><div class="config-grid"><div class="config-value"><span>年龄换算</span><label>1 星岁 = ${configInput('time.starYearDays',config.time.starYearDays,1,100)} 游戏日</label></div><div class="config-value"><span>游戏时钟</span><label>1 现实秒 = ${configInput('time.gameMinutesPerRealSecond',config.time.gameMinutesPerRealSecond,.01,120,.01)} 游戏分钟</label></div><div class="config-value"><span>当前速度</span><b>${game.speed===0?'暂停':`${game.speed} 倍速`}</b></div><div class="config-value"><span>时间档位</span><b>暂停 / 1 倍 / 3 倍</b></div></div><div class="config-list">${stageRows}</div></section><section class="config-section"><h3>教育参数</h3><div class="config-list">${educationRows}</div></section><section class="config-section"><h3>遗传变异概率</h3><p class="config-note">每个部位的数值就是每次出生的变异概率，一次最多变异一个部位，总和为总变异率（默认总计 ${mutationTotal}%）。</p><div class="config-list">${mutationRows}</div></section><section class="config-section"><h3>星灵树祈祷概率</h3><p class="config-note">每次完成祈祷时判定，各项奖励独立抽取，可同时获得；0% 关闭，100% 必定触发（需满足长者、技能未满级或仍有可获得变异等条件）。</p><div class="config-list">${prayerRows}</div></section><section class="config-section"><h3>需求衰减</h3><div class="config-list">${needRows}</div></section><section class="config-section"><h3>动作时长</h3><div class="config-actions">${actionRows}</div></section><section class="config-section"><h3>经济参数</h3><div class="config-grid"><div class="config-value"><span>政府补贴</span><label>${configInput('economy.governmentSubsidy',config.economy.governmentSubsidy,0,1e9)} 星币 / 游戏日</label><small>无父母未成年人、所有老人</small></div><div class="config-value"><span>星际晚餐</span><label>${configInput('actionCosts.eat',config.actionCosts.eat,0,1e9)} 星币 / 份</label><small>从行动执行者或监护家庭扣除</small></div><div class="config-value"><span>星芽孕育</span><label>${configInput('actionCosts.incubate',config.actionCosts.incubate,0,1e9)} 星币 / 次</label><small>完成孕育动作后扣除</small></div><div class="config-value"><span>赠礼</span><label>${configInput('actionCosts.gift',config.actionCosts.gift,0,1e9)} 星币 / 次</label><small>由送礼者承担</small></div></div></section><section class="config-section"><h3>职业门槛与晋升</h3><div class="config-careers">${careerRows}</div></section><section class="config-section"><h3>作物参数</h3><div class="config-list">${cropRows}</div></section></div><div class="config-footer"><button type="button" id="config-reset">恢复默认</button><button class="primary" type="submit">应用并保存配置</button></div></form>`);
 }
 async function applyConfig(event){
  event.preventDefault();const form=event.target;if(!form.checkValidity()){form.reportValidity();return;}
  const next=structuredClone(game.config);for(const input of form.querySelectorAll('[data-config-path]')){const path=input.dataset.configPath.split('.');let target=next;for(const key of path.slice(0,-1))target=target[key];target[path.at(-1)]=Number(input.value);}
  const normalized=normalizeConfig(next);if(!validConfig(normalized)){toast('配置范围无效：生命阶段必须按年龄递增，且变异概率总和不能超过 100%。');return;}
- if(!(await command('config',normalized)).ok)return;lastPanel='';refresh();renderConfig();if(await save(true))toast('参数配置已保存并开始生效。');
+ if(!(await command('config',normalized)).ok)return;lastPanel='';refresh();renderConfig();localizePage();if(await save(true))toast('参数配置已保存并开始生效。');
 }
-async function resetConfig(){if(!(await command('config',normalizeConfig())).ok)return;lastPanel='';refresh();renderConfig();toast('已恢复默认参数，点击应用并保存配置后持久化。');}
+async function resetConfig(){if(!(await command('config',normalizeConfig())).ok)return;lastPanel='';refresh();renderConfig();localizePage();toast('已恢复默认参数，点击应用并保存配置后持久化。');}
 async function persistProjectConfig(){if(!confirm('将当前参数永久覆盖为项目默认配置，之后新建的星湾会使用这些参数。确定继续吗？'))return;try{hosted?await online.mutate('/api/project-config'):await persistence.saveProjectConfig(game.config);toast('当前配置已固化为项目默认配置。');}catch(error){console.error('项目配置保存失败',error);toast('项目配置保存失败，请检查游戏服务。');}}
 async function startNewLife(){
  if(epochRestarting||hosted&&!online.canOperate)return;epochRestarting=true;const speed=game.speed;if(!hosted)game.speed=0;
@@ -207,9 +267,9 @@ async function startNewLife(){
 }
 function refreshPortraits(){
  if(!world)return;const activeId=activeResidentId(),others=neighbors(game),switchable=[...others].sort((a,b)=>b.age-a.age),entries=[{id:activeId,person:game.player},...others.map(n=>({id:n.id,person:game.npcs[n.id]}))],key=`${activeId}|${JSON.stringify(game.config.lifeStages)}|${entries.map(({id,person})=>`${id}-${person.uid}-${person.name}-${person.alive}-${person.gender}-${Math.floor(person.age)}-${lifeStage(person.age,game.config.lifeStages)}-${JSON.stringify(person.genome)}-${JSON.stringify(person.prayer)}-${person.devotion}-${JSON.stringify(livingAppearance(livingResident(game,person)))}`).join('|')}`;if(key===portraitKey)return;portraitKey=key;
- portraits=Object.fromEntries(entries.map(({id})=>[id,world.portrait(id===activeId?'player':id)]));portraits.player=portraits[activeId];$('#player-portrait').src=portraits[activeId];$('#player-portrait').alt=`${game.player.name}的外星人头像`;$('#player-name').textContent=game.player.name;$('.profile-traits').innerHTML=game.player.trait.split(' · ').map(t=>`<span>${icon('Sparkles')} ${t}</span>`).join('');$('.neighbors .card-label span').textContent=`${others.length} 位居民`;
+ portraits=Object.fromEntries(entries.map(({id})=>[id,world.portrait(id===activeId?'player':id)]));portraits.player=portraits[activeId];$('.neighbors .card-label span').textContent=`${others.length} 位居民`;
   $('#character-switcher').innerHTML=switchable.map(n=>`<button type="button" class="character-option" data-character="${n.id}" role="menuitem" aria-label="切换到${n.name}"><img src="${portraits[n.id]}" alt="${n.name}"/><span><strong>${n.name}</strong><small>${Math.floor(n.age)} 星岁</small></span></button>`).join('');$('#active-character').setAttribute('aria-label',`切换主控居民，当前是${game.player.name}`);
-  $('#neighbor-portraits').innerHTML=others.map(n=>`<button data-npc="${n.id}" title="${n.name} · ${GENDERS[game.npcs[n.id].gender]} · ${STAGES[lifeStage(game.npcs[n.id].age,game.config.lifeStages)]}" aria-label="与${n.name}互动"><img src="${portraits[n.id]}" alt="${n.name}"/><span>${n.name}</span><i></i></button>`).join('');lastPanel='';
+  $('#neighbor-portraits').innerHTML=others.map(n=>`<button data-dossier="${game.npcs[n.id].uid}" title="${n.name} · ${GENDERS[game.npcs[n.id].gender]} · ${STAGES[lifeStage(game.npcs[n.id].age,game.config.lifeStages)]}" aria-label="查看${n.name}的档案"><img src="${portraits[n.id]}" alt="${n.name}"/><span>${n.name}</span><i></i></button>`).join('');lastPanel='';
 }
 function prayerDetails(person){return `<div class="prayer-status" data-race="${isDual(person)?'duality':isRadiant(person)?'radiant':isNether(person)?'nether':'alien'}"><strong>${prayerRaceName(person)||'星湾居民'}</strong><span>曦光属性 ${displayNumber(person.prayer.radiance)} / ${PRAYER_RULES.radianceThreshold}${isRadiant(person)?' · 已觉醒':''}</span><span>幽冥属性 ${displayNumber(person.prayer.nether)} / ${PRAYER_RULES.netherThreshold}${isNether(person)?' · 幽冥眼已觉醒':''}</span><small>两种属性各满 10 点，觉醒两仪族 · 祈祷变异：${person.prayer.mutations.map(key=>PRAYER_MUTATIONS[key]).join('、')||'暂无'}</small></div>`;}
 function skillCards(person,skills,foundation=false,interests=false){
@@ -222,7 +282,7 @@ function learningPanel(person,skills,compact=false){
  const level=educationLevel(person),next=EDUCATION_LEVELS[EDUCATION_LEVELS.indexOf(level)+1],credits=person.education.credits,advanced=higherEducation(person);
  const progress=next?Math.min(100,(credits-level.credits)/(next.credits-level.credits)*100):100;
  const career=person===game.player?game.career:person.career,studyAllowed=canStudy(person,game.config.lifeStages,career);
- const studyControls=studyAllowed?`<label>学习科目<select id="study-focus"><option value="" ${person.education.focus===null?'selected':''}>自主选科</option>${Object.entries(SKILLS).map(([key])=>`<option value="${key}" ${person.education.focus===key?'selected':''}>${studyName(person,key)}</option>`).join('')}</select></label><button class="primary" id="study" ${!person.alive||person.age<game.config.lifeStages.infantEnd?'disabled':''}>${icon('BookOpen')} ${compact?'继续学习':'开始学习'}</button>`:'<p class="education-lock">成年居民需要先切换为「继续学习」职业，才能安排学习。</p>';
+ const studyControls=studyAllowed&&person===game.player?`<label>学习科目<select id="study-focus"><option value="" ${person.education.focus===null?'selected':''}>自主选科</option>${Object.entries(SKILLS).map(([key])=>`<option value="${key}" ${person.education.focus===key?'selected':''}>${studyName(person,key)}</option>`).join('')}</select></label><button class="primary" id="study" ${!person.alive||person.age<game.config.lifeStages.infantEnd?'disabled':''}>${icon('BookOpen')} ${compact?'继续学习':'开始学习'}</button>`:person!==game.player?'':'<p class="education-lock">成年居民需要先切换为「继续学习」职业，才能安排学习。</p>';
  return `<div class="learning-panel"><div class="learning-heading"><div><span class="eyebrow">学历</span><h3>${level.name}</h3><p>${credits} 学分${next?` / ${next.credits} 学分 · 下一学历：${next.name}`:' · 已完成博士学业'}</p><div class="meter"><span style="width:${progress}%"></span></div><small>班次收入 ×${displayNumber(level.multiplier)}</small>${next?`<p class="education-requirements">升学条件：${next.credits} 学分 · ${educationRequirements(next)}</p>`:'' }<p class="education-path">${EDUCATION_LEVELS.map(l=>l.name).join(' → ')}</p></div>${studyControls}</div>
  ${advanced?`<dl class="education-major"><dt>进修方向</dt><dd>${person.education.major?MAJORS[person.education.major]:'入学选科中'}</dd>${person.education.major?`<small>${SKILLS[person.education.major].name} · 学习效率 ×2</small>`:''}</dl>`:'<p class="education-phase">基础教育</p>'}
  <div class="learning-interest">${icon('Heart')} 兴趣偏好：${Object.entries(SKILLS).filter(([key])=>studyInterest(person,key)>0).sort(([a],[b])=>studyInterest(person,b)-studyInterest(person,a)).map(([key])=>studyName(person,key)).join('、')||'尚无明显偏好'}</div>
@@ -230,22 +290,24 @@ function learningPanel(person,skills,compact=false){
 }
 function renderPanel(){
  const educationOpen=$('.continuing-education')?.open;
- const activeId=activeResidentId();selectedResident='player';const person=resident(),skills=game.skills,funds=game.money;
- const signature=tab==='exploration'?JSON.stringify([game.civilization,game.space,game.career,game.skills,game.player.island,game.player.preferences,game.wonders,game.day,game.objects.filter(o=>o.wonder).map(o=>[o.id,o.wonder.chapter,o.wonder.coauthored,o.wonder.mode,Math.floor(o.wonder.charge||0),o.wonder.armed]),[game.player,...neighbors(game)].map(n=>[n.uid,n.prayer,n.mutations])]):tab==='life'?JSON.stringify([activeId,person.uid,person.alive,person.familyDesire,person.prayer,game.autonomy.enabled,birthDecision(game,'player').reason,Math.floor(game.minute),game.incubations,game.memorials,game.money,neighbors(game).map(n=>[n.id,Math.floor(n.needs.hunger),Math.floor(n.age)])]):tab==='needs'?Object.values(game.needs).map(Math.floor).join(','):tab==='relations'?JSON.stringify([game.living.residents,game.relationships,neighbors(game).map(n=>game.npcs[n.id].activity)]):tab==='career'?JSON.stringify([activeId,game.career,skills,person.education,lifeStage(person.age,game.config.lifeStages),person.alive]):tab==='skills'?JSON.stringify([activeId,skills,person.education,lifeStage(person.age,game.config.lifeStages)]):tab==='resident'?`${activeId}-${person.gender}-${Math.floor(person.age)}-${Math.floor(funds)}-${JSON.stringify(person.prayer)}-${person.devotion}-${person.homeIsland??'home'}-${livingSummary(game,person)}`:`${pack}-${build}`;
+ const person=resident(),activeId=person.uid,isPlayer=selectedResident==='player',skills=isPlayer?game.skills:person.skills,funds=isPlayer?game.money:person.money,needs=isPlayer?game.needs:person.needs;
+ const signature=tab==='exploration'?JSON.stringify([game.civilization,game.space,game.career,game.skills,game.player.island,game.player.preferences,game.wonders,game.day,game.objects.filter(o=>o.wonder).map(o=>[o.id,o.wonder.chapter,o.wonder.coauthored,o.wonder.mode,Math.floor(o.wonder.charge||0),o.wonder.armed]),[game.player,...neighbors(game)].map(n=>[n.uid,n.prayer,n.mutations])]):tab==='life'?JSON.stringify([activeId,person.uid,person.alive,person.familyDesire,person.prayer,game.autonomy.enabled,birthDecision(game,selectedResident).reason,Math.floor(game.minute),game.incubations,game.memorials,game.money,neighbors(game).map(n=>[n.id,Math.floor(n.needs.hunger),Math.floor(n.age)])]):tab==='needs'?Object.values(needs).map(Math.floor).join(','):tab==='relations'?JSON.stringify([game.living.residents,game.relationships,neighbors(game).map(n=>game.npcs[n.id].activity)]):tab==='career'?JSON.stringify([activeId,isPlayer?game.career:person.career,skills,person.education,lifeStage(person.age,game.config.lifeStages),person.alive]):tab==='skills'?JSON.stringify([activeId,skills,person.education,lifeStage(person.age,game.config.lifeStages)]):tab==='resident'?`${activeId}-${person.gender}-${Math.floor(person.age)}-${Math.floor(funds)}-${JSON.stringify(person.prayer)}-${person.devotion}-${person.homeIsland??'home'}-${livingSummary(game,person)}`:`${pack}-${build}`;
  const learning=isLearner(person,game.config.lifeStages);$('[data-tab="career"]').innerHTML=learning?`${icon('BookOpen')} 学习`:`${icon('BriefcaseBusiness')} 职业`;
  if(signature===lastPanel||tab==='life'&&document.activeElement?.matches('#panel-content select'))return;lastPanel=signature;
   $('#panel-tag').textContent=tab==='exploration'?'文明、记录与共享资源':tab==='needs'?'六种需求 · 一种好生活':tab==='relations'?'友谊也需要悉心照料':tab==='career'?'在银河找到自己的位置':tab==='skills'?'通过实际行动积累经验':tab==='resident'?`每 ${game.config.time.starYearDays} 天增长 1 星岁`:tab==='life'?'新生、陪伴与告别':build?'选择物品 → 点击地面摆放':`${new Set(ITEMS.map(i=>i.pack)).size} 个主题包 · ${ITEMS.length} 件物品`;
  if(tab==='exploration'){if(!$('.exploration-panel'))$('#panel-content').innerHTML='<div class="exploration-panel"></div>';$('.exploration-panel').innerHTML=explorationContent(game);}
  if(tab==='life'){
-  const decision=birthDecision(game,'player'),children=[game.player,...neighbors(game),...game.memorials].filter(n=>n.parents.some(p=>p.uid===person.uid));
+  const decision=birthDecision(game,selectedResident),children=[game.player,...neighbors(game),...game.memorials].filter(n=>n.parents.some(p=>p.uid===person.uid));
   if(!$('.life-panel'))$('#panel-content').innerHTML='<div class="life-panel"></div>';
   $('.life-panel').innerHTML=`<div class="life-person">${residentPicker()}${prayerDetails(person)}<label class="family-label">生育意愿 <select id="family-desire" ${person.alive?'':'disabled'}><option value="0" ${person.familyDesire<.4?'selected':''}>暂不考虑</option><option value="0.7" ${person.familyDesire>=.4&&person.familyDesire<.9?'selected':''}>顺其自然</option><option value="1" ${person.familyDesire>=.9?'selected':''}>期待家人</option></select></label><p id="fertility-reason">${decision.reason}</p><small>${selectedResident==='player'&&!game.autonomy.enabled?'开启「自主」后，主控居民才会自主安排生育。':'本地 AI 会把生育与日常需求一起权衡。'}</small><p class="family-line">亲代：${person.parents.map(p=>p.name).join('、')||'星湾初代'} · 子女：${children.map(p=>p.name).join('、')||'暂无'}</p><p class="family-line">遗传：${person.trait} · ${person.mutations.length?person.mutations.join('、'):'未发现突变'}<br>身高 ${Math.round(person.genome.stature*100)}% · 体型 ${Math.round(person.genome.build*100)}% · 触角 ${Math.round(person.genome.antenna*100)}%</p></div><div class="life-events"><h4>星芽育生 <span>3 天孵育 · 300 星币</span></h4>${game.incubations.length?game.incubations.map(b=>`<p class="birth-entry">${icon('Sprout')}<span>${b.parents.map(p=>p.name).join('与')}的星芽<small>${b.due>gameMinutes(game)?`还有 ${Math.ceil(b.due-gameMinutes(game))} 游戏分钟出生`:'已成熟，等待育生舱旁腾出空地'}</small></span></p>`).join(''):'<p class="life-empty">暂无孕育中的星芽。在物品包购买育生舱，让家园具备迎接新生命的条件。</p>'}<h4>星湾纪念 <span>${game.memorials.length} 位逝者</span></h4>${game.memorials.map(m=>`<p class="memorial-entry">${m.name}<small>${Math.floor(m.age)} 星岁 · 第 ${m.day} 天 · ${m.cause==='old_age'?'寿终':'长期饥饿'}</small></p>`).join('')||'<p class="life-empty">每一段生命，都值得被记住。</p>'}${!game.player.alive?`<div class="successors"><h4>选择继续陪伴的居民</h4>${neighbors(game).filter(n=>n.age>=3).map(n=>`<button data-inherit="${n.id}">接管 ${n.name}</button>`).join('')||'<p class="life-empty">暂无可接管的居民。</p><button id="new-life">重新开始星湾生活</button>'}</div>`:''}</div>`;
  }
  if(tab==='skills')$('#panel-content').innerHTML=`<div class="skill-panel"><h4>${learning&&!higherEducation(person)?'基础能力':'专业技能'}</h4>${skillCards(person,skills,learning&&!higherEducation(person))}</div>`;
   if(tab==='resident')$('#panel-content').innerHTML=`<div class="resident-panel">${residentPicker()}<dl class="resident-home"><dt>${icon('House')} 安居星岛</dt><dd id="resident-home-island">${islandDefinition(game,person.homeIsland??'home').name}</dd></dl>${prayerDetails(person)}<p class="living-experience">${livingSummary(game,person)||'尚未留下环境印记'}</p><button type="button" id="randomize-heads">随机所有居民头型与触角</button><div class="resident-editor"><img id="resident-photo" src="${portraits[selectedResident]}" alt="居民外形预览"/><form id="resident-form"><fieldset ${person.alive?'':'disabled'}><div class="resident-fields"><label>性别<select id="resident-gender" aria-label="性别">${Object.entries(GENDERS).map(([key,label])=>`<option value="${key}" ${person.gender===key?'selected':''}>${label}</option>`).join('')}</select></label><label>年龄（星岁）<input id="resident-age" aria-label="年龄（星岁）" type="number" min="0" max="120" step="1" required value="${Math.floor(person.age)}"/></label><label>虔诚值<input id="resident-devotion" aria-label="虔诚值" type="number" min="0" max="100" step="1" required value="${person.devotion}"/></label>${Object.entries(HEAD_SHAPE).map(([key,label])=>`<label>${label}（%）<input name="${key}" aria-label="${label}" type="number" min="80" max="120" step="1" required value="${Math.round(person.genome[key]*100)}"/></label>`).join('')}<button class="primary" type="submit">应用人物设定</button></div><p id="resident-summary">${GENDERS[person.gender]} · ${Math.floor(person.age)} 星岁 · ${STAGES[lifeStage(person.age,game.config.lifeStages)]} · 余额 ${fmt(funds)} 星币</p><small>虔诚值越高，越倾向自主祈祷；不改变赐福成功率。幼体在摇篮中成长，${game.config.lifeStages.infantEnd} 星岁后活动；长者的体态随年龄改变，${game.config.lifeStages.elderEnd} 星岁自然离世。</small></fieldset></form></div></div>`;
- if(tab==='needs')$('#panel-content').innerHTML=`<div class="needs-grid">${Object.entries(NEEDS).map(([key,[name,i]])=>{const value=Math.floor(game.needs[key]);return`<div class="need ${value<30?'low':''}"><div class="need-icon">${icon(i)}</div><div class="need-info"><div><span>${name}</span><small>${value}<em> / 100</em></small></div><div class="meter"><span style="width:${value}%"></span></div></div></div>`;}).join('')}</div>`;
- if(tab==='relations')$('#panel-content').innerHTML=`<div class="relationship-grid">${neighbors(game).map(n=>`<button class="relationship" data-npc="${n.id}" aria-label="与${n.name}互动"><img src="${portraits[n.id]}" alt="${n.name}"/><div><strong>${n.name}<small>${relationName(game.relationships[n.id])} · ${relationLabel(game,game.player,game.npcs[n.id])}</small></strong><p class="npc-activity"></p><div class="meter"><span style="width:${game.relationships[n.id]}%"></span></div></div></button>`).join('')}</div>`;
- if(tab==='relations')document.querySelectorAll('.relationship').forEach(b=>b.querySelector('.npc-activity').textContent=game.npcs[b.dataset.npc].activity);
+ if(tab==='needs')$('#panel-content').innerHTML=`<div class="needs-grid">${Object.entries(NEEDS).map(([key,[name,i]])=>{const value=Math.floor(needs[key]);return`<div class="need ${value<30?'low':''}"><div class="need-icon">${icon(i)}</div><div class="need-info"><div><span>${name}</span><small>${value}<em> / 100</em></small></div><div class="meter"><span style="width:${value}%"></span></div></div></div>`;}).join('')}</div>`;
+ if(tab==='relations')$('#panel-content').innerHTML=`<div class="relationship-grid">${dossierEntries().filter(e=>e.person.uid!==person.uid).map(({id,person:other})=>{
+  const score=(isPlayer?game.relationships[id]:id==='player'?game.relationships[selectedResident]:person.relationships[id])??0;
+  return `<button class="relationship" data-dossier="${other.uid}" aria-label="查看${other.name}的档案"><img src="${portraits[id]}" alt="${other.name}"/><div><strong>${other.name}<small>${relationName(score)} · ${relationLabel(game,person,other)}</small></strong><p class="npc-activity">${id==='player'?(game.queue[0]?actionLabel(game.queue[0].type):'享受此刻的宁静'):other.activity}</p><div class="meter"><span style="width:${score}%"></span></div></div></button>`;
+ }).join('')}</div>`;
  if(tab==='career'&&learning)$('#panel-content').innerHTML=learningPanel(person,skills);
  if(tab==='career'&&!learning){
   const state=selectedResident==='player'?game.career:person.career,c=careerDefinition(game,state.id),level=c.levels[state.level-1],next=c.levels[state.level],isPlayer=selectedResident==='player',studying=state.id===CONTINUING_EDUCATION_CAREER;
@@ -283,23 +345,20 @@ function refresh(){
  const weather=getWeather(game);$('#weather').innerHTML=`${icon(weather.icon)} ${weather.temperature}° · ${weather.transitioning?`${weather.nextName}渐至`:weather.name} · ${weather.description}`;$('#weather').dataset.weather=weather.type;
  const lifeState=`${game.player.uid}-${game.player.alive}`;if(lifeState!==lastLifeState){lastLifeState=lifeState;if(!game.player.alive){closeContext();changeTab('life');}}
  if(context?.kind==='npc'&&!game.npcs[context.id])closeContext();
- refreshPortraits();$('#player-bio').textContent=`${GENDERS[game.player.gender]} · ${Math.floor(game.player.age)} 星岁${prayerRaceName(game.player)?' · '+prayerRaceName(game.player):''}`;
+ refreshPortraits();
  $('#money').textContent=fmt(game.money);$('#day').textContent=`第 ${game.day} 天`;$('#clock').textContent=`${String(Math.floor(game.minute/60)).padStart(2,'0')}:${String(Math.floor(game.minute%60)).padStart(2,'0')}`;
  document.querySelectorAll('[data-speed]').forEach(b=>b.classList.toggle('active',Number(b.dataset.speed)===game.speed));
- const avg=Object.values(game.needs).reduce((a,b)=>a+b)/6;$('#mood').innerHTML=`${icon(avg<35?'Frown':avg>75?'Sparkles':'Smile')} ${avg<35?'需要一点关照':avg>75?'幸福感满满':'心情不错'}`;$('#mood').classList.toggle('unhappy',avg<35);
  const endangered=[...(game.player.alive&&game.player.starvation>=720?[game.player]:[]),...neighbors(game).filter(n=>n.starvation>=720)];
  $('#life-alert').hidden=game.player.alive&&!endangered.length;$('#life-alert').textContent=!game.player.alive?`${game.player.name}已离世。时间已暂停，请在生命页选择接管居民。`:`${endangered.map(n=>n.name).join('、')}持续饥饿，请立即进食或安排照料。`;
-  const q=game.queue[0];$('#activity').innerHTML=q?`${icon(ACTIONS[q.type].icon)} ${q.phase==='walking'?'正在走过去…':q.phase==='waiting'?'等待家具空闲…':q.phase==='celebrating'?(q.blessing.side==='front'?'接受晴昼赐福':'接受幽冥赐福'):actionLabel(q.type)}`:`${icon('Coffee')} 享受此刻的宁静`;
- if(!game.player.alive){$('#activity').textContent='这段生命已落幕';$('#mood').textContent='留在星湾的记忆';}$('#autonomy').disabled=!game.player.alive;
- $('#autonomy').setAttribute('aria-checked',String(game.autonomy.enabled));$('#autonomy').title=game.autonomy.enabled?'自主行为已开启 · 点击关闭，手动指令优先':'自主行为已关闭 · 点击开启';
  $('#autonomy-reason').hidden=!game.autonomy.enabled;$('#autonomy-reason').textContent=`${game.player.name}的想法：${game.autonomy.reason}`;
  if(context?.kind==='npc'&&$('#npc-status')){const n=game.npcs[context.id];$('#npc-status').textContent=`${n.activity} · ${n.ai.reason}`;}
   $('#queue').innerHTML=game.queue.length?game.queue.map((q,i)=>`<div class="queue-action ${i===0?'current':''}" style="--progress:${q.phase==='celebrating'?Math.min(100,q.elapsed/PRAYER_RULES.celebrationSeconds*100):q.phase==='acting'?Math.min(100,q.elapsed/Math.max(.1,game.config.actionDurations[q.type])*100):0}%">${icon(ACTIONS[q.type].icon)}<span>${q.phase==='celebrating'?(q.blessing.side==='front'?'晴昼赐福':'幽冥赐福'):`${WONDER_ACTIONS[q.type]?.paired&&q.phase==='waiting'?'等候共同活动 · ':''}${actionLabel(q.type)}`}</span>${q.source==='ai'?'<small class="ai-badge">自主</small>':''}<button data-cancel="${q.id}" aria-label="取消${actionLabel(q.type)}">${icon('X')}</button></div>`).join(''):`<span class="queue-empty">${icon('MousePointer2')} ${game.autonomy.enabled?'正在考虑下一件小事':'给今天安排一点小事吧'}</span>`;
  const majorEvents=game.majorEvents||[],majorSignature=JSON.stringify(majorEvents);$('#journal').hidden=!majorEvents.length;if(majorSignature!==lastMajorEvents){lastMajorEvents=majorSignature;$('#journal-text').innerHTML=majorEvents.slice(0,3).map(event=>`<p class="journal-entry"><span>${event.text}</span><small>第 ${event.day} 天</small></p>`).join('');$('#journal-time').textContent=`最近 ${Math.min(3,majorEvents.length)} 条重大事件`;}
  refreshWonderMenu();refreshProjectMenu();refreshProfessionMenu();refreshLivingMenu();
  if(context?.kind==='object'){const o=game.objects.find(o=>o.id===context.id);if(!o)closeContext();else if(CROPS[o.type]&&$('#plant-status')){$('#plant-status').innerHTML=plantDetails(o);for(const b of document.querySelectorAll('#context-menu [data-action]')){const error=actionAccessError(game,{id:'player',position:game.player,skills:game.skills},b.dataset.action)||plantActionError(o,b.dataset.action);b.disabled=!!error;b.title=error||'';}}}
- renderPanel();
+ renderPanel();refreshDossier();
  if(hosted)document.querySelectorAll(mutationControls).forEach(el=>el.setAttribute('aria-disabled',String(!online.canOperate)));
+ localizePage();
 }
 function selectIsland(id){
  if(!discovered(game,id))return;navigationIsland=id;
@@ -338,6 +397,7 @@ function refreshProfessionMenu(){
 function closeCharacterSwitcher(){const menu=$('#character-switcher');if(!menu)return;menu.hidden=true;$('#active-character')?.setAttribute('aria-expanded','false');}
 function toggleCharacterSwitcher(){const menu=$('#character-switcher');if(!menu)return;const open=menu.hidden;menu.hidden=!open;$('#active-character').setAttribute('aria-expanded',String(open));}
 async function showContext(target,x,y){
+ ({x,y}=layoutPoint(x,y));const {width:innerWidth,height:innerHeight}=layoutSize();
  if(target.kind==='ufo'){showUfo(target.id);return;}
  if(target.kind==='ground'){closeContext();const result=await enqueue(game,'walk',null,target.point);if(!result.ok)toast(result.message);refresh();return;}
  if(target.kind==='npc'&&!game.npcs[target.id])return;
@@ -383,14 +443,19 @@ $('#app').addEventListener('click',async e=>{
  const b=e.target.closest('button');if(!b)return;
  if(b.dataset.speed!==undefined){await command('speed',Number(b.dataset.speed));refresh();}
  if(b.id==='autonomy'){await setAutonomy(game,!game.autonomy.enabled);toast(game.autonomy.enabled?'自主行为已开启，手动安排随时优先。':'自主行为已关闭，保留你的手动安排。');refresh();}
+ if(b.id==='dossier-toggle')setDossierCollapsed($('.dashboard').dataset.collapsed!=='true');
+ if(b.id==='dossier-select'){const open=$('#dossier-list').hidden;$('#dossier-list').hidden=!open;$('#dossier-select').setAttribute('aria-expanded',String(open));if(open)$('#dossier-list [aria-selected=true]')?.focus();}
+ if(b.dataset.dossierOption)chooseDossier(b.dataset.dossierOption);
+ if(b.dataset.dossier)chooseDossier(b.dataset.dossier);
+ if(b.id==='dossier-prev'||b.id==='dossier-next'){const entries=dossierEntries(),index=entries.findIndex(e=>e.person.uid===resident().uid),direction=b.id==='dossier-next'?1:-1;chooseDossier(entries[(index+direction+entries.length)%entries.length].person.uid,direction);}
  if(b.id==='active-character')toggleCharacterSwitcher();
  if(b.dataset.tab)changeTab(b.dataset.tab);
  if(b.dataset.character){
   if(hosted&&!online.canOperate){
    const person=game.npcs[b.dataset.character];if(!person?.alive)return;
-   watchedResidentUid=person.uid;game.viewIsland=islandOf(person);game.viewSide=sideOf(person);world.focus(b.dataset.character);
+   chooseDossier(person.uid);
    closeCharacterSwitcher();closeContext();refresh();toast(`视角已切换到${person.name}`);
-  }else{watchedResidentUid=null;const result=await switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
+  }else{dossierResidentUid=null;const result=await switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
  }
  if(b.dataset.inherit){const result=await takeOver(game,b.dataset.inherit);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';refresh();save();toast(`现在由你陪伴${game.player.name}生活。`);}else toast(result.message);}
  if(b.id==='new-life'&&confirm('重新开始将覆盖当前存档，确定开始新的星湾生活吗？'))startNewLife();
@@ -416,7 +481,7 @@ $('#app').addEventListener('click',async e=>{
  if(b.id==='work'){const lab=game.objects.find(o=>sameSide(o,game.player)&&canWorkAt(game.career.id,o.type));const result=await enqueue(game,'work',lab?.id);toast(result.ok?`已安排工作班次，${game.player.name}将前往${game.career.id==='chef'?'孢火星釜':'研究台'}。`:result.message);refresh();}
  if(b.id==='study'){const result=await enqueueStudy(game);toast(result.ok?'已安排学习。':result.message);refresh();}
  if(b.id==='save')save(true);
-  if(b.id==='config'){renderConfig();$('#config-dialog').showModal();}
+  if(b.id==='config'){renderConfig();localizePage();$('#config-dialog').showModal();}
   if(b.id==='config-reset')resetConfig();
  if(b.id==='restart-epoch'&&confirm('重启纪元将永久清除当前居民进度、星岛、工程、材料、飞船与星币，从第 1 天重新开始。此操作无法撤销，确定删档重启吗？'))startNewLife();
   if(b.id==='config-project-default')persistProjectConfig();
@@ -427,28 +492,39 @@ $('#app').addEventListener('click',async e=>{
   const gates=game.objects.filter(o=>o.type==='gate'&&sameSide(o,game.player)).sort((a,b)=>Math.hypot(a.x-game.player.x,a.z-game.player.z)-Math.hypot(b.x-game.player.x,b.z-game.player.z));
   if(gates.length){const r=b.getBoundingClientRect();showContext({kind:'object',id:gates[0].id},r.left,r.bottom+40);}else toast('这一面还没有星门，请在物品包中购买。');
  }
- if(b.id==='build-button')toggleBuild();
+ if(b.id==='build-button'){setDossierCollapsed(false);toggleBuild();}
  if(b.id==='cancel-placement')cancelPlacement();
  if(b.id==='all-neighbors')changeTab('relations');
- if(b.id==='zoom-in')world.zoom(.15);if(b.id==='zoom-out')world.zoom(-.15);if(b.id==='reset-view')world.resetCamera();if(b.id==='focus-player'){watchedResidentUid=null;game.viewIsland=islandOf(game.player);game.viewSide=sideOf(game.player);world.focus('player');refresh();}
+ if(b.id==='zoom-in')world.zoom(.15);if(b.id==='zoom-out')world.zoom(-.15);if(b.id==='reset-view')world.resetCamera();if(b.id==='focus-player'){chooseDossier(game.player.uid);}
  if(b.id==='context-close')closeContext();if(b.id==='sound')toggleSound();
+ localizePage();
 });
 $('#app').addEventListener('click',async e=>{if(e.target.closest('#randomize-heads')){await randomizeHeads(game);refreshPortraits();lastPanel='';refresh();toast('所有居民的头型与触角长度已随机。');}});
-$('#app').addEventListener('change',async e=>{if(e.target.id==='study-focus'){await command('studyFocus',e.target.value||null);e.target.blur();save();lastPanel='';renderPanel();}if(e.target.id==='family-desire'){e.target.blur();await command('familyDesire',selectedResident,Number(e.target.value));lastPanel='';renderPanel();}});
+$('#app').addEventListener('change',async e=>{if(e.target.id==='study-focus'){await command('studyFocus',e.target.value||null);e.target.blur();save();lastPanel='';renderPanel();}if(e.target.id==='family-desire'){e.target.blur();await command('familyDesire',selectedResident,Number(e.target.value));lastPanel='';renderPanel();}localizePage();});
 $('#app').addEventListener('submit',async e=>{
  if(e.target.id==='config-form'){applyConfig(e);return;}if(e.target.id!=='resident-form')return;e.preventDefault();
  const headShape=Object.fromEntries(Object.keys(HEAD_SHAPE).map(key=>[key,Number($(`[name="${key}"]`).value)/100]));
  const result=await updateResident(game,selectedResident,{gender:$('#resident-gender').value,age:Number($('#resident-age').value),devotion:Number($('#resident-devotion').value),headShape});
  if(!result.ok){toast(result.message);return;}refreshPortraits();lastPanel='';refresh();toast('人物设定已更新。');
 });
-document.addEventListener('keydown',async e=>{if(document.body.classList.contains('island-floating')||document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();await command('speed',game.speed?0:1);refresh();}if(e.key==='1'||e.key==='3'){await command('speed',Number(e.key));refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();}});
-document.addEventListener('pointerdown',e=>{if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();if(!e.target.closest('#character-switcher')&&!e.target.closest('#active-character'))closeCharacterSwitcher();});
+document.addEventListener('keydown',async e=>{if(document.body.classList.contains('island-floating')||document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();await command('speed',game.speed?0:1);refresh();}if(e.key==='1'||e.key==='3'){await command('speed',Number(e.key));refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();closeDossierList();}});
+document.addEventListener('pointerdown',e=>{if(!e.target.closest('#dossier-list')&&!e.target.closest('#dossier-select'))closeDossierList();if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();if(!e.target.closest('#character-switcher')&&!e.target.closest('#active-character'))closeCharacterSwitcher();});
 setupDashboardResize();
+const phoneLayout=matchMedia('(max-width:760px), (max-width:1000px) and (max-height:600px)');
+function applyPhoneLayout(){document.body.classList.toggle('phone-layout',phoneLayout.matches);setDossierCollapsed(phoneLayout.matches);}
+phoneLayout.addEventListener('change',applyPhoneLayout);applyPhoneLayout();
+$('#dossier-list').addEventListener('keydown',event=>{
+ const options=[...$('#dossier-list').querySelectorAll('[role=option]')],index=options.indexOf(document.activeElement);
+ if(event.key==='Escape'){closeDossierList();$('#dossier-select').focus();event.preventDefault();event.stopPropagation();return;}
+ const step={ArrowDown:2,ArrowUp:-2,ArrowRight:1,ArrowLeft:-1}[event.key];
+ if(step!==undefined||event.key==='Home'||event.key==='End'){const next=event.key==='Home'?0:event.key==='End'?options.length-1:Math.max(0,Math.min(options.length-1,index+step));options[next]?.focus();event.preventDefault();}
+});
 let audioContext=null,audioOn=false;
 async function toggleSound(){if(!audioContext){audioContext=new AudioContext();const gain=audioContext.createGain();gain.gain.value=.015;gain.connect(audioContext.destination);[130.81,196,261.63,329.63].forEach((f,i)=>{const osc=audioContext.createOscillator();osc.type='sine';osc.frequency.value=f;const volume=audioContext.createGain();volume.gain.value=.28;osc.connect(volume).connect(gain);const lfo=audioContext.createOscillator();lfo.frequency.value=.07+i*.03;const depth=audioContext.createGain();depth.gain.value=.14;lfo.connect(depth).connect(volume.gain);lfo.start();osc.start();});}audioOn=!audioOn;if(audioOn)await audioContext.resume();else await audioContext.suspend();$('#sound').innerHTML=icon(audioOn?'Volume2':'VolumeX');$('#sound').classList.toggle('active',audioOn);}
 
 let lastHover=null;
 function showHoverTooltip(target,x,y){
+ ({x,y}=layoutPoint(x,y));const {width:innerWidth,height:innerHeight}=layoutSize();
  const el=$('#tooltip');let text,cargo=false;
  if(target?.kind==='ufo'){
   const ship=game.space.ships.find(s=>s.id===target.id);if(!ship){el.hidden=true;return;}
@@ -467,9 +543,9 @@ function showHoverTooltip(target,x,y){
    }else text=`${name}${CROPS[o.type]?' · '+plantStatus(o):' · 点击互动'}`;
   }
  }
- el.textContent=text;el.toggleAttribute('data-cargo',cargo);el.hidden=false;
+ el.textContent=translateText(text);el.toggleAttribute('data-cargo',cargo);el.hidden=false;
  el.style.maxWidth=`${Math.min(280,innerWidth-16)}px`;
- const bounds=el.getBoundingClientRect();
+ const bounds={width:el.offsetWidth,height:el.offsetHeight};
  el.style.left=`${Math.max(8,Math.min(x+15,innerWidth-bounds.width-8))}px`;
  el.style.top=`${Math.max(8,Math.min(y-bounds.height-12,innerHeight-bounds.height-8))}px`;
 }
@@ -483,7 +559,7 @@ try{
  refreshPortraits();
  $('#loading').hidden=true;refresh();
  let previous=performance.now(),uiElapsed=0,frameWindow=window,frameId;
- function frame(){frameId=frameWindow.requestAnimationFrame(frame);const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;if(!hosted)tick(game,dt);else visualGame=presentation.sample(game,now);world.render(visualGame);uiElapsed+=dt;if(uiElapsed>.2){refresh();if(lastHover&&!$('#tooltip').hidden)showHoverTooltip(lastHover.target,lastHover.x,lastHover.y);uiElapsed=0;}}
+ function frame(){frameId=frameWindow.requestAnimationFrame(frame);const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;if(!hosted)tick(game,dt);if(hosted)visualGame=presentation.sample(game,now);world.render(visualGame);uiElapsed+=dt;if(uiElapsed>.2){refresh();if(lastHover&&!$('#tooltip').hidden)showHoverTooltip(lastHover.target,lastHover.x,lastHover.y);uiElapsed=0;}}
  const floating=createFloatingIsland($('#world'),{returnIcon:icon('ArrowLeft'),
   onEnter(){if(build)toggleBuild();cancelPlacement();closeContext();closeCharacterSwitcher();$('#tooltip').hidden=true;world.setSceneOnly(true);},
   onLeave(){world.setSceneOnly(false);floatingButton.focus();},

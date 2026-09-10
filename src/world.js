@@ -1,3 +1,4 @@
+import {elementPoint,controlSurface} from './viewport.js';
 import {BLINK_SECONDS} from './nether-blink.js';
 import {isRadiant} from './prayer.js';
 import {createBlinkVisual} from './nether-blink-visuals.js';
@@ -27,6 +28,7 @@ import {prepareSurroundings,updateSurroundings} from './storybook-surroundings.j
 import {BiolumeMaterial,stylizeAsset,createPostProcessing,createAtmosphere,createBioluminescence} from './npr.js';
 import {getWeather} from './weather.js';
 import {createWeatherEffects} from './weather-effects.js';
+import {getLanguage,translateText} from './i18n.js';
 
 import {colors,material,mesh,box,sphere,cylinder,ring,createPropFactory} from './props.js';
 const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
@@ -38,7 +40,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
  const createCrystalMesh=createCrystalFactory(renderer);
  const cameraStart=new THREE.Vector3(23,25,30),camera=new THREE.OrthographicCamera(-20,20,15,-15,.1,180);camera.position.copy(cameraStart);
- const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,0,0);controls.enableDamping=true;controls.minZoom=.65;controls.maxZoom=2.5;controls.minPolarAngle=.25;controls.maxPolarAngle=1.25;controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
+ const controls=new OrbitControls(camera,controlSurface(renderer.domElement));controls.target.set(0,0,0);controls.enableDamping=true;controls.minZoom=.65;controls.maxZoom=2.5;controls.minPolarAngle=.25;controls.maxPolarAngle=1.25;controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
  camera.lookAt(controls.target);camera.updateMatrixWorld();const cameraOffset=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0).multiplyScalar(CAMERA_PAN_RIGHT);
  function resetView(){camera.position.copy(cameraStart).add(cameraOffset);controls.target.copy(cameraOffset);camera.zoom=CAMERA_ZOOM;camera.lookAt(controls.target);camera.updateProjectionMatrix();}
  resetView();
@@ -167,7 +169,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    root.userData.flightStage=flight.stage;
    if(flight.route)flights.push(`${flight.stage} · ${Math.round(flight.progress*100)}% · ${flight.route}`);
   }
-  const text=flights.join('\n');if(text!==flightBoardText){flightBoard.textContent=text;flightBoard.hidden=!text;flightBoardText=text;}
+  const text=flights.map(line=>translateText(line,getLanguage())).join('\n');if(text!==flightBoardText){flightBoard.textContent=text;flightBoard.hidden=!text;flightBoardText=text;}
   container.dataset.ufoBeams=String([...ufoMeshes.values()].filter(v=>v.beam.root.visible).length);
   container.dataset.ufoFlights=String(flights.length);
   container.dataset.ufoCount=String(g.space.ships.filter(s=>s.island===g.viewIsland&&s.side===g.viewSide).length);
@@ -187,7 +189,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const ghost=new THREE.Group();faces.front.add(ghost);let buildType=null,buildRotation=0,ghostProp=null;
  const buildGrid=new THREE.GridHelper(22,22,0xc6ffd5,0xaba3b0);buildGrid.position.y=.29;buildGrid.material.transparent=true;buildGrid.material.opacity=.28;buildGrid.visible=false;faces.front.add(buildGrid);
  const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),ground=new THREE.Plane(new THREE.Vector3(0,1,0),-.29);let hoverTarget=null;let pointerDown=null;
- function hit(event){const r=renderer.domElement.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);
+ function hit(event){const cursor=elementPoint(renderer.domElement,event.clientX,event.clientY);pointer.set(cursor.x/renderer.domElement.clientWidth*2-1,-cursor.y/renderer.domElement.clientHeight*2+1);raycaster.setFromCamera(pointer,camera);
   const side=getGame().viewSide,face=faces[side];face.updateWorldMatrix(true,false);
   const plane=ground.clone().applyMatrix4(face.matrixWorld),point=new THREE.Vector3();
   if(getGame().viewIsland==='spore'){

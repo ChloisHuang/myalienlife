@@ -3,13 +3,37 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {createHttpService} from '../server/http-service.js';
-import {createGame} from '../src/simulation.js';
+import {createGame,ensureStarIsland} from '../src/simulation.js';
+
+test('guests browse resident dossiers locally and navigate once without tracking',async({browser})=>{
+ const directory=await mkdtemp(join(tmpdir(),'orbit-dossier-guest-')),initial=createGame();initial.speed=0;
+ initial.civilization.discoveryPath.push('spore');initial.civilization.visits.spore=1;ensureStarIsland(initial,'spore');
+ Object.assign(initial.npcs.nova,{island:'spore',side:'back',x:3,z:3});initial.npcs.nova.needs.hunger=17;
+ const service=await createHttpService({directory,dist:resolve('.deploy/release/dist'),token:'dossier-test-'.repeat(5),origin:'http://127.0.0.1:18192',initial});
+ await new Promise(r=>service.server.listen(18192,'127.0.0.1',r));
+ const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'zh-CN'}),writes=[],errors=[];
+ page.on('request',r=>{if(r.method()==='POST')writes.push(r.url());});page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.goto('http://127.0.0.1:18192');await expect(page.locator('#loading')).toBeHidden({timeout:60000});
+  await expect(page.locator('#online-status')).toHaveAttribute('data-status','guest');
+  await page.locator('#dossier-select').click();await page.locator(`[data-dossier-option="${initial.npcs.nova.uid}"]`).click();
+  await expect(page.locator('#player-name')).toHaveText(initial.npcs.nova.name);
+  await expect(page.locator('#world')).toHaveAttribute('data-island','spore');await expect(page.locator('#world')).toHaveAttribute('data-side','back');
+  await expect(page.locator('#dossier-body .needs-grid')).toContainText('17');
+  Object.assign(service.authority.state.npcs.nova,{island:'home',side:'front',x:-3,z:-3});service.authority.state.npcs.nova.needs.hunger=42;
+  await expect(page.locator('#dossier-body .needs-grid')).toContainText('42');
+  await expect(page.locator('#world')).toHaveAttribute('data-island','spore');await expect(page.locator('#world')).toHaveAttribute('data-side','back');
+  await page.locator('#dossier-next').click();await page.locator('#dossier-select').click();await page.locator(`[data-dossier-option="${initial.npcs.nova.uid}"]`).click();
+  await expect(page.locator('#world')).toHaveAttribute('data-island','home');await expect(page.locator('#world')).toHaveAttribute('data-side','front');
+  expect(service.authority.state.player.uid).toBe(initial.player.uid);expect(writes).toEqual([]);expect(errors).toEqual([]);
+ }finally{await page.close();await service.close();await rm(directory,{recursive:true,force:true});}
+});
 
 test('hosted world renders on phones, transfers authority, and runs with every browser closed',async({browser})=>{
  const directory=await mkdtemp(join(tmpdir(),'orbit-online-browser-')),token='browser-test-'.repeat(5),initial=createGame();initial.speed=0;
  const service=await createHttpService({directory,dist:resolve('.deploy/release/dist'),token,origin:'http://127.0.0.1:18191',initial});
  await new Promise(r=>service.server.listen(18191,'127.0.0.1',r));const errors=[];
- const a=await browser.newPage({viewport:{width:1440,height:1000}}),b=await browser.newPage({viewport:{width:390,height:844}});
+ const a=await browser.newPage({viewport:{width:1440,height:1000},locale:'zh-CN'}),b=await browser.newPage({viewport:{width:390,height:844},locale:'zh-CN'});
  const deltas=[];let polls=0;a.on('request',request=>{if(request.url().endsWith('/api/state'))polls++;});
  a.on('websocket',socket=>socket.on('framereceived',event=>{const value=JSON.parse(event.payload);if(value.patch)deltas.push(value);}));
  try{
@@ -26,9 +50,11 @@ test('hosted world renders on phones, transfers authority, and runs with every b
   await a.locator('#active-character').click();const watched=await a.locator('[data-character]').first().getAttribute('data-character');await a.locator('[data-character]').first().click();
   await expect(a.locator('#toast')).toContainText('视角');
   expect(service.authority.state.player.uid).toBe(originalPlayer);expect(viewerWrites).toBe(0);
-  service.authority.state.npcs[watched].side='back';await expect(a.locator('#world')).toHaveAttribute('data-side','back');
+  service.authority.state.npcs[watched].side='back';await expect(a.locator('#world')).toHaveAttribute('data-side','front');
   await expect(b.locator('#world')).toHaveAttribute('data-side','front');
-  service.authority.state.npcs[watched].side='front';await expect(a.locator('#world')).toHaveAttribute('data-side','front');
+  await a.locator('#dossier-select').click();await a.locator(`[data-dossier-option="${service.authority.state.npcs[watched].uid}"]`).click();await expect(a.locator('#world')).toHaveAttribute('data-side','back');
+  service.authority.state.npcs[watched].side='front';await expect(a.locator('#world')).toHaveAttribute('data-side','back');
+  await a.locator('#focus-player').click();await expect(a.locator('#world')).toHaveAttribute('data-side','front');
   for(const page of [a,b]){
    await page.locator('#operator-login').click();await page.locator('#operator-token').fill(token);await page.locator('#operator-form button[type="submit"]').click();await expect(page.locator('#operator-dialog')).not.toBeVisible();
    const heights=await page.locator('.online-controls button:visible').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height));
@@ -40,7 +66,7 @@ test('hosted world renders on phones, transfers authority, and runs with every b
   await expect(a.locator('#online-status')).toHaveText('已验证 · 只读');await expect(a.locator('#online-status')).toHaveAttribute('data-status','verified');await expect(a.locator('#online-status')).toHaveCSS('color','rgb(196, 154, 26)');
   await a.locator('[data-speed="3"]').dispatchEvent('click');expect(service.authority.state.speed).toBe(0);
   await b.locator('[data-speed="1"]').click();await expect.poll(()=>service.authority.state.speed).toBe(1);
-  await b.locator('#autonomy').click();await expect.poll(()=>service.authority.state.autonomy.enabled).toBe(false);
+  await b.locator('#dossier-toggle').click();await b.locator('#autonomy').click();await expect.poll(()=>service.authority.state.autonomy.enabled).toBe(false);
   for(const [page,width] of [[a,1440],[b,390]]){
    await page.waitForTimeout(2200);
    const movingFrames=await page.locator('#world canvas').evaluate(canvas=>new Promise(resolve=>{

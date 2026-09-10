@@ -10,6 +10,42 @@ import {StarToonMaterial} from '../src/npr.js';
 import * as THREE from 'three';
 import {fairytaleBlocked} from '../src/fairytale-definition.js';
 
+test('painted terrain has canonical coordinates so rebuilding props cannot change crack scale',()=>{
+ const data=readFileSync(new URL('../public/assets/fairytale.glb',import.meta.url));
+ const json=JSON.parse(data.toString('utf8',20,20+data.readUInt32LE(12)));
+ for(const node of json.nodes){
+  if(node.mesh===undefined||!json.meshes[node.mesh].primitives.some(p=>json.materials[p.material].name.startsWith('painted ')))continue;
+  assert.deepEqual(node.scale??[1,1,1],[1,1,1],`${node.name}: terrain scale must be baked`);
+  assert.deepEqual(node.translation??[0,0,0],[0,0,0],`${node.name}: terrain origin must be stable`);
+  assert.deepEqual(node.rotation??[0,0,0,1],[0,0,0,1],`${node.name}: terrain rotation must be baked`);
+ }
+});
+
+test('authored poison apple includes exposed green flesh on the reverse face only',()=>{
+ const data=readFileSync(new URL('../public/assets/fairytale.glb',import.meta.url));
+ const json=JSON.parse(data.toString('utf8',20,20+data.readUInt32LE(12)));
+ const flesh=json.materials.findIndex(m=>m.name==='poison apple flesh');
+ assert.ok(flesh>=0,'bite must expose a distinct poison-green interior');
+ const usesFlesh=index=>{
+  const node=json.nodes[index];
+  return (node.mesh!==undefined&&json.meshes[node.mesh].primitives.some(p=>p.material===flesh))||(node.children??[]).some(usesFlesh);
+ };
+ assert.equal(usesFlesh(json.nodes.findIndex(n=>n.name==='fairytale-back')),true);
+ assert.equal(usesFlesh(json.nodes.findIndex(n=>n.name==='fairytale-front')),false);
+ const skin=json.materials.findIndex(m=>m.name==='poison apple'),bounds=new THREE.Box3();
+ function measure(index,parent=new THREE.Matrix4()){
+  const node=json.nodes[index],local=node.matrix?new THREE.Matrix4().fromArray(node.matrix):new THREE.Matrix4().compose(new THREE.Vector3(...(node.translation??[0,0,0])),new THREE.Quaternion(...(node.rotation??[0,0,0,1])),new THREE.Vector3(...(node.scale??[1,1,1])));
+  const matrix=parent.clone().multiply(local);
+  if(node.mesh!==undefined)for(const primitive of json.meshes[node.mesh].primitives)if(primitive.material===skin){
+   const position=json.accessors[primitive.attributes.POSITION];
+   bounds.union(new THREE.Box3(new THREE.Vector3(...position.min),new THREE.Vector3(...position.max)).applyMatrix4(matrix));
+  }
+  for(const child of node.children??[])measure(child,matrix);
+ }
+ measure(json.nodes.findIndex(n=>n.name==='fairytale-back'));
+ assert.ok(bounds.getSize(new THREE.Vector3()).y>1,'poison apple must stay large enough to see at island scale');
+});
+
 test('authored plants sway independently while their roots and buildings remain fixed',()=>{
  const asset=new THREE.Group(),face=new THREE.Group();face.name='fairytale-front';asset.add(face);
  const plant=new THREE.Group();plant.userData.windPlant='tree';plant.position.set(3,1,2);face.add(plant);

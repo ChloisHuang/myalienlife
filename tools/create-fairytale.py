@@ -33,6 +33,7 @@ M = {k: material(k, c) for k, c in {
 }.items()}
 M['glow'] = material('window honey', 'FFD984', .65)
 M['poison'] = material('poison apple', 'DE3B48', .12)
+M['poisonFlesh'] = material('poison apple flesh', 'C5F078', .35)
 M['water'].node_tree.nodes.get('Principled BSDF').inputs['Roughness'].default_value=.18
 M['water'].node_tree.nodes.get('Principled BSDF').inputs['Metallic'].default_value=.3
 
@@ -343,6 +344,25 @@ def tree(x,z,s=1,dark=False,apple=False):
         for dx,h,dz in ([(.7,2.4,.35)] if dark else [(-.8,1.9,.7),(.8,2.3,.9),(.15,3,.1),(-.3,2.6,.6)]):
             ball((x+dx*s,h*s,z+dz*s),(.22*s,.24*s,.21*s),'poison' if dark else 'red')
 
+def bitten_poison_apple(x,y,z):
+    fruit=ball((x,y,z),(.25,.28,.24),'poison')
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+    fruit.data.materials.append(M['poisonFlesh'])
+    # Overlapping tooth cuts remove real skin and expose a scalloped, concave interior.
+    for dx,dy,radius in [(.235,.155,.15),(.255,.025,.14)]:
+        tooth=ball((x+dx*.8,y+dy,z-dx*.6), (radius,radius,.40), 'poisonFlesh')
+        tooth.rotation_euler.z=math.atan2(.6,.8)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+        bpy.context.view_layer.objects.active=fruit
+        cut=fruit.modifiers.new('bite', 'BOOLEAN')
+        cut.operation='DIFFERENCE'
+        cut.object=tooth
+        bpy.ops.object.modifier_apply(modifier=cut.name)
+        bpy.data.objects.remove(tooth,do_unlink=True)
+    fruit.scale*=2
+    fruit.select_set(True)
+    bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
+
 def curled_tree(x,z,s,apple=False):
     # Asymmetric S-shaped trunks with open spiral tips, matching the silhouette reference.
     trunk=[(0,0,0),(-.24,.9,.03),(.20,1.8,0),(.55,2.6,-.08),(.25,3.35,0),(-.3,3.85,.05)]
@@ -363,7 +383,7 @@ def curled_tree(x,z,s,apple=False):
         curve([(x+dx*s,.30,z+dz*s),(x+dx*.4*s,.48,z+dz*.4*s),(x,.7,z)],.10*s,'bark')
     if apple:
         rod((x+.95*s,2.60*s,z+.15),(x+.95*s,2.20*s,z+.15),.025,'wood')
-        ball((x+.95*s,2.06*s,z+.15),(.25,.28,.24),'poison')
+        bitten_poison_apple(x+.95*s,2.20*s-.56,z+.15)
 
 @wind_plant
 def flower(x,z,s=1):
@@ -610,6 +630,8 @@ def asset(name, build):
             bpy.ops.object.select_all(action='DESELECT')
             for o in parts:o.select_set(True)
             bpy.context.view_layer.objects.active=parts[0];bpy.ops.object.join()
+            # Procedural ground shading uses local positions; never inherit a random prop's scale or origin.
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
             o=bpy.context.object;o.name=f'{name}-stage-{int(progress*100)}';o['revealAt']=progress;o.parent=root
         return root
     bpy.ops.object.select_all(action='DESELECT')
