@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createGame,enqueue,cancelAction,tick,serialize,restore} from '../src/simulation.js';
 import {contributeProject} from '../src/settlements.js';
 import {loadShipMaterials,unloadShipMaterials,UFOS} from '../src/space-logistics.js';
-function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.player.island=g.viewIsland='spore';g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;g.objects.push({id:'bench',type:'lab',island:'spore',side:'front',x:0,z:0,rotation:0});return g;}
+function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.player.island=g.viewIsland='spore';g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;g.objects.push({id:'bench',type:'blueprintTable',island:'spore',side:'front',x:0,z:0,rotation:0});return g;}
 test('blueprints and construction require an architect and recheck profession while working',()=>{
  const g=setup();assert.equal(enqueue(g,'developBlueprint','bench').ok,false);g.career.id='architect';assert.equal(enqueue(g,'developBlueprint','bench').ok,true);g.career.id='scientist';for(let i=0;i<100;i++)tick(g,.1,()=>1);assert.equal(g.civilization.projects.spore.blueprint,0);
 });

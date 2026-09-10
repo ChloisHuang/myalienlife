@@ -17,8 +17,8 @@ test('home is protected and deleting a middle island preserves later islands and
 });
 test('destroying an inhabited island evacuates residents and ships and cancels its work',()=>{
  const g=chain();Object.assign(g.player,{island:'city',homeIsland:'city'});g.viewIsland='city';
- g.objects.push({id:'city-lab',type:'lab',island:'city',side:'front',x:0,z:0,rotation:0});
- g.career.id='architect';assert.equal(enqueue(g,'developBlueprint','city-lab').ok,true);
+ g.objects.push({id:'city-blueprint',type:'blueprintTable',island:'city',side:'front',x:0,z:0,rotation:0});
+ g.career.id='architect';assert.equal(enqueue(g,'developBlueprint','city-blueprint').ok,true);
  g.space.ships.push({id:'rescue',tier:1,island:'city',side:'back',food:4,durability:80,reservedBy:null});g.space.provisions.city=8;g.space.backs.city=true;
  assert.equal(destroyIsland(g,'city').ok,true);assert.equal(g.player.island,'home');assert.equal(g.player.homeIsland,'home');assert.equal(g.viewIsland,'home');assert.equal(g.space.ships[0].island,'home');
  assert.equal(g.queue.length,0);assert.equal(g.objects.some(o=>o.island==='city'),false);assert.equal(g.space.provisions.city,undefined);assert.equal(g.civilization.projects.city,undefined);

@@ -154,7 +154,7 @@ export function careerDefinition(g,id){const base=CAREERS[id],config=g?.config?.
 export function cropDefinition(g,id){return{...CROPS[id],...g?.config?.crops?.[id]};}
 const cropDefinitions=g=>Object.fromEntries(Object.keys(CROPS).map(id=>[id,cropDefinition(g,id)]));
 const actionDuration=(g,type)=>g.config?.actionDurations?.[type]??ACTIONS[type].duration;
-const actionCost=(g,type)=>g.config?.actionCosts?.[type]??ACTIONS[type]?.cost??0;
+export const actionCost=(g,type)=>g.config?.actionCosts?.[type]??ACTIONS[type]?.cost??0;
 const stageConfig=g=>g.config?.lifeStages||DEFAULT_LIFE_STAGES;
 const isInfant=(g,age)=>lifeStage(age,stageConfig(g))==='infant';
 const adultStart=g=>stageConfig(g).teenEnd;
@@ -551,12 +551,21 @@ function inviteFlight(g,host,q,passengers,shipId=null){
 }
 function cancelFlight(g,q){const id=q.hostActionId??q.id;for(const p of allActors(g))for(let i=p.queue.length-1;i>=0;i--)if(p.queue[i].id===id||p.queue[i].hostActionId===id)p.queue.splice(i,1);for(const ship of g.space.ships)if(ship.reservedBy===id)ship.reservedBy=null;}
 
+const SETTLEMENT_STATION_SPOTS=[[8,4],[8,1],[8,-1],[8,-5],[7,4],[7,1],[7,-1],[-8,4],[-4,4],[-8,1],[-4,1],[0,4],[4,4]];
+function ensureSettlementStations(g,id){
+ for(const type of ['blueprintTable','constructionTerminal']){
+  if(g.objects.some(o=>islandOf(o)===id&&o.type===type))continue;
+  const spot=SETTLEMENT_STATION_SPOTS.find(([x,z])=>canPlace(g,x,z,'front',id));if(!spot)continue;
+  const [x,z]=spot;g.objects.push({id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation:0,fixed:true});
+ }
+}
 function ensureStarIsland(g,id){
  if(id==='home')return;
  if(!g.objects.some(o=>islandOf(o)===id)){
   const blueprint=islandDefinition(g,id),layout=blueprint.layout??[['portal',0,0],['pod',-5,-3],['food',-2,-3],['shower',2,-3],['lab',5,-3],[id==='spore'?'garden':'relic',5,2]].map(([type,x,z])=>({type,x,z,rotation:0}));
   for(const {type,x,z,rotation} of layout){const o={id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation,fixed:true};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);}
  }
+ ensureSettlementStations(g,id);
  for(const [type,spots] of [['sofa',[[-8,-3],[-8,3],[-7,4],[7,4],[-7,0]]],['music',[[8,5],[-8,5],[7,5],[-7,5],[8,-5]]]]){
   if(g.objects.some(o=>islandOf(o)===id&&o.type===type))continue;
   const spot=spots.find(([x,z])=>canPlace(g,x,z,'front',id));if(!spot)continue;

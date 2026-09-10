@@ -18,6 +18,7 @@ test('autonomous flight loads construction materials, delivers them, and an arch
  tick(g,.1,()=>0);assert.equal(g.queue[0].type,'voyage');assert.equal(g.queue[0].source,'ai');g.autonomy.enabled=false;
  until(g,()=>g.queue[0]?.phase==='acting');assert.equal(g.space.cargo.freighter,60);assert.equal(g.space.materials.home,20);
  const loaded=restore(serialize(g));until(loaded,()=>loaded.player.island==='spore');assert.equal(loaded.space.materials.spore,60);assert.equal(loaded.space.cargo.freighter,undefined);
+ loaded.objects.push({id:'spore-blueprint',type:'blueprintTable',island:'spore',side:'front',x:0,z:0,rotation:0},{id:'spore-terminal',type:'constructionTerminal',island:'spore',side:'front',x:3,z:0,rotation:0});
  loaded.player.preferences={developBlueprint:100,constructIsland:100};loaded.autonomy.enabled=true;loaded.autonomy.cooldown=0;
  until(loaded,()=>loaded.civilization.projects.spore.construction===600,25000);
  assert.equal(loaded.civilization.projects.spore.blueprint,300);assert.equal(loaded.space.materials.spore,0);
