@@ -12,18 +12,17 @@ test('only exploration on the current frontier may discover its successor',()=>{
  assert.deepEqual(g.civilization.discoveryPath,['home','spore']);
  observe(g,'spore');
  assert.deepEqual(g.civilization.discoveryPath,['home','spore']);assert.equal(g.civilization.lastDiscoveryObservation,4);
- explore(g,'spore');
- assert.deepEqual(g.civilization.discoveryPath,['home','spore','city']);
- assert.equal(g.civilization.surveys.spore,1);assert.match(g.log[0].text,/孢海浮洲勘察时发现失落星城/);
+ g.civilization.observations=12;explore(g,'spore');
+ assert.deepEqual(g.civilization.discoveryPath,['home','spore','wild-0']);
+ assert.equal(g.civilization.surveys.spore,1);assert.match(g.log[0].text,/童梦星屿勘察时发现/);
 });
 test('home reveals only spore, and the next discovery requires a visit to the frontier',()=>{
  const g=createGame();for(let i=0;i<100;i++)observe(g,'home');
  assert.deepEqual(g.civilization.discoveryPath,['home']);assert.equal(Object.keys(g.civilization.islands).length,0);
  g.wonders.archive=3;explore(g,'home');assert.equal(discovered(g,'city'),false);
  observe(g,'spore');assert.equal(discovered(g,'city'),false);
- g.civilization.visits.spore=1;explore(g,'spore');assert.equal(discovered(g,'city'),true);
- g.civilization.visits.city=1;explore(g,'city');assert.ok(g.civilization.islands['wild-0']);
- for(let i=0;i<10;i++)explore(g,'city');assert.equal(Object.keys(g.civilization.islands).length,1);
+ g.civilization.visits.spore=1;explore(g,'spore');assert.equal(discovered(g,'city'),false);assert.ok(g.civilization.islands['wild-0']);
+ for(let i=0;i<10;i++)explore(g,'spore');assert.equal(Object.keys(g.civilization.islands).length,1);
  explore(g,'wild-0');assert.equal(Object.keys(g.civilization.islands).length,1);
  g.civilization.visits['wild-0']=1;explore(g,'wild-0');assert.ok(g.civilization.islands['wild-1']);
  assert.deepEqual(restore(serialize(g)).civilization,g.civilization);

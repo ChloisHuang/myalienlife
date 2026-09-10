@@ -10,7 +10,7 @@ import {WebSocketServer,WebSocket} from 'ws';
 
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const digest=value=>createHash('sha256').update(value).digest();
-const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};
+const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.wasm':'application/wasm','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};
 
 export async function createHttpService({directory,dist,token,origin,initial,autoStart=true,release='development',trustProxy=false,geoLookup}={}){
  if(typeof token!=='string'||token.length<12||token.length>256)throw new Error('操作口令需要 12 到 256 个字符');
@@ -33,7 +33,7 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
  function json(res,value,status=200){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));}
  const server=createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');
-  res.setHeader('Content-Security-Policy',`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ${allowedOrigin.replace(/^http/,'ws')}; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`);
+  res.setHeader('Content-Security-Policy',`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ${allowedOrigin.replace(/^http/,'ws')}; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`);
   try{
    const path=new URL(req.url,'http://localhost').pathname;
    if(path==='/healthz'&&req.method==='GET')return json(res,{ok:!authority.error,release},authority.error?503:200);

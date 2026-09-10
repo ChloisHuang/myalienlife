@@ -2,8 +2,9 @@ import {createEducation,validEducation,educationWage,studyFacilitySkill,STUDY_LO
 import {canBlinkTo,BLINK_SECONDS,undiscoveredBackTarget} from './nether-blink.js';
 import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
+import {FAIRYTALE_ITEMS,FAIRYTALE_CONSTRUCTION_ITEMS,fairytaleBlocked} from './fairytale-definition.js';
 import {groupId,advanceCooperation,AUTONOMOUS_COOPERATION_WEIGHT,autonomousCooperationReady,restFromCooperation} from './cooperation.js';
-import {discovered,populationCapacity,islandCatalog,islandDefinition,activeDiscoveryPath,createCivilization,validCivilization,civilizationError,contributeCivilization} from './civilization.js';
+import {discovered,populationCapacity,islandCatalog,islandDefinition,createCivilization,validCivilization,civilizationError,contributeCivilization} from './civilization.js';
 import {actionPreference,autonomyBonus} from './autonomy.js';
 import {createProject,contributeProject,projectActions,projectError,workbench} from './settlements.js';
 import {housingFurniture} from './housing-layout.js';
@@ -13,7 +14,7 @@ import {SIDES,sideOf,islandOf,sameSide,createGates,DEFAULT_GATE_POSITION} from '
 import {CROPS,MUSHROOM_SEED_COST,harvestPrice,plantTraits,materialSource,createPlant,advancePlants,plantActionError,tendPlant,harvestPlant,validPlant} from './plants.js';
 import {defaultGenome,defaultHeadShape,residentHeadShape,HEAD_SHAPE,inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS} from './genetics.js';
 export {inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS};
-import {RESIDENTS,GENDERS,SKILLS,SOFA_SEATS,localToWorld,approachPosition,skillProgress,lifeStage,DEFAULT_LIFE_STAGES} from './characters.js';
+import {RESIDENTS,GENDERS,SKILLS,SOFA_SEATS,isSeating,localToWorld,approachPosition,skillProgress,lifeStage,DEFAULT_LIFE_STAGES} from './characters.js';
 export {skillProgress};
 export const NEEDS={hunger:['营养','Utensils'],energy:['能量','Zap'],social:['社交','MessagesSquare'],fun:['乐趣','Sparkles'],hygiene:['洁净','Droplets'],comfort:['舒适','Armchair']};
 export const NPCS=[{id:'nova',name:'诺瓦',role:'星际植物学家',trait:'热爱自然 · 温柔',color:'#edabbf',x:1,z:1},{id:'zig',name:'吉格',role:'量子工程师',trait:'天才 · 有点古怪',color:'#b4a0ef',x:5,z:-2},{id:'lumi',name:'露米',role:'银河外交官',trait:'外向 · 浪漫',color:'#f4c16d',x:-3,z:4},{id:'pip',name:'皮普',role:'星云音乐人',trait:'创意十足 · 贪玩',color:'#88cbdc',x:3,z:4}];
@@ -60,7 +61,7 @@ export function careerEntryMessage(g,id,skills=g.skills){
 export function recordMajorEvent(g,text,type='event'){
  g.majorEvents=[{type,text,at:g.minute,day:g.day},...(g.majorEvents||[])].slice(0,3);
 }
-export const ITEMS=[
+export const ITEMS=[...FAIRYTALE_ITEMS,
  {id:'blueprintTable',name:'星图蓝图绘制台',pack:'星穹营造',price:420,icon:'NotebookPen',action:'developBlueprint',desc:'星穹营造专用 · 设计本岛建设蓝图'},
  {id:'constructionTerminal',name:'筑星施工终端',pack:'星穹营造',price:360,icon:'Hammer',action:'constructIsland',desc:'星穹营造专用 · 消耗本岛复材推进建设 · 完工后办理移居'},
  {id:'cultivator',name:'植生循环培育槽',pack:'植生工坊',price:300,icon:'Sprout',action:'garden',desc:'培育发光孢子 · 4 小时成熟 · 基础产量 4 份'},
@@ -191,20 +192,9 @@ export function createGame(config){return {
  objects:[{id:'pod',type:'pod',x:-5,z:-4,rotation:0},{id:'food',type:'food',x:1,z:-4,rotation:0},{id:'shower',type:'shower',x:-2,z:-4,rotation:0},{id:'sofa',type:'sofa',x:-5,z:0,rotation:0},{id:'lab',type:'lab',x:5,z:-4,rotation:0},{id:'music',type:'music',x:-2,z:0,rotation:0},{id:'garden',type:'garden',x:7,z:3,rotation:0,plant:createPlant()},{id:'portal',type:'portal',x:9,z:-4,rotation:0}].map(o=>({...o,side:'front'})).concat(createGates()),
  log:[{text:'欢迎回家，凯伊。你的异星日常，从这里开始。',at:510}],completed:0
 };}
-export function canPlace(g,x,z,side=g.viewSide,island=g.viewIsland,allowUndiscoveredBack=false){return Number.isFinite(x)&&Number.isFinite(z)&&Math.abs(x)<=10&&Math.abs(z)<=6&&Object.hasOwn(SIDES,side)&&(allowUndiscoveredBack||side!=='back'||backDiscovered(g,island))&&!g.objects.some(o=>islandOf(o)===island&&sideOf(o)===side&&(Math.hypot(o.x-x,o.z-z)<1.8||o.type==='gate'&&Math.hypot(approachPosition(o).x-x,approachPosition(o).z-z)<1.8))&&!allActors(g).some(n=>islandOf(n.position)===island&&sideOf(n.position)===side&&isInfant(g,n.position)&&Math.hypot(n.position.x-x,n.position.z-z)<1.1);}
-export const SPIRIT_TREE_GROWTH_CHANCE=.01;
-function spiritTreeOnFace(g,island,side){return g.objects.some(o=>o.type==='spiritTree'&&islandOf(o)===island&&sideOf(o)===side);}
-function spiritTreeSpots(g,island,side){const spots=[];for(let x=-10;x<=10;x++)for(let z=-6;z<=6;z++)if(canPlace(g,x,z,side,island,true))spots.push({x,z});return spots;}
-export function advanceDailySpiritTrees(g,random=Math.random){
- const faces=[];for(const island of activeDiscoveryPath(g))for(const side of Object.keys(SIDES))if(!spiritTreeOnFace(g,island,side))faces.push({island,side});
- if(!faces.length||random()>=SPIRIT_TREE_GROWTH_CHANCE)return null;
- const {island,side}=faces[Math.floor(random()*faces.length)];ensureStarIsland(g,island);
- const spots=spiritTreeSpots(g,island,side);if(!spots.length)return null;
- const spot=spots[Math.floor(random()*spots.length)],tree={id:`spirit-tree-${g.nextId++}`,type:'spiritTree',x:spot.x,z:spot.z,rotation:0,island,side,fixed:true};g.objects.push(tree);
- recordMajorEvent(g,`${islandDefinition(g,island).name}的${SIDES[side]}自然长出了一棵星灵垂光树。`,'discovery');return tree;
-}
+export function canPlace(g,x,z,side=g.viewSide,island=g.viewIsland){return Number.isFinite(x)&&Number.isFinite(z)&&Math.abs(x)<=10&&Math.abs(z)<=6&&(island!=='spore'||!fairytaleBlocked(x,z,.8,side))&&Object.hasOwn(SIDES,side)&&(side!=='back'||backDiscovered(g,island))&&!g.objects.some(o=>islandOf(o)===island&&sideOf(o)===side&&(Math.hypot(o.x-x,o.z-z)<1.8||o.type==='gate'&&Math.hypot(approachPosition(o).x-x,approachPosition(o).z-z)<1.8))&&!allActors(g).some(n=>islandOf(n.position)===island&&sideOf(n.position)===side&&isInfant(g,n.position)&&Math.hypot(n.position.x-x,n.position.z-z)<1.1);}
 export function buyItem(g,type,x,z,rotation=0,{side=g.viewSide,island=g.viewIsland,residentId='player'}={}){if(type==='mushroom')return residentId==='player'&&side===g.viewSide&&island===g.viewIsland?enqueue(g,'plantMushroom',null,{x,z}):{ok:false,message:'请由居民自主选择种植地点。'};const item=ITEMS.find(i=>i.id===type),payer=residentId==='player'?g:g.npcs[residentId];if(!item||item.fixed)return{ok:false,message:'该物品不可购买'};if(payer.money<item.price)return{ok:false,message:'星币不足，完成工作可赚取星币。'};if(!canPlace(g,x,z,side,island))return{ok:false,message:'这里没有足够的摆放空间。'};payer.money-=item.price;const o={id:`${type}-${g.nextId++}`,type,x,z,rotation,island,side};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);return{ok:true,object:o};}
-export const isSellableItem=o=>!!o&&ITEMS.some(item=>item.id===o.type);
+export const isSellableItem=o=>!!o&&!o.sceneFixed&&ITEMS.some(item=>item.id===o.type);
 export function sellItem(g,id){const item=g.objects.find(o=>o.id===id);if(!isSellableItem(item)||g.incubations.some(b=>b.podId===id))return false;if(allActors(g).some(a=>a.queue.some(q=>q.targetId===id||q.destinationId===id||q.path?.some(p=>p.gateId===id||p.destinationId===id))))return false;const i=g.objects.indexOf(item);g.money+=Math.floor(ITEMS.find(x=>x.id===item.type).price*.7);g.objects.splice(i,1);return true;}
 export function setCareer(g,id){if(!g.player.alive||g.player.age<adultStart(g)||!CAREERS[id]||careerEntryMessage(g,id))return false;if(g.queue.some(a=>['work','study'].includes(a.type)))return false;g.career={id,level:1,shifts:0};return true;}
 export const workStationType=id=>id===CONTINUING_EDUCATION_CAREER?null:id==='chef'?'stove':'lab';
@@ -283,7 +273,7 @@ export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,
   if(type==='care'&&(!g.npcs[targetId]||!isInfant(g,g.npcs[targetId].age)||g.player.age<adultStart(g)))return{ok:false,message:'成年居民可以照料幼体。'};
   if(['chat','joke','gift','flirt'].includes(type)&&(!g.npcs[targetId]||isInfant(g,g.npcs[targetId].age)))return{ok:false,message:'请使用照料互动陪伴幼体。'};
   if(['garden','harvest','extractMaterials','replant'].includes(type)){const o=g.objects.find(o=>o.id===targetId),error=plantActionError(type==='extractMaterials'?materialSource(g.objects,o):o,type);if(error)return{ok:false,message:error};}
- if(['relax','lounge'].includes(type)&&!g.objects.some(o=>o.id===targetId&&o.type==='sofa'))return{ok:false,message:'请先选择沙发。'};
+ if(['relax','lounge'].includes(type)&&!g.objects.some(o=>o.id===targetId&&isSeating(o)))return{ok:false,message:'请先选择沙发或长椅。'};
   const a=ACTIONS[type],cost=actionCost(g,type);if(!a||g.queue.filter(q=>q.source!=='ai').length>=6)return{ok:false,message:'行动队列已满。'};
   if(cost&&!canAfford(g,actor(g,'player'),cost))return{ok:false,message:a.costMessage||'星币不足，无法完成该行动。'};
  if(type==='flirt'&&(g.player.age<adultStart(g)||g.npcs[targetId]?.age<adultStart(g)))return{ok:false,message:'心动互动仅对成年居民开放。'};
@@ -395,7 +385,7 @@ function surfacePath(g,start,end){
  if(!sameSide(start,end))return null;
  const key=(x,z)=>`${x},${z}`,sx=Math.round(start.x),sz=Math.round(start.z),ex=Math.round(end.x),ez=Math.round(end.z);
  const nodes=[{x:sx,z:sz}],seen=new Map([[key(sx,sz),null]]);let found=false;
- for(let i=0;i<nodes.length;i++){const p=nodes[i];if(p.x===ex&&p.z===ez){found=true;break;}for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz,k=key(x,z);if(Math.abs(x)>11||Math.abs(z)>7||seen.has(k)||g.objects.some(o=>sameSide(o,start)&&Math.hypot(o.x-x,o.z-z)<.8))continue;seen.set(k,p);nodes.push({x,z});}}
+ for(let i=0;i<nodes.length;i++){const p=nodes[i];if(p.x===ex&&p.z===ez){found=true;break;}for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz,k=key(x,z);if(Math.abs(x)>11||Math.abs(z)>7||seen.has(k)||(islandOf(start)==='spore'&&fairytaleBlocked(x,z,.25,sideOf(start)))||g.objects.some(o=>sameSide(o,start)&&Math.hypot(o.x-x,o.z-z)<.8))continue;seen.set(k,p);nodes.push({x,z});}}
  if(!found)return null;const path=[{x:ex,z:ez,island:islandOf(start),side:sideOf(start)}];let prev=seen.get(key(ex,ez));while(prev){path.unshift({...prev,island:islandOf(start),side:sideOf(start)});prev=seen.get(key(prev.x,prev.z));}path.shift();path.push(end);return path;
 }
 // Dijkstra connects walkable surface paths with deliberate, timed gate crossings.
@@ -448,7 +438,7 @@ export function autonomousCandidates(g,id){
  for(const o of g.objects){
   let types=WONDER_OPTIONS[o.type]||[ITEMS.find(i=>i.id===o.type).action];
   if(CROPS[o.type])types=o.plant.health<=0?['replant']:o.plant.growth>=1?['harvest','extractMaterials']:['garden'];
-  if(o.type==='sofa')types=autonomousCooperationReady(g,person)?['relax','lounge']:['relax'];if(o.type==='lab')types=['research','spaceResearch','buildUfo1','buildUfo2','buildUfo3'];if(o.type==='stove')types=['cook','prepareRations'];if(o.type==='beacon')types=['observe'];if(o.type==='portal')types=['explore','memoryExpedition','voyage','starVoyage'];
+  if(isSeating(o))types=autonomousCooperationReady(g,person)?['relax','lounge']:['relax'];if(o.type==='lab')types=['research','spaceResearch','buildUfo1','buildUfo2','buildUfo3'];if(o.type==='stove')types=['cook','prepareRations'];if(o.type==='beacon')types=['observe'];if(o.type==='portal')types=['explore','memoryExpedition','voyage','starVoyage'];
   if(workbench(o))types=[...new Set([...types,...projectActions(o)])];
   if(!studyError(person.position,stageConfig(g),o,careerOf(g,person))&&studyWindowOpen(g,person))types=[...types,'study'];
   for(const type of types){
@@ -559,11 +549,11 @@ function ensureSettlementStations(g,id){
   const [x,z]=spot;g.objects.push({id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation:0,fixed:true});
  }
 }
-function ensureStarIsland(g,id){
+export function ensureStarIsland(g,id){
  if(id==='home')return;
  if(!g.objects.some(o=>islandOf(o)===id)){
   const blueprint=islandDefinition(g,id),layout=blueprint.layout??[['portal',0,0],['pod',-5,-3],['food',-2,-3],['shower',2,-3],['lab',5,-3],[id==='spore'?'garden':'relic',5,2]].map(([type,x,z])=>({type,x,z,rotation:0}));
-  for(const {type,x,z,rotation} of layout){const o={id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation,fixed:true};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);}
+  for(const {type,x,z,rotation} of layout){const o={id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation,fixed:true};if(blueprint.theme==='fairytale')o.sceneFixed=true;if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);}
  }
  ensureSettlementStations(g,id);
  for(const [type,spots] of [['sofa',[[-8,-3],[-8,3],[-7,4],[7,4],[-7,0]]],['music',[[8,5],[-8,5],[7,5],[-7,5],[8,-5]]]]){
@@ -575,9 +565,10 @@ function ensureStarIsland(g,id){
 
 function syncConstruction(g,id){
  const p=g.civilization.projects[id];if(!p||p.construction===0)return;
- const base=g.objects.filter(o=>islandOf(o)===id&&!o.id.startsWith(`${id}-housing-`)),items=housingFurniture(p.plan,base);
+ const base=g.objects.filter(o=>islandOf(o)===id&&!o.id.startsWith(`${id}-housing-`)),items=islandDefinition(g,id).theme==='fairytale'?FAIRYTALE_CONSTRUCTION_ITEMS:housingFurniture(p.plan,base);
  for(const [i,item]of items.entries()){
   if(p.construction/600<.65+.35*(i+1)/items.length||g.objects.some(o=>islandOf(o)===id&&o.type===item.type))continue;
+  if(id==='spore'&&!canPlace(g,item.x,item.z,'front',id))continue;
   g.objects.push({...item,id:`${id}-housing-${item.type}`,island:id,side:'front',fixed:true});
  }
 }
@@ -672,7 +663,7 @@ function advanceAction(g,person,dt,random){
  const currentTarget=['walk','plantMushroom'].includes(q.type)?q.target:q.hostId?guestApproach(g,q.targetId):destination(g,q.targetId);if(currentTarget&&(!sameSide(currentTarget,q.target)||Math.hypot(currentTarget.x-q.target.x,currentTarget.z-q.target.z)>1.5)){q.target=currentTarget;q.path=null;delete q.transit;delete q.blinkTransit;q.phase='walking';}
  if(!['walk','plantMushroom'].includes(q.type)&&!destination(g,q.targetId)){person.queue.shift();person.ai.cooldown=3;person.ai.reason='目标已不存在，重新观察';return;}
  if(seatedAction(q)){
-  const sofa=g.objects.find(o=>o.id===q.targetId&&o.type==='sofa');if(!sofa){person.queue.shift();return;}
+  const sofa=g.objects.find(o=>o.id===q.targetId&&isSeating(o));if(!sofa){person.queue.shift();return;}
   if(!Number.isInteger(q.seat)||q.seat<0){const seat=freeSofaSeat(g,q.targetId,q);if(seat<0){q.phase='waiting';return;}q.seat=seat;q.path=null;q.phase='walking';}
   const approach=localToWorld(sofa,[1.3,0,SOFA_SEATS[q.seat]]);if(q.target.x!==approach.x||q.target.z!==approach.z){q.target={x:approach.x,z:approach.z,island:islandOf(sofa),side:sideOf(sofa)};q.path=null;}
   if(q.type==='lounge'&&!q.invited){q.invited=true;inviteSofaGuests(g,person,q);}
@@ -739,7 +730,7 @@ export function enforceFleetLimit(g){
 }
 export function tick(g,seconds,random=Math.random){
  enforceFleetLimit(g);
- if(!g.speed)return;const dt=seconds*g.speed,time=g.config?.time||{gameMinutesPerRealSecond:2,starYearDays:8},gameMinutesPerSecond=time.gameMinutesPerRealSecond;g.minute+=dt*gameMinutesPerSecond;while(g.minute>=1440){g.minute-=1440;g.day++;payGovernmentSubsidy(g);advanceDailySpiritTrees(g,random);}
+ if(!g.speed)return;const dt=seconds*g.speed,time=g.config?.time||{gameMinutesPerRealSecond:2,starYearDays:8},gameMinutesPerSecond=time.gameMinutesPerRealSecond;g.minute+=dt*gameMinutesPerSecond;while(g.minute>=1440){g.minute-=1440;g.day++;payGovernmentSubsidy(g);}
  const crops=cropDefinitions(g);advancePlants(g.objects,dt*gameMinutesPerSecond,crops);advanceWonders(g,dt*gameMinutesPerSecond,allActors(g));
  for(const person of allActors(g))for(const q of [...person.queue])if(WONDER_ACTIONS[q.type]?.paired&&(q.hostId?!pairedHost(g,q):q.invited&&!pairedGuest(g,q)))cancelPaired(g,q);
  // Direct conversations take precedence over a neighbor's autonomous plan.
@@ -961,7 +952,7 @@ export function restore(raw){
  }
  // Old workbench lessons cannot continue at unrelated facilities; retain all earned progress.
  for(const queue of new Set([g.queue,...Object.values(g.npcs).map(n=>n.queue)]))if(Array.isArray(queue))for(let i=queue.length-1;i>=0;i--){const a=queue[i];if(a.type==='study'&&a.studyVersion===undefined&&Object.hasOwn(SKILLS,a.studySkill)){if(studyFacilitySkill(studyTarget(g,a.targetId))!==a.studySkill)queue.splice(i,1);else a.studyVersion=2;}}
- const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||(a.type==='memoryExpedition'?g.objects.some(o=>o.id===a.targetId&&o.type==='portal'):g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type))))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&o.type==='sofa'))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(['walk','plantMushroom'].includes(a.type)||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
+ const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||(a.type==='memoryExpedition'?g.objects.some(o=>o.id===a.targetId&&o.type==='portal'):g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type))))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&isSeating(o)))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(['walk','plantMushroom'].includes(a.type)||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
  const residentNpcCount=Object.keys(g.npcs||{}).length-Number(g.controlledId!=='player');
  const valid=g?.version===22&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
   &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&residentNpcCount<=(3+Object.keys(g.civilization.islands).length)*8&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&(id===g.controlledId||range(g.relationships?.[id],0,100))&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validCareerState(n.career)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))

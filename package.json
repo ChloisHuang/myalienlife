@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.js",
+    "screenshot:island": "node tools/capture-island.mjs",
     "build:online": "node scripts/build-release.js",
     "test:online": "playwright test --config playwright.online.config.js",
     "deploy": "node scripts/deploy.js"

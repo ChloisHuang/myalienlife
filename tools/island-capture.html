@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>星岛截图</title><link rel="icon" href="data:,"><style>html,body,#world{margin:0;width:100%;height:100%;overflow:hidden}canvas{display:block}.ufo-flight-board{display:none}</style></head><body><div id="world"></div><script type="module">
+import {createWorld} from '/src/world.js';
+import {CAPTURE_WEATHER,poseCaptureFrame} from './island-capture-fixture.js';
+const fixture=await (await fetch('/__island_capture.json')).json(),container=document.querySelector('#world');
+const world=await createWorld(container,()=>fixture.state,{onClick(){},onHover(){},onPlace(){},weatherProvider:()=>CAPTURE_WEATHER});
+world.setSceneOnly(true);
+for(let frame=0;frame<=60;frame++){
+ await new Promise(requestAnimationFrame);const seconds=frame/10;poseCaptureFrame(fixture,seconds);world.render(fixture.state,seconds);
+}
+container.dataset.ready='true';
+</script></body></html>

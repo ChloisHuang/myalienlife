@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>童梦星屿 · 本地验收</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;color:#283b34;background:#a7c8c6;letter-spacing:0}#world{position:fixed;inset:0}canvas{display:block}header{position:fixed;top:16px;left:20px;right:20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;pointer-events:none}header>*{pointer-events:auto}h1{font-size:20px;margin:0;font-weight:650}nav,.tools{display:flex;gap:4px;padding:4px;background:#ffffffed;border-radius:6px}button{border:0;background:transparent;color:#344c42;padding:9px 13px;font:inherit;cursor:pointer;border-radius:4px}button[aria-pressed=true]{background:#d5e8da;color:#1f4734}button:hover{background:#e6eee8}button svg{width:20px;height:20px;vertical-align:middle}#catalog{position:fixed;bottom:20px;left:20px;display:flex;gap:6px;background:#fffef2ed;border-radius:6px;padding:5px}#catalog button{display:flex;align-items:center;gap:8px}#status{position:fixed;bottom:82px;left:20px;max-width:calc(100% - 40px);padding:8px 12px;background:#ffffffed;border-radius:4px}#status:empty{display:none}.tools{margin-left:auto}#world>.ufo-flight-board{display:none}body.back h1{color:#f3eddc}@media(max-width:600px){header{left:12px;right:12px;top:12px;gap:8px}h1{font-size:17px}button{padding:8px 10px}.tools{margin-left:0}#catalog{left:12px;right:12px;bottom:12px;justify-content:center}#catalog button{font-size:12px;padding:8px;gap:4px}#status{left:12px;bottom:76px}}
+</style>
+</head>
+<body>
+<div id="world"></div>
+<header><h1>童梦星屿</h1><nav aria-label="岛面"><button data-side="front" aria-pressed="true">绘本花园</button><button data-side="back" aria-pressed="false">禁忌森林</button></nav><div class="tools"><button id="day" title="切换昼夜" aria-label="切换昼夜"><i data-lucide="sun-moon"></i></button><button id="reset" title="重置视角" aria-label="重置视角"><i data-lucide="focus"></i></button><button id="cancel" title="取消摆放" aria-label="取消摆放"><i data-lucide="x"></i></button></div></header>
+<div id="catalog" aria-label="童话花园物品包"><button data-item="fairyBench" title="购买绘本花园长椅 · 190 星币"><i data-lucide="armchair"></i>长椅</button><button data-item="fairyLantern" title="购买蜜光庭院灯 · 110 星币"><i data-lucide="lamp"></i>庭院灯</button><button data-item="fairyPlanter" title="购买红陶花箱 · 85 星币"><i data-lucide="flower-2"></i>花箱</button></div>
+<output id="status">加载中</output>
+<label style="position:fixed;right:20px;bottom:84px;background:#ffffffed;padding:8px 12px;border-radius:4px;color:#283b34">建设 <output id="progress-value">100%</output><input id="progress" type="range" min="0" max="100" step="20" value="100" aria-label="建设进度" style="width:120px;vertical-align:middle"></label>
+<script type="module" src="./fairytale-preview.js"></script>
+</body></html>

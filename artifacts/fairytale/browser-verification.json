@@ -1,0 +1,42 @@
+{
+  "report": [
+    {
+      "side": "front",
+      "width": 1440,
+      "height": 1000,
+      "pixels": {
+        "colors": 18146,
+        "light": 72289
+      }
+    },
+    {
+      "side": "back",
+      "width": 1440,
+      "height": 1000,
+      "pixels": {
+        "colors": 13735,
+        "light": 1421
+      }
+    },
+    {
+      "side": "front",
+      "width": 390,
+      "height": 844,
+      "pixels": {
+        "colors": 3342,
+        "light": 19021
+      }
+    },
+    {
+      "side": "back",
+      "width": 390,
+      "height": 844,
+      "pixels": {
+        "colors": 2884,
+        "light": 127
+      }
+    }
+  ],
+  "errors": [],
+  "saveApiRequests": 0
+}

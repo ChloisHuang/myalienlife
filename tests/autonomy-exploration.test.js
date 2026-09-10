@@ -19,7 +19,7 @@ test('crystal switches for free at any charge, resets it, then uses dust only wh
  assert.equal(enqueue(g,'tuneSleep',o.id).ok,true);run(g,20);assert.equal(o.wonder.mode,'sleep');assert.equal(o.wonder.armed,false);assert.ok(o.wonder.charge<10);
 });
 test('discovery totals and distinct city records persist independently of furniture',()=>{
- const g=setup(),o=buyItem(g,'portal',0,0).object;g.wonders.archive=3;g.player.island=o.island='city';
+ const g=setup(),o=buyItem(g,'portal',0,0).object;g.wonders.archive=3;g.player.island=o.island='city';g.civilization.discoveryPath=['home','spore','city'];
  enqueue(g,'memoryExpedition',o.id);run(g,40);assert.equal(g.wonders.expeditions,1);assert.equal(g.wonders.cityRecords.length,1);assert.equal(restore(serialize(g)).wonders.expeditions,1);
 });
 test('an unlocked civilization expedition can be selected autonomously and persists its rewards',()=>{

@@ -6,15 +6,16 @@ import {generateIsland,validIslandBlueprint} from './island-generator.js';
 import {islandOf} from './island.js';
 import {createProject,projectError,validProjects} from './settlements.js';
 import {materialSource,plantActionError} from './plants.js';
+import {FAIRYTALE_LAYOUT} from './fairytale-definition.js';
 
 export const STAR_ISLANDS={
  home:{name:'露米纳星湾',level:0,color:0xbce0d4,skill:null,required:0,interests:[]},
- spore:{name:'孢海浮洲',level:1,color:0x89bdba,skill:'botany',required:6,interests:['garden','observe','explore']},
+ spore:{name:'童梦星屿',theme:'fairytale',layout:FAIRYTALE_LAYOUT,level:1,color:0x83b965,skill:'botany',required:6,interests:['garden','observe','explore']},
  city:{name:'失落星城',level:2,color:0x9c8bcc,skill:'science',required:12,interests:['research','observe','explore']}
 };
 export const SPACE_LEVELS=Array.from({length:19},(_,level)=>({name:['地表时代','近星航行','深空跃迁'][level]??`星域航行 ${level-2} 阶`,points:20*level*(level+1)}));
 const MAX_TECH=SPACE_LEVELS.at(-1).points;
-export const islandCatalog=g=>Object.fromEntries(Object.entries({...STAR_ISLANDS,...g.civilization.islands}).filter(([id])=>!g.civilization.destroyedIslands.includes(id)));
+export const islandCatalog=g=>Object.fromEntries(Object.entries({...STAR_ISLANDS,...g.civilization.islands}).filter(([id])=>!g.civilization.destroyedIslands.includes(id)&&(id!=='city'||g.version<22||g.civilization.discoveryPath?.includes('city'))));
 export const activeDiscoveryPath=g=>g.civilization.discoveryPath.filter(id=>!g.civilization.destroyedIslands.includes(id));
 export const populationCapacity=g=>Object.keys(islandCatalog(g)).filter(id=>id==='home'||g.civilization.visits[id]>0).length*8;
 export const islandDefinition=(g,id)=>STAR_ISLANDS[id]??g.civilization.islands[id];
@@ -26,7 +27,6 @@ export function discoverAdjacentIsland(g,source,random=Math.random){
  if(c.observations<=c.lastDiscoveryObservation)return null;c.lastDiscoveryObservation=c.observations;
  if(source!==activeDiscoveryPath(g).at(-1)||!(c.visits[source]>0))return null;
  if(!c.discoveryPath.includes('spore')){if(c.observations<3)return null;c.discoveryPath.push('spore');return STAR_ISLANDS.spore;}
- if(!c.discoveryPath.includes('city')){if(g.wonders.archive<3)return null;c.discoveryPath.push('city');return STAR_ISLANDS.city;}
  const index=Object.keys(c.islands).length;if(c.observations<12||index>=64||random()>=ISLAND_DISCOVERY_CHANCE)return null;
  const b=generateIsland(c.seed,index);c.islands[b.id]=b;c.visits[b.id]=0;c.surveys[b.id]=0;c.surveyDays[b.id]=0;c.projects[b.id]=createProject(c.seed^index);c.discoveryPath.push(b.id);return b;
 }
@@ -68,7 +68,7 @@ export function contributeCivilization(g,type,p,skills,career,random=Math.random
 export function validCivilization(c){
  const count=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9;
  if(!c||!Array.isArray(c.destroyedIslands)||new Set(c.destroyedIslands).size!==c.destroyedIslands.length||c.destroyedIslands.some(id=>id==='home'||!c.discoveryPath?.includes(id))||!validProjects(c))return false;
- const sequence=['home','spore','city',...Object.values(c?.islands??{}).sort((a,b)=>a.index-b.index).map(b=>b.id)];
+ const sequence=['home','spore',...(c.discoveryPath?.includes('city')?['city']:[]),...Object.values(c?.islands??{}).sort((a,b)=>a.index-b.index).map(b=>b.id)];
  if(!Array.isArray(c?.discoveryPath)||c.discoveryPath.length<1||c.discoveryPath.length>sequence.length||c.discoveryPath.some((id,i)=>id!==sequence[i])||Object.keys(c.islands??{}).some(id=>!c.discoveryPath.includes(id)))return false;
  return !!c&&Number.isInteger(c.seed)&&c.seed>=0&&c.seed<=0xffffffff&&c.islands&&Object.keys(c.islands).length<=64&&Object.entries(c.islands).every(([id,b])=>validIslandBlueprint(b,id)&&count(c.visits?.[id])&&count(c.surveys?.[id])&&count(c.surveyDays?.[id]))&&count(c.knowledge)&&count(c.technology)&&c.technology<=MAX_TECH&&count(c.observations)&&count(c.lastDiscoveryObservation)&&c.lastDiscoveryObservation<=c.observations&&['spore','city'].every(id=>count(c.surveys?.[id])&&count(c.surveyDays?.[id]))&&Object.keys(STAR_ISLANDS).every(id=>count(c.visits?.[id]));
 }

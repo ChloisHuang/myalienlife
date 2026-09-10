@@ -127,14 +127,24 @@ export function createBioluminescence(parent,{radius,height,color,count=7}){
 }
 
 export function createAtmosphere(scene,camera,random){
- const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1};
+ const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1},storybook={value:0};
  // Fill the viewport directly so zooming cannot crop away the nebula's detail.
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
-  uniforms:{time,cloudCover,front,aspect},depthWrite:false,depthTest:false,
+  uniforms:{time,cloudCover,front,aspect,storybook},depthWrite:false,depthTest:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
-  fragmentShader:`uniform float time,cloudCover,front,aspect;varying vec2 vUv;${noiseGLSL}
+  fragmentShader:`uniform float time,cloudCover,front,aspect,storybook;varying vec2 vUv;${noiseGLSL}
    void main(){
     vec2 p=(vUv-.5)*vec2(aspect,1.0);
+    if(storybook>.5){
+     vec3 upper=mix(vec3(.020,.032,.040),vec3(.23,.43,.49),front);
+     vec3 lower=mix(vec3(.075,.105,.083),vec3(.64,.73,.62),front);
+     vec3 color=mix(lower,upper,smoothstep(0.,1.,vUv.y));
+     color+=vec3(mist(p*2.3)*.012);
+     gl_FragColor=vec4(color,1.0);
+     #include <tonemapping_fragment>
+     #include <colorspace_fragment>
+     return;
+    }
     vec3 upper=mix(vec3(.010,.014,.036),vec3(.035,.10,.28),front);
     vec3 lower=mix(vec3(.020,.036,.063),vec3(.23,.195,.30),front);
     vec3 color=mix(lower,upper,smoothstep(.0,.95,vUv.y));
@@ -181,5 +191,5 @@ export function createAtmosphere(scene,camera,random){
   const points=new THREE.Points(geometry,material);points.frustumCulled=false;scene.add(points);
  }
  particles(850,false);particles(100,true);
- return {update(t,weather,frontAmount){time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
+ return {update(t,weather,frontAmount,isStorybook=false){storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
 }

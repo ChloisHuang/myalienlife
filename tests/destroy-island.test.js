@@ -5,7 +5,8 @@ import {contributeCivilization,discovered,islandCatalog} from '../src/civilizati
 
 function chain(){
  const g=createGame();g.civilization.observations=12;g.wonders.archive=3;
- for(const id of ['home','spore','city','wild-0']){g.civilization.visits[id]=1;contributeCivilization(g,'explore',{island:id},null,null,()=>0);}
+ g.civilization.discoveryPath=['home','spore','city'];
+ for(const id of ['city','wild-0']){g.civilization.visits[id]=1;contributeCivilization(g,'explore',{island:id},null,null,()=>0);}
  return g;
 }
 test('home is protected and deleting a middle island preserves later islands and discovery',()=>{

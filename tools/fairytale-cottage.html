@@ -1,0 +1,22 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>童话小屋 · 造型样板</title><link rel="icon" href="data:,"><style>
+body{margin:0;background:#d4d9d5;color:#35443d;font:14px system-ui;letter-spacing:0}canvas{display:block;width:100%;height:100%}#view{position:fixed;inset:0}header{position:fixed;left:20px;top:20px;right:20px;display:flex;align-items:center;justify-content:space-between;gap:16px}h1{font-size:18px;margin:0}button{border:0;border-radius:4px;background:#ffffffd9;color:#35443d;padding:10px;cursor:pointer}button svg{width:20px;height:20px;display:block}#status{position:fixed;bottom:20px;left:20px} @media(max-width:600px){header{left:12px;right:12px}h1{font-size:16px}}
+</style></head><body><div id="view"></div><header><h1>童话小屋 · 造型样板</h1><button id="reset" aria-label="重置视角" title="重置视角"><i data-lucide="focus"></i></button></header><output id="status">加载中</output><script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
+import {createIcons,Focus} from 'lucide';
+createIcons({icons:{Focus}});
+const scene=new THREE.Scene();scene.background=new THREE.Color(0xd4d9d5);
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;document.querySelector('#view').append(renderer.domElement);
+const camera=new THREE.OrthographicCamera(-5,5,4,-4,.1,80),controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.minZoom=.7;controls.maxZoom=2;controls.maxPolarAngle=Math.PI*.48;
+function reset(){camera.position.set(7,5.5,8);controls.target.set(0,2.05,0);camera.zoom=1;camera.updateProjectionMatrix();controls.update();}reset();
+scene.add(new THREE.HemisphereLight(0xfff5e4,0x737d75,.95));const sun=new THREE.DirectionalLight(0xffeddb,2.8);sun.position.set(-5,8,6);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.normalBias=.025;Object.assign(sun.shadow.camera,{left:-6,right:6,top:7,bottom:-6,far:30});scene.add(sun);
+const rim=new THREE.DirectionalLight(0xe4eef3,.65);rim.position.set(4,5,-5);scene.add(rim);
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xc4ccc4,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=.25;floor.receiveShadow=true;scene.add(floor);
+const draco=new DRACOLoader().setDecoderPath('/assets/draco/').setDecoderConfig({type:'wasm'}),loader=new GLTFLoader().setDRACOLoader(draco);
+const asset=await loader.loadAsync('/assets/fairytale-cottage-sample.glb');asset.scene.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});scene.add(asset.scene);draco.dispose();
+function resize(){const w=innerWidth,h=innerHeight,v=innerWidth<600?4*h/w:3.6;renderer.setSize(w,h);camera.left=-v*w/h;camera.right=v*w/h;camera.top=v;camera.bottom=-v;camera.updateProjectionMatrix();}resize();addEventListener('resize',resize);document.querySelector('#reset').onclick=reset;
+document.querySelector('#status').textContent='';document.querySelector('#view').dataset.ready='true';
+function frame(){controls.update();renderer.render(scene,camera);requestAnimationFrame(frame);}frame();
+</script></body></html>

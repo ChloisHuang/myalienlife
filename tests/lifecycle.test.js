@@ -47,7 +47,7 @@ test('population capacity grows only with landed islands and both birth paths re
  assert.equal(populationCapacity(g),8);assert.match(sim.birthDecision(g,'player').reason,/人口上限 8/);assert.equal(sim.enqueue(g,'incubate','nursery').ok,false);
  g.civilization.observations=3;g.wonders.archive=3;assert.equal(populationCapacity(g),8);
  g.civilization.visits.spore=1;assert.equal(populationCapacity(g),16);assert.equal(sim.birthDecision(g,'player').ready,true);assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);g.queue=[];
- g.space.backs.spore=true;g.civilization.visits.spore=20;assert.equal(populationCapacity(g),16);g.civilization.visits.city=1;assert.equal(populationCapacity(g),24);
+ g.space.backs.spore=true;g.civilization.visits.spore=20;assert.equal(populationCapacity(g),16);g.civilization.discoveryPath=['home','spore','city'];g.civilization.visits.city=1;assert.equal(populationCapacity(g),24);
  for(let i=3;i<11;i++){const p=structuredClone(g.npcs.pip);p.uid=`extra-${i}`;g.npcs[p.uid]=p;}
  for(const id of Object.keys(g.npcs)){g.relationships[id]??=0;for(const [other,n]of Object.entries(g.npcs))if(other!==id)n.relationships[id]??=0;}
  assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);assert.equal(populationCapacity(sim.restore(sim.serialize(g))),24);
