@@ -554,25 +554,18 @@ def star(x,y,z,size,mat):
     mesh=bpy.data.meshes.new('bookmark star');mesh.from_pydata(verts,[],faces);mesh.update()
     o=bpy.data.objects.new('star',mesh);bpy.context.collection.objects.link(o);finish(o,mat,False)
 
-def story_moon(dark=False):
-    ball((0,0,0),(2.4,2.4,2.4),'dead' if dark else 'ivory')
+def front_story_moon():
+    ball((0,0,0),(2.4,2.4,2.4),'ivory')
     for x,y,s in [(-.85,.9,.43),(.9,.2,.31),(-.1,-1,.24)]:
         z=math.sqrt(2.4**2-x*x-y*y)
-        ball((x,y,z-.07),(s,s,.10),'slate' if dark else 'paper')
+        ball((x,y,z-.07),(s,s,.10),'paper')
     ring=[]
     for i in range(49):
         a=i*math.tau/48;ring.append((3.65*math.cos(a),.40*math.sin(a),2.85*math.sin(a)))
-    curve(ring,.095,'bark' if dark else 'gold')
+    curve(ring,.095,'gold')
     for x,y,z in [(-2.8,-1.3,1.4),(2.4,-1.5,1.9),(.4,-2.7,2.5)]:
-        rod((x,y+.8,z),(x,y,z),.025,'bark' if dark else 'gold')
-        star(x,y-.20,z,.29,'rust' if dark else 'glow')
-    if dark:
-        for i in range(10):
-            a=i*math.tau/10
-            rod((3.65*math.cos(a),.40*math.sin(a),2.85*math.sin(a)),(4.0*math.cos(a),.40*math.sin(a)+.4,3.1*math.sin(a)),.11,'bark',0)
-        points=[(-.3,2.3),(-.6,1.6),(-.15,1),(-.6,.25),(-.1,-.25),(-.4,-1),(.1,-1.8)]
-        for (x,y),(xx,yy) in zip(points,points[1:]):
-            rod((x,y,math.sqrt(2.4**2-x*x-y*y)+.018),(xx,yy,math.sqrt(2.4**2-xx*xx-yy*yy)+.018),.035,'rust')
+        rod((x,y+.8,z),(x,y,z),.025,'gold')
+        star(x,y-.20,z,.29,'glow')
 
 def story_fragment(dark=False):
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=1)
@@ -614,8 +607,8 @@ def asset(name, build):
 sample='--cottage-sample' in sys.argv
 environment='--environment' in sys.argv
 if environment:
+    asset('orbit-front',front_story_moon)
     for side,dark in [('front',False),('back',True)]:
-        asset('orbit-'+side,lambda d=dark:story_moon(d))
         asset('fragment-'+side,lambda d=dark:story_fragment(d))
 elif sample:
     asset('cottage-sample',lambda:cottage(0,0,False))

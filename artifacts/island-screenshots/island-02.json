@@ -12,71 +12,16 @@
   "weather": "spores",
   "seed": 20260910,
   "savePath": "/Users/jiaying/Local/Projects/myalienlife/.data/orbit-life.json",
-  "saveSha256": "8126f0d0a47959908b2431e90730b812cb67e9eae933b0bdf6e356a89d78af61",
+  "saveSha256": "94aea4c6069389ff40cb1ab94d865fca9e623cbb81e9b3ab2112d7d667bc552b",
   "construction": 600,
   "captures": [
-    {
-      "side": "front",
-      "file": "island-02-front.png",
-      "pixels": {
-        "width": 1920,
-        "height": 1080,
-        "colors": 10956
-      },
-      "residents": [
-        {
-          "id": "player",
-          "action": "eat"
-        },
-        {
-          "id": "nova",
-          "action": "relax"
-        },
-        {
-          "id": "zig",
-          "action": "walk"
-        },
-        {
-          "id": "lumi",
-          "action": "garden"
-        },
-        {
-          "id": "pip",
-          "action": "dance"
-        },
-        {
-          "id": "kai",
-          "action": "walk"
-        },
-        {
-          "id": "resident-643",
-          "action": "sleep"
-        },
-        {
-          "id": "resident-2093",
-          "action": "research"
-        },
-        {
-          "id": "resident-5191",
-          "action": "walk"
-        },
-        {
-          "id": "resident-10707",
-          "action": "walk"
-        },
-        {
-          "id": "resident-11911",
-          "action": "walk"
-        }
-      ]
-    },
     {
       "side": "back",
       "file": "island-02-back.png",
       "pixels": {
         "width": 1920,
         "height": 1080,
-        "colors": 8272
+        "colors": 9257
       },
       "residents": [
         {

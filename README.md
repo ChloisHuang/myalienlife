@@ -9,7 +9,7 @@
 
 <p align="center">
   <img src="docs/images/island-02-front.png" alt="童梦星屿正面：红瓦屋、尖塔城堡与绘本花园" width="49%">
-  <img src="docs/images/island-02-back.png" alt="童梦星屿背面：狼屋、卷曲枯树与幽光城堡" width="49%">
+  <img src="docs/images/island-02-back.png" alt="童梦星屿背面：血月与蝙蝠剪影、卷曲枯树和幽光城堡" width="49%">
 </p>
 
 **一个会自己生活的外星小世界。**

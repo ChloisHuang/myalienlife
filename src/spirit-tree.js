@@ -131,11 +131,11 @@ export function createSpiritTree(){
    root.getWorldQuaternion(eyeRotation).invert();camera.getWorldQuaternion(eye.quaternion);eye.quaternion.premultiply(eyeRotation);
    eyeOffset.set(0,0,1.2).applyQuaternion(eye.quaternion);eye.position.set(0,2.75,0).add(eyeOffset);
   },
-  update(time,side,daylight,wind){
-   const palette=palettes[side],strength=palette.strength*(1+(1-daylight)*.35);
+  update(time,side,daylight,wind,vitality=1){
+   const palette=palettes[side],life=.12+.88*vitality,strength=palette.strength*(1+(1-daylight)*.35)*life;
    bark.color.set(palette.bark);bark.emissive.set(palette.vein);bark.bio.time.value=time;bark.bio.strength.value=strength;
    uniforms.time.value=time;uniforms.strength.value=strength;uniforms.tint.value.set(palette.vein);uniforms.tip.value.set(palette.tip);uniforms.wind.value=wind;
-   light.color.set(palette.vein);light.intensity=palette.light*(1+(1-daylight)*.3);
+   light.color.set(palette.vein);light.intensity=palette.light*(1+(1-daylight)*.3)*life;
   },
   dispose(){for(const geometry of [body.geometry,curtain.geometry,motesGeometry,eye.geometry])geometry.dispose();for(const material of [bark,strands,motesMaterial,eyeMaterial])material.dispose();}
  };

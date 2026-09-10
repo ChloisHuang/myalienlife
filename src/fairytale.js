@@ -13,7 +13,11 @@ export function createFairytaleKit(asset,environment){
   return root;
  }
  return {
-  environment(name){const root=model(name,environment);if(name.endsWith('-back'))root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){m.emissive.copy(m.color);m.emissiveIntensity=.22;}});return root;},
+  environment(name){
+   const root=model(name,environment);
+   if(name.endsWith('-back'))root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){m.emissive.copy(m.color);m.emissiveIntensity=.22;}});
+   return root;
+  },
   prop(type,island){const name=FAIRYTALE_ITEMS.some(i=>i.id===type)?type:island==='spore'?skins[type]:null;if(!name)return null;const root=model(name);if(type==='fairyLantern'){const light=new THREE.PointLight(0xffd38b,7,4,2);light.position.y=1.6;root.add(light);}return root;},
   terrain(side){
    const root=model(`fairytale-${side}`);root.name=`fairytale-${side}`;

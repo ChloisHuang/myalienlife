@@ -51,10 +51,11 @@ test('clear stream animates with a waterfall while reverse pond has no falling w
  assert.equal(back.root.children[0].material.uniforms.dark.value,1);
  front.dispose();back.dispose();
 });
-test('theme replaces the orbit and fragments on both sides with authored assets',()=>{
+test('theme shares one authored moon and uses side-specific fragments',()=>{
  const data=readFileSync(new URL('../public/assets/fairytale-environment.glb',import.meta.url));
  const json=JSON.parse(data.toString('utf8',20,20+data.readUInt32LE(12)));
- for(const name of ['orbit-front','orbit-back','fragment-front','fragment-back'])assert.ok(json.nodes.some(n=>n.name===name));
+ for(const name of ['orbit-front','fragment-front','fragment-back'])assert.ok(json.nodes.some(n=>n.name===name));
+ assert.ok(!json.nodes.some(n=>n.name==='orbit-back'));
  assert.ok(data.length<1024*1024);
 });
 

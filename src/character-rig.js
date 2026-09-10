@@ -40,8 +40,8 @@ export function createCharacter(source,spec){
  rig.prayerVisuals=createPrayerVisuals(rig);return rig;
 }
 
-export function updateCharacter(rig,{person,action,object,partner,time,delta,config}){
- const look=appearance(person,config?.lifeStages),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}-${JSON.stringify(person.prayer)}`,state=action?`${action.id}-${action.type}-${action.phase}`:'idle';
+export function updateCharacter(rig,{person,action,object,partner,time,delta,config,living={fear:0,tension:0}}){
+ const look=appearance(person,config?.lifeStages),profile=`${person.gender}-${look.stage}-${JSON.stringify(person.genome)}-${JSON.stringify(person.prayer)}`,state=`${action?`${action.id}-${action.type}-${action.phase}`:'idle'}:${living.fear}:${living.tension}`;
  if(rig.initialized&&delta===0&&rig.profile===profile&&rig.state===state)return;
  const previousTips=Object.fromEntries(SIDES.map(side=>[side,rig.joints[side+'TendrilTip'].position.clone()])),poseBlend=rig.initialized&&delta>0?1-Math.exp(-delta*12):1;
  for(const [node,rest]of rig.rest){node.scale.copy(rest.scale);node.position.copy(rest.position);node.quaternion.copy(rest.quaternion);}
@@ -54,6 +54,8 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  const tips={Left:[-.37,-.69,.015],Right:[.37,-.69,.015]};
  for(const [i,side]of SIDES.entries()){tips[side][1]+=Math.sin(time*1.3+i*1.5)*.008;tips[side][2]+=moving?Math.cos(rig.stride+i*Math.PI-.3)*.17:Math.sin(time*.8+i)*.008;}
  Object.values(rig.effects).forEach(e=>e.visible=false);
+ if(!moving&&living.fear>=30){rig.joints.Core.rotation.x+=.15;rig.joints.Head.rotation.y=Math.sin(time*1.1)*.4;tips.Left=[-.22,-.2,.3];tips.Right=[.22,-.2,.3];}
+ if(!moving&&partner&&living.tension>=20){yaw+=.5;rig.joints.Head.rotation.y=-.35;tips.Left=[.16,-.1,.4];tips.Right=[-.16,-.2,.4];}
  const type=['acting','celebrating'].includes(action?.phase)?(action.type==='lounge'?'relax':action.type):null;
  if(type){
   const wave=Math.sin(action.elapsed*3),settle=action.phase==='celebrating'?1:THREE.MathUtils.smoothstep(action.elapsed,0,.65);
@@ -77,6 +79,8 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
    if(['explore','travel'].includes(type)){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
    if(type==='pray'){local=[0,0,1.6];kneel=settle;bob=0;rig.joints.Core.rotation.x=0;rig.joints.Head.rotation.x=.22;rig.joints.Head.rotation.y=0;tips.Left=[-.055,-.10,.4];tips.Right=[.055,-.10,.4];}
    if(['lightDaily','lightGrow','lightParty'].includes(type)){tips.Right=[.3,.12+wave*.04,.5];rig.joints.Head.rotation.x=-.15;}
+   if(type==='tendTree'){local=[0,0,1.25];rig.joints.Core.rotation.x=.5;tips.Left=[-.28,-.5,.55];tips.Right=[.22,-.55+wave*.06,.6];rig.effects.wateringCan.visible=true;}
+   if(type==='listenForest'){local=[0,0,1.7];rig.joints.Head.rotation.x=.35;tips.Left=[-.3,-.25,.25];tips.Right=[.3,-.25,.25];}
    if(['traceRelic','decodeRelic','decodeTogether','restoreMemory','tuneSleep','tuneInsight'].includes(type)){local=[0,0,action.hostId?-1.15:1.15];facing=action.hostId?0:Math.PI;rig.joints.Core.rotation.x=.16;tips.Left=[-.2,.05+wave*.07,.48];tips.Right=[.2,.05-wave*.07,.48];}
    if(['catchBugs','releaseBugs'].includes(type)){local=[0,0,1.1];tips.Left=[-.25,.2+wave*.12,.4];tips.Right=[.3,.3-wave*.1,.45];rig.joints.Head.rotation.x=-.18;}
    if(type==='chaseOrb'){local=[Math.sin(action.elapsed*2)*.65,0,1.25+Math.cos(action.elapsed*2)*.25];bob+=Math.abs(wave)*.05;tips.Left=[-.4,-.1+wave*.15,.35];tips.Right=[.4,-.1-wave*.15,.35];}
@@ -85,6 +89,10 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
    if(type==='memoryExpedition'){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
    const p=localToWorld(object,local);if(type==='pray')p.y=groundHeight(p.x,p.z,object.side,object.island);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
   }else if(type==='care'){rig.joints.Core.rotation.x=.22;target.y-=.1;tips.Left=[-.15,-.30,.46];tips.Right=[.12,-.20+wave*.07,.48];rig.effects.meal.visible=true;
+  }else if(type==='shareLight'){tips.Left=[-.6,.1,.3];tips.Right=[.6,.1,.3];rig.joints.Head.rotation.x=-.1;
+  }else if(type==='confront'){tips.Left=[.1,-.15,.38];tips.Right=[.4,.1+wave*.04,.6];rig.joints.Head.rotation.x=-.08;
+  }else if(type==='reconcile'){tips.Left=[-.16,-.05,.5];tips.Right=[.16,-.05,.5];rig.joints.Head.rotation.x=.2;
+  }else if(type==='accompany'){tips.Right=[.3,-.05,.35];
   }else if(['chat','joke','gift','flirt'].includes(type)){tips.Right=[.45,.12+wave*.12,.33];rig.joints.Head.rotation.x=wave*.045;}
  }
  rig.body.rotation.x=look.stage==='infant'?-Math.PI/2:0;rig.body.position.set(0,-.55*look.scale*kneel,0);
