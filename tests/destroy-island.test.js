@@ -2,18 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,destroyIsland,enqueue,restore,serialize,tick} from '../src/simulation.js';
 import {contributeCivilization,discovered,islandCatalog} from '../src/civilization.js';
+import {generateIsland} from '../src/island-generator.js';
+import {createProject} from '../src/settlements.js';
+
+function addGenerated(g,index,visited=1){
+ const b=generateIsland(g.civilization.seed,index);g.civilization.islands[b.id]=b;g.civilization.discoveryPath.push(b.id);g.civilization.visits[b.id]=visited;g.civilization.surveys[b.id]=0;g.civilization.surveyDays[b.id]=0;g.civilization.projects[b.id]=createProject(g.civilization.seed^index);
+}
 
 function chain(){
  const g=createGame();g.civilization.observations=12;g.wonders.archive=3;
  g.civilization.discoveryPath=['home','spore','city'];
- for(const id of ['city','wild-0']){g.civilization.visits[id]=1;contributeCivilization(g,'explore',{island:id},null,null,()=>0);}
+ g.civilization.visits.city=1;addGenerated(g,0);addGenerated(g,1);
  return g;
 }
-test('home is protected and deleting a middle island preserves later islands and discovery',()=>{
+test('home is protected and deleting a middle island preserves later islands',()=>{
  const g=chain(),before=serialize(g);assert.equal(destroyIsland(g,'home').ok,false);assert.equal(serialize(g),before);
  assert.equal(destroyIsland(g,'spore').ok,true);assert.equal(discovered(g,'spore'),false);assert.equal(islandCatalog(g).spore,undefined);assert.ok(islandCatalog(g)['wild-1']);
- assert.equal(destroyIsland(g,'wild-1').ok,true);contributeCivilization(g,'explore',{island:'wild-0'},null,null,()=>0);
- assert.ok(islandCatalog(g)['wild-2']);assert.equal(islandCatalog(g)['wild-1'],undefined);
+ assert.equal(destroyIsland(g,'wild-1').ok,true);contributeCivilization(g,'explore',{island:'wild-0'},null,null);
+ assert.equal(islandCatalog(g)['wild-2'],undefined);assert.equal(islandCatalog(g)['wild-1'],undefined);
  assert.deepEqual(restore(serialize(g)).civilization,g.civilization);
 });
 test('destroying an inhabited island evacuates residents and ships and cancels its work',()=>{

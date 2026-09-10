@@ -2,12 +2,17 @@ import {createWonder} from '../src/wonders.js';
 import {test,expect} from '@playwright/test';
 import {prayerFixture} from './helpers/prayer-fixture.js';
 import {createGame,CAREERS} from '../src/simulation.js';
+import {generateIsland} from '../src/island-generator.js';
+import {createProject} from '../src/settlements.js';
 import {createSaveStore} from '../server/save-store.js';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
+function addGenerated(g,index,visited=0){
+ const b=generateIsland(g.civilization.seed,index);g.civilization.islands[b.id]=b;g.civilization.discoveryPath.push(b.id);g.civilization.visits[b.id]=visited;g.civilization.surveys[b.id]=0;g.civilization.surveyDays[b.id]=0;g.civilization.projects[b.id]=createProject(g.civilization.seed^index);
+}
 
 test('spine bumps remain individually visible with scene bloom',async({page})=>{
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
@@ -304,14 +309,14 @@ async function savedState(page){await expect(page.locator('#save-status')).toHav
 function sceneCamera(bounds){const camera=new OrthographicCamera(-14*bounds.width/bounds.height,14*bounds.width/bounds.height,14,-14,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);camera.updateMatrixWorld();const offset=new Vector3().setFromMatrixColumn(camera.matrixWorld,0).multiplyScalar(2.4);camera.position.add(offset);camera.lookAt(offset);camera.zoom=.92;camera.updateProjectionMatrix();camera.updateMatrixWorld();return camera;}
 
 test('loading day 159 with generated islands initializes dropdown arrows without resetting the displayed day',async({page})=>{
- const {discoverAdjacentIsland}=await import('../src/civilization.js');const state=createGame();state.day=159;state.speed=0;state.civilization.observations=18;state.wonders.archive=3;state.civilization.discoveryPath=['home','spore','city'];state.civilization.discoveryPath=['home','spore','city'];state.civilization.visits.city=1;discoverAdjacentIsland(state,'city',()=>0);state.civilization.observations++;state.civilization.visits['wild-0']=1;discoverAdjacentIsland(state,'wild-0',()=>0);fixtures.set(page,state);
+ const state=createGame();state.day=159;state.speed=0;state.civilization.observations=18;state.wonders.archive=3;state.civilization.discoveryPath=['home','spore','city'];state.civilization.visits.city=1;addGenerated(state,0,1);addGenerated(state,1);fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#day')).toHaveText('第 159 天');await expect(page.locator('#island-select option')).toHaveCount(5);await page.locator('#island-select').click();await page.keyboard.press('Escape');await expect(page.locator('#island-select')).toBeFocused();
  await expect(page.getByRole('button',{name:'上一座星岛'})).toBeDisabled();await page.getByRole('button',{name:'下一座星岛'}).click();await expect(page.locator('#island-select')).toHaveValue('spore');await page.getByRole('button',{name:'下一座星岛'}).click();await expect(page.locator('#island-select')).toHaveValue('city');await page.getByRole('button',{name:'上一座星岛'}).click();await expect(page.locator('#island-select')).toHaveValue('spore');await expect(page.locator('#world')).toHaveAttribute('data-island','home');
  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);await page.screenshot({path:'artifacts/island-dropdown-mobile.png'});await page.locator('#save').click();const saved=await savedState(page);expect(saved.day).toBe(159);expect(saved.objects).toEqual(state.objects);expect(errors).toEqual([]);
 });
 
 test('procedural island renders its saved blueprint after physical landing and reloading',async({page})=>{
- const {discoverAdjacentIsland}=await import('../src/civilization.js');const state=createGame();state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;state.civilization.seed=20260908;state.civilization.observations=12;state.civilization.technology=240;state.skills.science=18;state.space.ships.push({id:'fixture-ufo',tier:3,island:'home',side:'front',food:2,durability:100,reservedBy:null});state.civilization.discoveryPath=['home','spore','city'];state.civilization.visits.city=1;discoverAdjacentIsland(state,'city',()=>0);state.skills.botany=18;state.player.preferences.garden=10;fixtures.set(page,state);
+ const state=createGame();state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;state.civilization.seed=20260908;state.civilization.observations=12;state.civilization.technology=240;state.skills.science=18;state.space.ships.push({id:'fixture-ufo',tier:3,island:'home',side:'front',food:2,durability:100,reservedBy:null});state.civilization.discoveryPath=['home','spore','city'];state.civilization.visits.city=1;addGenerated(state,0);state.skills.botany=18;state.player.preferences.garden=10;fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('#island-select').selectOption('wild-0');await page.locator('[data-voyage="wild-0"]').click();await page.locator('#confirm-flight').click();await page.locator('[data-speed="3"]').click();await expect(page.locator('#world')).toHaveAttribute('data-island','wild-0',{timeout:35000});await expect(page.locator('.ufo-flight-board')).toBeHidden({timeout:20000});await page.locator('[data-speed="0"]').click();await page.screenshot({path:'artifacts/procedural-island.png'});await page.locator('#save').click();const saved=await savedState(page);expect(saved.civilization.islands).toEqual(state.civilization.islands);expect(saved.player.island).toBe('wild-0');await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#world')).toHaveAttribute('data-island','wild-0');expect(errors).toEqual([]);
 });
 

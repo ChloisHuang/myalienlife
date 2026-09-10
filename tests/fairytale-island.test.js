@@ -63,12 +63,12 @@ test('the first destination is a fixed fairytale design, not a random biome',()=
  assert.equal(a.theme,'fairytale');assert.equal(a.name,'童梦星屿');assert.deepEqual(a.layout,b.layout);
  assert.ok(a.layout.some(o=>o.type==='pod'));assert.ok(a.layout.some(o=>o.type==='portal'));
 });
-test('new exploration skips the retired city but preserves discovered legacy cities',()=>{
+test('new exploration stops until another authored island is released',()=>{
  const g=createGame();assert.equal(islandCatalog(g).city,undefined);
  g.civilization.observations=3;assert.equal(discoverAdjacentIsland(g,'home',()=>0).name,'童梦星屿');
  g.civilization.visits.spore=1;g.civilization.observations=12;
- assert.equal(discoverAdjacentIsland(g,'spore',()=>0).id,'wild-0');
- assert.deepEqual(restore(serialize(g)).civilization.discoveryPath,['home','spore','wild-0']);
+ assert.equal(discoverAdjacentIsland(g,'spore'),null);
+ assert.deepEqual(restore(serialize(g)).civilization.discoveryPath,['home','spore']);
  const legacy=createGame();legacy.civilization.discoveryPath=['home','spore','city'];
  assert.equal(islandCatalog(restore(serialize(legacy))).city.name,'失落星城');
 });

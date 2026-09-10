@@ -2,7 +2,7 @@ import {isNether} from './prayer.js';
 import {skillProgress} from './characters.js';
 import {fleetBuildError,UFOS,backDiscovered,equipmentError} from './space-logistics.js';
 import {spaceResearchYield} from './action-access.js';
-import {generateIsland,validIslandBlueprint} from './island-generator.js';
+import {validIslandBlueprint} from './island-generator.js';
 import {islandOf} from './island.js';
 import {createProject,projectError,validProjects} from './settlements.js';
 import {materialSource,plantActionError} from './plants.js';
@@ -20,15 +20,14 @@ export const activeDiscoveryPath=g=>g.civilization.discoveryPath.filter(id=>!g.c
 export const populationCapacity=g=>Object.keys(islandCatalog(g)).filter(id=>id==='home'||g.civilization.visits[id]>0).length*8;
 export const islandDefinition=(g,id)=>STAR_ISLANDS[id]??g.civilization.islands[id];
 export const SKILL_NAMES={science:'科学',botany:'植物学',social:'社交'};
-export const ISLAND_DISCOVERY_CHANCE=1/96;
 // Keep discovery history (including destroyed nodes) so IDs never respawn or overwrite later islands.
-export function discoverAdjacentIsland(g,source,random=Math.random){
+export function discoverAdjacentIsland(g,source){
  const c=g.civilization;
  if(c.observations<=c.lastDiscoveryObservation)return null;c.lastDiscoveryObservation=c.observations;
  if(source!==activeDiscoveryPath(g).at(-1)||!(c.visits[source]>0))return null;
  if(!c.discoveryPath.includes('spore')){if(c.observations<3)return null;c.discoveryPath.push('spore');return STAR_ISLANDS.spore;}
- const index=Object.keys(c.islands).length;if(c.observations<12||index>=64||random()>=ISLAND_DISCOVERY_CHANCE)return null;
- const b=generateIsland(c.seed,index);c.islands[b.id]=b;c.visits[b.id]=0;c.surveys[b.id]=0;c.surveyDays[b.id]=0;c.projects[b.id]=createProject(c.seed^index);c.discoveryPath.push(b.id);return b;
+ // No additional authored island is released yet; keep surveying quiet until one ships.
+ return null;
 }
 export const createCivilization=()=>({seed:crypto.getRandomValues(new Uint32Array(1))[0],islands:{},destroyedIslands:[],projects:{spore:createProject(),city:createProject()},discoveryPath:['home'],knowledge:0,technology:0,observations:0,lastDiscoveryObservation:0,surveys:{spore:0,city:0},surveyDays:{spore:0,city:0},visits:{home:1,spore:0,city:0}});
 export const spaceLevel=g=>SPACE_LEVELS.reduce((level,s,i)=>g.civilization.technology>=s.points?i:level,0);
@@ -54,13 +53,13 @@ export function civilizationError(g,type,o,p,skills,id,count=1,actionId=null,shi
  if(type==='explore'&&islandOf(p)!=='home'&&g.civilization.surveyDays[islandOf(p)]===g.day)return '这座星岛今天已经完成勘察。';
  return null;
 }
-export function contributeCivilization(g,type,p,skills,career,random=Math.random){
+export function contributeCivilization(g,type,p,skills,career){
  const c=g.civilization,id=islandOf(p);
  const knowledge={research:1,observe:1,traceRelic:2,decodeRelic:3,decodeTogether:3,restoreMemory:5,memoryExpedition:4,explore:id==='home'?1:6}[type]??0;c.knowledge+=knowledge;
  if(type==='spaceResearch')c.technology=Math.min(MAX_TECH,c.technology+spaceResearchYield(career,skills));
  if(type==='observe')c.observations++;
  if(type==='explore'){
-  c.observations++;const next=discoverAdjacentIsland(g,id,random);
+  c.observations++;const next=discoverAdjacentIsland(g,id);
   if(next)g.log.unshift({text:`在${islandDefinition(g,id).name}勘察时发现${next.name}。`,at:g.minute});
  }
  if(type==='explore'&&id!=='home'){c.surveys[id]++;c.surveyDays[id]=g.day;}

@@ -2,9 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generateIsland,validIslandBlueprint,BIOMES} from '../src/island-generator.js';
 import {createGame,enqueue,tick,restore,serialize} from '../src/simulation.js';
-import {contributeCivilization,STAR_ISLANDS} from '../src/civilization.js';
+import {STAR_ISLANDS} from '../src/civilization.js';
+import {createProject} from '../src/settlements.js';
 import {createIslandTerrain} from '../src/island-terrain.js';
 import {Group} from 'three';
+
+function addGenerated(g,index,visited=0){
+ const b=generateIsland(g.civilization.seed,index);g.civilization.islands[b.id]=b;g.civilization.discoveryPath.push(b.id);g.civilization.visits[b.id]=visited;g.civilization.surveys[b.id]=0;g.civilization.surveyDays[b.id]=0;g.civilization.projects[b.id]=createProject(g.civilization.seed^index);return b;
+}
 
 test('seeded generation is reproducible, diverse and valid for all 64 islands',()=>{
  const biomes=new Set(),names=new Set();
@@ -14,16 +19,16 @@ test('seeded generation is reproducible, diverse and valid for all 64 islands',(
  }
  assert.equal(names.size,64);assert.equal(biomes.size,Object.keys(BIOMES).length);assert.notDeepEqual(generateIsland(1,0),generateIsland(2,0));
 });
-test('new exploration generates only remote blueprints and never replaces home furniture or occupants',()=>{
+test('stored remote blueprints never replace home furniture or occupants',()=>{
  const g=createGame(),home=structuredClone(g.objects),people=structuredClone(g.player);
- g.civilization.discoveryPath=['home','spore','city'];g.civilization.visits.city=1;g.civilization.observations=12;contributeCivilization(g,'explore',{island:'city'},undefined,undefined,()=>0);g.civilization.visits['wild-0']=1;contributeCivilization(g,'explore',{island:'wild-0'},undefined,undefined,()=>0);
+ g.civilization.discoveryPath=['home','spore','city'];g.civilization.visits.city=1;addGenerated(g,0,1);addGenerated(g,1);
  assert.equal(Object.keys(g.civilization.islands).length,2);assert.deepEqual(g.objects,home);assert.deepEqual(g.player,people);assert.equal(g.civilization.visits['wild-1'],0);
  const loaded=restore(serialize(g));assert.deepEqual(loaded.civilization.islands,g.civilization.islands);assert.deepEqual(loaded.objects,home);
  assert.throws(()=>createIslandTerrain(STAR_ISLANDS.home,new Group()),/固定/);
 });
 test('generated layouts support arrival, research, saving and return without altering home',()=>{
  const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const k in g.config.needDecay)g.config.needDecay[k]=0;g.civilization.seed=20260908;
- g.civilization.discoveryPath=['home','spore','city'];g.civilization.visits.city=1;g.civilization.observations=12;contributeCivilization(g,'explore',{island:'city'},undefined,undefined,()=>0);g.civilization.technology=240;g.skills.science=18;g.space.ships.push({id:'fixture-ufo',tier:3,island:'home',side:'front',food:2,durability:100,reservedBy:null});g.skills.botany=18;g.player.preferences.garden=10;
+ g.civilization.discoveryPath=['home','spore','city'];g.civilization.visits.city=1;addGenerated(g,0,1);g.civilization.technology=240;g.skills.science=18;g.space.ships.push({id:'fixture-ufo',tier:3,island:'home',side:'front',food:2,durability:100,reservedBy:null});g.skills.botany=18;g.player.preferences.garden=10;
  const home=structuredClone(g.objects);assert.equal(enqueue(g,'voyage','portal',undefined,null,'wild-0').ok,true);for(let i=0;i<500;i++)tick(g,.1,()=>0);
  assert.equal(g.player.island,'wild-0');const lab=g.objects.find(o=>o.id==='wild-0-lab');assert.ok(lab);assert.equal(enqueue(g,'research',lab.id).ok,true);for(let i=0;i<400;i++)tick(g,.1,()=>0);assert.equal(g.queue.length,0);
  const loaded=restore(serialize(g));assert.equal(loaded.player.island,'wild-0');assert.deepEqual(loaded.objects.filter(o=>!o.island||o.island==='home').map(o=>({id:o.id,x:o.x,z:o.z,rotation:o.rotation})),home.map(o=>({id:o.id,x:o.x,z:o.z,rotation:o.rotation})));
