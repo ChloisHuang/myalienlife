@@ -154,7 +154,8 @@ body.dossier-collapsed .locations:is([data-selector-state=announce],[data-select
 @keyframes island-selector-title-out-final{to{opacity:0;transform:translateX(8px) rotate(-1deg)}}
 @keyframes island-selector-controls-in-final{from{opacity:0}to{opacity:1}}
 @keyframes island-selector-controls-out-final{to{opacity:0}}
-.phone-layout .locations{left:auto!important;right:20px!important;top:8px!important;width:min(520px,calc(var(--layout-width,100vw) - 32px))!important;max-width:520px!important;min-width:0!important;margin:0!important;overflow:visible!important;z-index:7}
+.phone-layout .locations{--phone-dashboard-width:min(340px,var(--layout-width,100vw) - 70px);left:auto!important;right:calc(var(--phone-dashboard-width) + 20px)!important;top:8px!important;width:min(520px,max(44px,calc(var(--layout-width,100vw) - var(--phone-dashboard-width) - 48px)))!important;max-width:520px!important;min-width:0!important;margin:0!important;overflow:visible!important;z-index:7}
+.phone-layout.dossier-collapsed .locations{right:20px!important;width:min(520px,calc(var(--layout-width,100vw) - 32px))!important}
 .phone-layout .locations .island-selector-heading{height:44px;padding:0}
 .phone-layout .locations[data-selector-state=open] .island-selector-heading{height:68px}
 .phone-layout .locations .island-selector-heading>p{display:none!important}
@@ -174,3 +175,5 @@ body.dossier-collapsed .locations:is([data-selector-state=announce],[data-select
 
 /* Keep the restored Orbit mark visually bold in every selector state. */
 .locations .island-mobile-launcher .icon{stroke-width:2.0}
+
+html:fullscreen body,html.app-fullscreen body{overflow:hidden;background:#222b40}

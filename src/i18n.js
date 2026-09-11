@@ -67,6 +67,8 @@ PAIRS.push(
  ['出生了！',' was born! '],['的星芽成为星湾的新居民，请照料这位幼体。',"'s starbud is now a new resident of the bay. Please care for this infant."],['本次出现了','A new mutation appeared: ']
 );
 
+PAIRS.push(['进入全屏','Enter fullscreen'],['退出全屏','Exit fullscreen']);
+
 const RESIDENT_NAME_PAIRS=[['凯伊','Kai'],['诺瓦','Nova'],['吉格','Zig'],['露米','Lumi'],['皮普','Pip']];
 const NAME_FIRST_SYLLABLES={艾:'Ai',阿:'Ar',伊:'Yi',欧:'O',洛:'Lo',维:'Vi',泽:'Ze',希:'Xi',赛:'Sai',塔:'Ta',奈:'Nai',科:'Ko',弥:'Mi',珂:'Ke',芙:'Fu',索:'So',乌:'Wu',莱:'Lai',卡:'Ka',提:'Ti',苏:'Su',尤:'You',帕:'Pa',赫:'He'};
 const NAME_SECOND_SYLLABLES={恩:'En',瓦:'Va',米:'Mi',克:'Ke',尔:'Er',拉:'Ra',弥:'Mi',希:'Xi',娅:'Ya',斯:'Si',特:'Te',昂:'Ang',珀:'Po',诺:'No',萨:'Sa',因:'In',卡:'Ka',罗:'Ro',泽:'Ze',亚:'Ya',塔:'Ta',尤:'You',安:'An',埃:'Ai'};

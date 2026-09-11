@@ -14,6 +14,22 @@ test('postprocessed scene does not allocate redundant canvas multisampling',asyn
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  expect(await page.locator('#world canvas').evaluate(canvas=>canvas.getContext('webgl2').getContextAttributes().antialias)).toBe(false);
 });
+test('fullscreen control toggles native fullscreen on desktop and app fullscreen on mobile',async({page})=>{
+ const state=createGame();state.speed=0;fixtures.set(page,state);
+ await page.addInitScript(()=>{
+  let active=null;
+  Object.defineProperty(document,'fullscreenElement',{configurable:true,get:()=>active});
+  const install=()=>{Object.defineProperty(document.documentElement,'requestFullscreen',{configurable:true,value:async()=>{active=document.documentElement;document.dispatchEvent(new Event('fullscreenchange'));}});Object.defineProperty(document,'exitFullscreen',{configurable:true,value:async()=>{active=null;document.dispatchEvent(new Event('fullscreenchange'));}});};
+  if(document.documentElement)install();else document.addEventListener('DOMContentLoaded',install,{once:true});
+ });
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const button=page.locator('#fullscreen');await expect(button).toHaveAttribute('aria-label','进入全屏');await expect(button).toHaveAttribute('aria-pressed','false');
+ await button.click();await expect(button).toHaveAttribute('aria-label','退出全屏');await expect(button).toHaveAttribute('aria-pressed','true');
+ await button.click();await expect(button).toHaveAttribute('aria-label','进入全屏');
+ await page.setViewportSize({width:390,height:844});await page.evaluate(()=>Object.defineProperty(document.documentElement,'requestFullscreen',{configurable:true,value:undefined}));
+ await button.dispatchEvent('click');await expect(button).toHaveAttribute('aria-pressed','true');expect(await page.evaluate(()=>document.documentElement.classList.contains('app-fullscreen'))).toBe(true);expect(await page.locator('#app').evaluate(element=>[element.clientWidth,element.clientHeight])).toEqual([844,390]);
+ await button.dispatchEvent('click');await expect(button).toHaveAttribute('aria-pressed','false');expect(await page.evaluate(()=>document.documentElement.classList.contains('app-fullscreen'))).toBe(false);
+});
 test('dossier roster lists a switched controlled resident only once',async({page})=>{
  const g=createGame();g.speed=0;switchControl(g,'lumi');fixtures.set(page,g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
@@ -66,6 +82,33 @@ test('phone dossiers start closed and portrait renders a usable horizontal scene
  await page.locator('#dossier-select').click();await page.locator(`[data-dossier-option="${g.npcs.nova.uid}"]`).click();await expect(page.locator('#player-name')).toHaveText(g.npcs.nova.name);
  await page.setViewportSize({width:844,height:390});
  const card=await page.locator('.dashboard').boundingBox();expect(card.x).toBeGreaterThan(400);expect(card.y).toBeLessThan(100);
+});
+test('expanded phone dossier keeps the island switcher outside the dossier',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ const g=createGame();g.speed=0;fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.locator('#dossier-toggle').click();await expect(page.locator('#dossier-toggle')).toHaveAttribute('aria-expanded','true');
+ await page.waitForTimeout(400);
+ const overlap=await page.evaluate(()=>{const a=document.querySelector('.locations').getBoundingClientRect(),b=document.querySelector('.dashboard').getBoundingClientRect();return Math.max(0,Math.min(a.right,b.right)-Math.max(a.left,b.left))*Math.max(0,Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top));});
+ expect(overlap).toBe(0);
+});
+test('expanded phone island selector stays inside the landscape viewport',async({page})=>{
+ await page.setViewportSize({width:844,height:390});
+ const g=createGame();g.speed=0;g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('#dossier-toggle').click();await expect(page.locator('#dossier-toggle')).toHaveAttribute('aria-expanded','true');
+ const launcher=page.locator('[data-island-mobile-launcher]');await launcher.click();await expect(page.locator('.locations')).toHaveAttribute('data-selector-state','undocking');await expect.poll(()=>page.locator('.locations').getAttribute('data-selector-state'),{timeout:1500}).toBe('open');
+ for(const selector of ['.locations','.island-card-sheet']){const box=await page.locator(selector).boundingBox();expect(box.x,selector).toBeGreaterThanOrEqual(0);expect(box.x+box.width,selector).toBeLessThanOrEqual(844);}
+});
+test('portrait dossier swipes browse residents with a live drag animation',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ const g=createGame();g.speed=0;fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.locator('#dossier-toggle').click();await expect(page.locator('#dossier-toggle')).toHaveAttribute('aria-expanded','true');await page.waitForTimeout(300);
+ const panel=await page.locator('#panel-content').boundingBox();const x=panel.x+Math.min(24,panel.width/2),y=panel.y+Math.min(24,panel.height/2);
+ await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x,y-28,{steps:2});await expect(page.locator('#dossier-body')).toHaveAttribute('data-dossier-dragging','true');expect(await page.locator('#dossier-body').evaluate(element=>new DOMMatrixReadOnly(getComputedStyle(element).transform).m41)).toBeCloseTo(0,0);await page.mouse.move(x,y-80,{steps:4});await expect(page.locator('.dossier-drag-preview')).toHaveCount(1);await expect(page.locator('.dossier-drag-preview [data-snapshot-id="player-name"]')).toHaveText(g.npcs.nova.name);expect(await page.locator('.dossier-drag-preview').evaluate(element=>new DOMMatrixReadOnly(getComputedStyle(element).transform).m41)).toBeGreaterThan(0);expect(await page.locator('.dossier-drag-preview').evaluate(element=>Math.abs(new DOMMatrixReadOnly(getComputedStyle(element).transform).b))).toBeGreaterThan(.02);expect(await page.locator('.dossier-drag-preview').evaluate(element=>getComputedStyle(element).zIndex)).toBe('3');await page.mouse.up();await page.waitForTimeout(40);expect(await page.locator('#dossier-body').evaluate(element=>new DOMMatrixReadOnly(getComputedStyle(element).transform).m41)).toBeCloseTo(0,0);await expect(page.locator('.dossier-drag-preview')).toHaveCount(1);await expect.poll(()=>page.locator('.dossier-drag-preview').count(),{timeout:1000}).toBe(0);await expect(page.locator('#player-name')).toHaveText(g.npcs.nova.name);
+ await page.waitForTimeout(350);
+ const nextPanel=await page.locator('#panel-content').boundingBox(),nextX=nextPanel.x+Math.min(24,nextPanel.width/2),nextY=nextPanel.y+Math.min(24,nextPanel.height/2);
+ await page.mouse.move(nextX,nextY);await page.mouse.down();await page.mouse.move(nextX,nextY+28,{steps:2});await expect(page.locator('.dossier-drag-preview')).toHaveCount(1);expect(await page.locator('.dossier-drag-preview').evaluate(element=>new DOMMatrixReadOnly(getComputedStyle(element).transform).m41)).toBeCloseTo(0,0);expect(await page.locator('#dossier-body').evaluate(element=>new DOMMatrixReadOnly(getComputedStyle(element).transform).m41)).toBeGreaterThan(28);await page.mouse.move(nextX,nextY+80,{steps:4});await page.mouse.up();
+ await expect(page.locator('#player-name')).toHaveText(g.player.name);await expect.poll(()=>page.locator('.dossier-drag-preview').count()).toBe(0);
 });
 function addGenerated(g,index,visited=0){
  const b=generateIsland(g.civilization.seed,index);g.civilization.islands[b.id]=b;g.civilization.discoveryPath.push(b.id);g.civilization.visits[b.id]=visited;g.civilization.surveys[b.id]=0;g.civilization.surveyDays[b.id]=0;g.civilization.projects[b.id]=createProject(g.civilization.seed^index);
@@ -331,7 +374,7 @@ test('left outer UFO fleet renders on desktop and mobile without blocking the ro
  const state=createGame();state.speed=0;state.space.ships=[1,2,3].map(tier=>({id:`left-fleet-${tier}`,tier,island:'home',side:'front',food:4,durability:100,reservedBy:null}));fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#world')).toHaveAttribute('data-ufo-count','3');
  for(const [name,width,height] of [['desktop',1440,1000],['mobile',390,844]]){
-  await page.setViewportSize({width,height});await page.locator('#reset-view').click();
+  await page.setViewportSize({width,height});
   const colors=await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{const gl=document.querySelector('#world canvas').getContext('webgl2'),pixels=new Uint8Array(128*128*4);gl.readPixels(Math.floor(gl.drawingBufferWidth/2)-64,Math.floor(gl.drawingBufferHeight/2)-64,128,128,gl.RGBA,gl.UNSIGNED_BYTE,pixels);const colors=new Set();for(let i=0;i<pixels.length;i+=16)colors.add(`${pixels[i]},${pixels[i+1]},${pixels[i+2]}`);resolve(colors.size);})));expect(colors).toBeGreaterThan(8);
   await page.screenshot({path:`artifacts/ufo-left-${name}.png`});
  }
@@ -348,7 +391,7 @@ test('professional packs render six devices and expose construction, extraction 
  expect(await renderedColors()).toBeGreaterThan(8);await page.screenshot({path:'artifacts/profession-packs-desktop.png'});
  const clickAt=async(x,y,z)=>{const bounds=await page.locator('#world').boundingBox(),p=new Vector3(x,y,z).project(sceneCamera(bounds));await page.mouse.click(bounds.x+(p.x+1)*bounds.width/2,bounds.y+(1-p.y)*bounds.height/2);};
  await clickAt(0,1.35,3.4);expect(errors).toEqual([]);await expect(page.locator('#profession-status')).toContainText('植生复材 24 份');await page.locator('#profession-status [data-ufo="pack-ship"]').click();await expect(page.locator('.cargo-controls')).toContainText('本岛库存 24');await page.locator('.ufo-dialog .dialog-close').click();
- await expect(page.locator('#context-menu')).toBeHidden();await page.setViewportSize({width:390,height:844});await page.locator('#reset-view').click();await page.locator('[data-tab="items"]').click();await page.locator('[data-pack="星穹营造"]').click();await expect(page.locator('.item-card')).toHaveCount(2);expect(await renderedColors()).toBeGreaterThan(8);await page.screenshot({path:'artifacts/profession-packs-mobile.png'});expect(errors).toEqual([]);
+ await expect(page.locator('#context-menu')).toBeHidden();await page.setViewportSize({width:390,height:844});await page.locator('[data-tab="items"]').click();await page.locator('[data-pack="星穹营造"]').click();await expect(page.locator('.item-card')).toHaveCount(2);expect(await renderedColors()).toBeGreaterThan(8);await page.screenshot({path:'artifacts/profession-packs-mobile.png'});expect(errors).toEqual([]);
 });
 
 test('restart epoch requires confirmation and persists a clean first day',async({page})=>{

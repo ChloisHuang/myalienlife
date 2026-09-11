@@ -132,7 +132,9 @@
 @media(hover:hover) and (pointer:fine){.dashboard button:hover{filter:none}.panel-tabs button:not(.active):hover,.character-option:hover{background:#eaf0ed}:is(#panel-content,[data-snapshot-id="panel-content"]) button:not(:disabled):hover{border-color:#a7bcb5}}
 @media(min-width:1650px){.dashboard{top:112px}}
 
-#dossier-body{position:relative;display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;border-radius:inherit;overflow:clip;background:#e4eae7}
+#dossier-body{position:relative;z-index:2;display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;border-radius:inherit;overflow:clip;background:#e4eae7}
+#dossier-body[data-dossier-dragging=true]{user-select:none;will-change:transform}
+.dossier-drag-preview{position:absolute;left:0;right:0;z-index:1;display:flex;flex-direction:column;overflow:hidden;pointer-events:none;background:#e4eae7;border:1px solid #cbd7d0;border-radius:inherit;box-shadow:8px 0 18px #213a3424}
 .dashboard::before,.dashboard::after{content:'';position:absolute;pointer-events:none;border:1px solid #c2d0c9;border-radius:12px 0 0 12px;box-shadow:-3px 2px 8px #15263112}
 .dashboard::before{inset:8px 5px 8px -8px;background:#e8eee8;z-index:-1}
 .dashboard::after{inset:16px 10px 16px -16px;background:#d9e3dd;z-index:-2}
@@ -167,7 +169,7 @@ body.dossier-collapsed .locations{right:36px}body.dossier-collapsed .camera-cont
 .phone-layout #world{inset:30px 0 0}
 .phone-layout .scene-ui{inset:64px 14px 14px}
 .phone-layout .dashboard{top:64px;bottom:8px;right:0;left:auto;width:min(340px,calc(var(--layout-width) - 70px));height:auto;max-height:none;border-radius:12px 0 0 12px;padding-bottom:0}
-.phone-layout .dashboard .profile{display:flex;align-items:center;gap:10px;padding:8px 14px;height:56px;flex-shrink:0}
+.phone-layout .dashboard .profile{display:flex;align-items:center;gap:10px;padding:8px 14px;height:56px;flex-shrink:0;user-select:none}
 .phone-layout .avatar-wrap{width:32px;height:38px}
 .phone-layout .dashboard .profile h2{font-size:15px;margin:0}
 .phone-layout .profile .mood,.phone-layout .profile .mood-dot,.phone-layout .profile-traits,.phone-layout :is(#activity,[data-snapshot-id="activity"]){display:none}

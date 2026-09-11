@@ -32,7 +32,8 @@ import './resident-panel.css';
 import './floating-island.css';
 import {createFloatingIsland} from './floating-island.js';
 import {PictureInPicture2,ArrowLeft} from 'lucide';
-import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole} from 'lucide';
+import {createFullscreenController} from './fullscreen.js';
+import {createElement,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole} from 'lucide';
 import {createWorld} from './world.js';
 import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,actionCost,canAffordAction,isSellableItem} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,isSeating,lifeStage,skillProgress} from './characters.js';
@@ -40,7 +41,7 @@ import {getLanguage,localizePage,toggleLanguage,translateText,translateHtml} fro
 
 const $=s=>document.querySelector(s);
 const UFO_BUILD_ACTIONS=new Set(['buildUfo1','buildUfo2','buildUfo3']);
-const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole};
+const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole};
 const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('class',`icon ${cls}`);el.setAttribute('aria-hidden','true');return el.outerHTML;};
 const githubMark=()=>'<svg class="icon" data-icon="github-mark" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>';
 Object.assign(icons,{PictureInPicture2,ArrowLeft});
@@ -99,7 +100,7 @@ $('#app').innerHTML=translateHtml(`
   <div class="locations" aria-label="星岛导航"></div>
   <aside id="life-alert" hidden></aside><aside id="journal" class="journal"><div class="card-label">${icon('Radio')} 星湾电台 <span class="live-dot"></span></div><div id="journal-text"></div><small id="journal-time">最近重大事件</small></aside>
   <div id="queue-wrap"><div class="queue-label"><span>行动队列</span><small>点击 × 取消</small></div><div id="queue"></div><p id="autonomy-reason" hidden></p></div>
-  <div class="camera-controls"><div class="island-tools"><span id="island-side"></span><button id="flip-island" aria-label="翻转星岛">${icon('Orbit')} 翻转星岛</button><button id="travel-menu" aria-label="选择星门目的地">${icon('Compass')} 星门航路</button></div><div class="view-tools">${buttons([['拉近视角','Plus','id="zoom-in"'],['拉远视角','Minus','id="zoom-out"'],['重置视角','Scan','id="reset-view"'],['跟随凯伊','LocateFixed','id="focus-player"'],['环境音乐','VolumeX','id="sound"']])}</div></div>
+  <div class="camera-controls"><div class="island-tools"><span id="island-side"></span><button id="flip-island" aria-label="翻转星岛">${icon('Orbit')} 翻转星岛</button><button id="travel-menu" aria-label="选择星门目的地">${icon('Compass')} 星门航路</button></div><div class="view-tools">${buttons([['拉近视角','Plus','id="zoom-in"'],['拉远视角','Minus','id="zoom-out"'],['进入全屏','Scan','id="fullscreen" aria-pressed="false"'],['跟随凯伊','LocateFixed','id="focus-player"'],['环境音乐','VolumeX','id="sound"']])}</div></div>
   <div class="scene-caption"><span class="live-dot"></span> 生活正在发生 <i>·</i> 点击人物或物品互动</div>
  </main>
  <div id="build-hint" hidden>${icon('Move')} 点击地面摆放 <span>R 旋转</span><span>Esc 取消</span><button id="cancel-placement">取消</button></div>
@@ -138,6 +139,11 @@ async function save(manual=false,leaving=false){
 }
 $('#save-status').textContent=hosted?'服务器持续运行 · 每 5 秒存档':'已恢复服务器存档 · 每分钟自动保存';
 const floatingButton=document.createElement('button');floatingButton.id='float-island';floatingButton.title='开启浮窗';floatingButton.setAttribute('aria-label','开启浮窗');floatingButton.innerHTML=icon('PictureInPicture2');floatingButton.disabled=true;$('.view-tools').append(floatingButton);
+const fullscreenButton=$('#fullscreen');
+const fullscreen=createFullscreenController({
+ onChange(active){const label=translateText(active?'退出全屏':'进入全屏');fullscreenButton.innerHTML=icon(active?'Minimize2':'Scan');fullscreenButton.setAttribute('aria-label',label);fullscreenButton.title=label;fullscreenButton.setAttribute('aria-pressed',String(active));fullscreenButton.classList.toggle('active',active);},
+ onError(error){toast(error?.message||'当前浏览器未允许全屏');}
+});
 $('#save-status').dataset.state='ready';
 $('#language-toggle').onclick=()=>{const next=toggleLanguage();localizePage(next);lastPanel='';refresh();};
 setInterval(()=>save(),60000);
@@ -184,7 +190,22 @@ function resident(){
  if(dossierResidentUid&&!entry)dossierResidentUid=null;
  return entry?.person??game.player;
 }
-function chooseDossier(uid,direction=1){
+function activateDossier(entry){
+ dossierResidentUid=entry.person.uid;selectedResident=entry.id;
+ game.viewIsland=islandOf(entry.person);game.viewSide=sideOf(entry.person);
+ world.resetCamera();closeContext();closeCharacterSwitcher();closeDossierList();lastPanel='';refresh();$('#panel-content').scrollTop=0;
+}
+function captureDossierPreview(uid){
+ const entry=dossierEntries().find(({person})=>person.uid===uid);if(!entry)return null;
+ const currentUid=dossierResidentUid,currentSelected=selectedResident,currentPanel=lastPanel,currentScroll=$('#panel-content').scrollTop;
+ dossierResidentUid=uid;selectedResident=entry.id;lastPanel='';renderPanel();refreshDossier();$('#panel-content').scrollTop=0;
+ const preview=$('#dossier-body').cloneNode(true);
+ dossierResidentUid=currentUid;selectedResident=currentSelected;lastPanel='';renderPanel();refreshDossier();$('#panel-content').scrollTop=currentScroll;lastPanel=currentPanel;
+ preview.removeAttribute('id');preview.classList.add('dossier-drag-preview');preview.inert=true;preview.setAttribute('aria-hidden','true');preview.removeAttribute('data-dossier-dragging');preview.removeAttribute('data-dossier-drag-direction');
+ for(const element of preview.querySelectorAll('[id]')){element.dataset.snapshotId=element.id;element.removeAttribute('id');}
+ return preview;
+}
+function chooseDossier(uid,direction=1,{fromOffset=null}={}){
  const entry=dossierEntries().find(({person})=>person.uid===uid);if(!entry)return;
  const sheet=$('#dossier-body'),animate=uid!==resident().uid&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
  $('.dossier-outgoing')?.remove();sheet.getAnimations().forEach(a=>a.cancel());
@@ -192,18 +213,17 @@ function chooseDossier(uid,direction=1){
  if(previous){
   previous.removeAttribute('id');previous.classList.add('dossier-outgoing');previous.inert=true;previous.setAttribute('aria-hidden','true');
   for(const element of previous.querySelectorAll('[id]')){element.dataset.snapshotId=element.id;element.removeAttribute('id');}
-  previous.style.top=`${sheet.offsetTop}px`;previous.style.height=`${sheet.offsetHeight}px`;
+  previous.style.top=`${sheet.offsetTop}px`;previous.style.height=`${sheet.offsetHeight}px`;previous.style.removeProperty('transform');
  }
- dossierResidentUid=uid;selectedResident=entry.id;
- game.viewIsland=islandOf(entry.person);game.viewSide=sideOf(entry.person);
- world.resetCamera();closeContext();closeCharacterSwitcher();closeDossierList();lastPanel='';refresh();
- $('#panel-content').scrollTop=0;
+ activateDossier(entry);
  if(previous){
   $('.dashboard').append(previous);
   const timing={duration:300,easing:'cubic-bezier(.2,.7,.2,1)'};
   previous.animate([{opacity:1,transform:'translateX(0) rotate(0)'},{opacity:1,transform:`translateX(${-direction*44}%) rotate(${-direction*3}deg)`,offset:.8},{opacity:0,transform:`translateX(${-direction*55}%) rotate(${-direction*4}deg)`}],timing).onfinish=()=>previous.remove();
-  sheet.animate([{transform:`translateX(${direction*40}px) rotate(${direction*2}deg)`},{transform:'translateX(0) rotate(0)'}],timing);
- }
+  const initialTransform=fromOffset===null?`translateX(${direction*40}px) rotate(${direction*2}deg)`:dossierSwipeTransform(fromOffset);
+  const incoming=sheet.animate([{transform:initialTransform},{transform:'translateX(0) rotate(0)'}],timing);incoming.onfinish=()=>sheet.style.removeProperty('transform');
+ }else sheet.style.removeProperty('transform');
+ sheet.removeAttribute('data-dossier-dragging');sheet.removeAttribute('data-dossier-drag-direction');
 }
 function closeDossierList(){$('#dossier-list').hidden=true;$('#dossier-select').setAttribute('aria-expanded','false');}
 function clearIslandSelectorTimers(){
@@ -493,6 +513,59 @@ function setupDashboardResize(){
  handle.addEventListener('pointerup',stop);handle.addEventListener('pointercancel',stop);handle.addEventListener('lostpointercapture',()=>stop({}));
  handle.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const current=dashboard.getBoundingClientRect().width;const next=event.key==='Home'?DASHBOARD_MIN_WIDTH:event.key==='End'?DASHBOARD_MAX_WIDTH:current+(event.key==='ArrowLeft'?16:-16);setDashboardWidth(next);event.preventDefault();});
 }
+function dossierSwipeTransform(offset){const angle=Math.max(-4,Math.min(4,offset*.035));return `translate3d(${offset}px,0,0) rotate(${angle}deg)`;}
+function dossierPreviewTransform(offset){return `translate3d(${offset}px,0,0)`;}
+function setupDossierSwipe(){
+ const sheet=$('#dossier-body'),dashboard=$('.dashboard');if(!sheet||!dashboard)return;
+ let start=null,dragPreview=null;
+ const rotated=()=>document.body.classList.contains('phone-layout')&&matchMedia('(max-width:760px) and (orientation:portrait)').matches;
+ const ignored=target=>target instanceof Element&&target.closest('button,a,input,select,textarea,summary,[contenteditable=true],.dashboard-resize-handle,.pack-filters,#neighbor-portraits,.island-card-rail,[data-dossier-swipe-ignore]');
+ const dragGain=direction=>direction===-1?1.35:1;
+ const release=pointerId=>{if(sheet.hasPointerCapture(pointerId))sheet.releasePointerCapture(pointerId);};
+ const nextEntry=direction=>{const entries=dossierEntries(),index=entries.findIndex(entry=>entry.person.uid===resident().uid);return index<0?null:entries[(index+direction+entries.length)%entries.length];};
+ const removePreview=()=>{dragPreview?.remove();dragPreview=null;};
+ const previewOffset=(direction,offset)=>direction===1?sheet.offsetWidth+offset:0;
+ const previewTransform=(direction,offset)=>direction===1?dossierSwipeTransform(offset):dossierPreviewTransform(offset);
+ const showPreview=direction=>{
+  removePreview();const entry=nextEntry(direction),preview=entry&&captureDossierPreview(entry.person.uid);if(!preview)return null;
+  preview.style.top=`${sheet.offsetTop}px`;preview.style.height=`${sheet.offsetHeight}px`;preview.style.zIndex=direction===1?'3':'1';preview.style.transform=previewTransform(direction,previewOffset(direction,0));dashboard.insertBefore(preview,sheet);dragPreview=preview;return entry;
+ };
+ const movePreview=(direction,offset)=>{if(dragPreview)dragPreview.style.transform=previewTransform(direction,previewOffset(direction,offset));};
+ const restore=state=>{
+  sheet.removeAttribute('data-dossier-dragging');sheet.removeAttribute('data-dossier-drag-direction');
+  if(!state.offset){sheet.style.removeProperty('transform');removePreview();return;}
+  const preview=dragPreview,currentOffset=state.direction===1?0:state.offset,timing={duration:180,easing:'cubic-bezier(.2,.7,.2,1)'},current=sheet.animate([{transform:dossierSwipeTransform(currentOffset)},{transform:dossierSwipeTransform(0)}],timing);let finished=0,complete=()=>{if(++finished<(preview?2:1))return;sheet.style.removeProperty('transform');removePreview();};current.onfinish=complete;
+  if(preview)preview.animate([{transform:preview.style.transform},{transform:previewTransform(state.direction,previewOffset(state.direction,0))}],timing).onfinish=complete;
+ };
+ const cancel=()=>{if(!start)return;const state=start;start=null;release(state.pointerId);restore(state);};
+ const complete=state=>{
+  const entry=nextEntry(state.direction);if(!entry){restore(state);return;}
+  if(!dragPreview){chooseDossier(entry.person.uid,state.direction,{fromOffset:state.offset});return;}
+  const preview=dragPreview,targetOffset=state.direction===1?0:Math.max(120,sheet.offsetWidth*1.12),timing={duration:state.direction===-1?180:240,easing:'cubic-bezier(.2,.7,.2,1)',fill:'forwards'},outgoing=state.direction===-1?sheet.animate([{transform:dossierSwipeTransform(state.offset)},{transform:dossierSwipeTransform(targetOffset)}],timing):null,incoming=state.direction===1?preview.animate([{transform:preview.style.transform},{transform:previewTransform(state.direction,0)}],timing):null;let finished=0,completeMotion=()=>{if(++finished<(outgoing?1:0)+(incoming?1:0))return;sheet.style.transform=dossierSwipeTransform(targetOffset);activateDossier(entry);outgoing?.cancel();incoming?.cancel();sheet.style.removeProperty('transform');sheet.removeAttribute('data-dossier-dragging');sheet.removeAttribute('data-dossier-drag-direction');removePreview();};outgoing?.addEventListener('finish',completeMotion,{once:true});incoming?.addEventListener('finish',completeMotion,{once:true});
+ };
+ sheet.addEventListener('pointerdown',event=>{
+  if(dashboard.dataset.collapsed==='true'||event.isPrimary===false||(event.pointerType==='mouse'&&event.button!==0)||ignored(event.target))return;
+  sheet.getAnimations().forEach(animation=>animation.cancel());$('.dossier-outgoing')?.remove();sheet.style.removeProperty('transform');removePreview();
+  start={pointerId:event.pointerId,x:event.clientX,y:event.clientY,axis:null,direction:1,offset:0};sheet.setPointerCapture(event.pointerId);
+ });
+ sheet.addEventListener('pointermove',event=>{
+  if(!start||event.pointerId!==start.pointerId)return;
+  const dx=event.clientX-start.x,dy=event.clientY-start.y,vertical=rotated(),primary=vertical?dy:dx,cross=vertical?dx:dy;
+  if(!start.axis){
+   if(Math.max(Math.abs(primary),Math.abs(cross))<8)return;
+   if(Math.abs(primary)<=Math.abs(cross)*1.15){cancel();return;}
+   start.axis=vertical?'vertical':'horizontal';
+  }
+  const direction=primary<0?1:-1,limit=Math.max(120,sheet.offsetWidth*.9);start.offset=Math.max(-limit,Math.min(limit,primary*dragGain(direction)));if(direction!==start.direction){start.direction=direction;showPreview(direction);}else if(!dragPreview)showPreview(direction);movePreview(direction,start.offset);event.preventDefault();sheet.dataset.dossierDragging='true';sheet.dataset.dossierDragDirection=direction===1?'next':'previous';sheet.style.transform=dossierSwipeTransform(direction===1?0:start.offset);
+ });
+ sheet.addEventListener('pointerup',event=>{
+  if(!start||event.pointerId!==start.pointerId)return;
+  const state=start;start=null;release(event.pointerId);
+  if(!state.axis||Math.abs(state.offset)<52){restore(state);return;}
+  complete(state);event.preventDefault();
+ });
+ sheet.addEventListener('pointercancel',cancel);sheet.addEventListener('lostpointercapture',()=>{if(start)cancel();});
+}
 $('#app').addEventListener('click',async e=>{
  if(epochRestarting)return;
  const b=e.target.closest('button');if(!b)return;
@@ -553,7 +626,8 @@ $('#app').addEventListener('click',async e=>{
  if(b.id==='build-button'){setDossierCollapsed(false);toggleBuild();}
  if(b.id==='cancel-placement')cancelPlacement();
  if(b.id==='all-neighbors')changeTab('relations');
- if(b.id==='zoom-in')world.zoom(.15);if(b.id==='zoom-out')world.zoom(-.15);if(b.id==='reset-view')world.resetCamera();if(b.id==='focus-player'){chooseDossier(game.player.uid);}
+ if(b.id==='fullscreen'){await fullscreen.toggle();return;}
+ if(b.id==='zoom-in')world.zoom(.15);if(b.id==='zoom-out')world.zoom(-.15);if(b.id==='focus-player'){chooseDossier(game.player.uid);}
  if(b.id==='context-close')closeContext();if(b.id==='sound')toggleSound();
  localizePage();
 });
@@ -565,9 +639,10 @@ $('#app').addEventListener('submit',async e=>{
  const result=await updateResident(game,selectedResident,{gender:$('#resident-gender').value,age:Number($('#resident-age').value),devotion:Number($('#resident-devotion').value),headShape});
  if(!result.ok){toast(result.message);return;}refreshPortraits();lastPanel='';refresh();toast('人物设定已更新。');
 });
-document.addEventListener('keydown',async e=>{if(document.body.classList.contains('island-floating')||document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();await command('speed',game.speed?0:1);refresh();}if(e.key==='1'||e.key==='3'){await command('speed',Number(e.key));refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){cancelPlacement();closeContext();closeCharacterSwitcher();closeDossierList();}});
+document.addEventListener('keydown',async e=>{if(document.body.classList.contains('island-floating')||document.querySelector('dialog[open]')||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();await command('speed',game.speed?0:1);refresh();}if(e.key==='1'||e.key==='3'){await command('speed',Number(e.key));refresh();}if(e.key.toLowerCase()==='b')toggleBuild();if(e.key.toLowerCase()==='r'&&selectedItem)world.rotateBuild();if(e.key==='Escape'){if(fullscreen.isActive()){await fullscreen.toggle();return;}cancelPlacement();closeContext();closeCharacterSwitcher();closeDossierList();}});
 document.addEventListener('pointerdown',e=>{if(!e.target.closest('#dossier-list')&&!e.target.closest('#dossier-select'))closeDossierList();if(!e.target.closest('#context-menu')&&!e.target.closest('[data-npc]'))closeContext();if(!e.target.closest('#character-switcher')&&!e.target.closest('#active-character'))closeCharacterSwitcher();if(['open','opening','undocking'].includes(islandSelectorState)&&!e.target.closest('.locations')){clearIslandSelectorTimers();islandAnnouncementContinuous=true;finishIslandSelectorCollapse();}});
 setupDashboardResize();
+setupDossierSwipe();
 const phoneLayout=matchMedia('(max-width:760px), (max-width:1000px) and (max-height:600px)');
 function applyPhoneLayout(){document.body.classList.toggle('phone-layout',phoneLayout.matches);setDossierCollapsed(phoneLayout.matches);}
 phoneLayout.addEventListener('change',applyPhoneLayout);applyPhoneLayout();

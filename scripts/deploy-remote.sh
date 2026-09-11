@@ -29,6 +29,12 @@ docker pull node:24-alpine
 image=$(docker image inspect node:24-alpine -f '{{index .RepoDigests 0}}')
 docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --memory 128m --pids-limit 32 "$image" node -e 'console.log(process.version)'
 release="$base/releases/$id"
+preflight_cleanup(){
+ local status=$?
+ rm -rf "$release" "$base/incoming/$id.tgz" "$base/incoming/$id.seed.json"
+ exit "$status"
+}
+trap preflight_cleanup EXIT
 mkdir "$release"
 tar -xzf "$base/incoming/$id.tgz" --no-same-owner -C "$release"
 chmod -R a+rX "$release"
@@ -47,6 +53,7 @@ if [[ ! -f "$base/secrets/operator-token" ]]; then
 fi
 # Preflight uses a read-only mount and the exact new save migration code.
 docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --memory 192m --pids-limit 32 -v "$base/data:/data:ro" -v "$release:/app:ro" "$image" node /app/preflight.mjs
+trap - EXIT
 old=$(readlink -f "$base/current" || true)
 if [[ -f "$conf" ]]; then cp "$conf" "$base/backups/nginx-before.conf"; else rm -f "$base/backups/nginx-before.conf"; fi
 start_world(){
