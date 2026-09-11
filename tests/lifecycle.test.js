@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as sim from '../src/simulation.js';
 import {lifeStage} from '../src/characters.js';
+import {generateIsland} from '../src/island-generator.js';
+import {createProject} from '../src/settlements.js';
 const step=(g,n,random)=>{for(let i=0;i<n;i++)sim.tick(g,1,random);};
 function startBirth(){const g=sim.createGame();g.objects.push({id:'nursery',type:'nursery',x:-6,z:4,rotation:0});assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);step(g,25);assert.equal(g.incubations.length,1);return g;}
 function hatch(g){g.incubations[0].due=(g.day-1)*1440+g.minute+1;step(g,1);return Object.values(g.npcs).find(n=>n.age<1);}
@@ -47,7 +49,7 @@ test('population capacity grows only with landed islands and both birth paths re
  assert.equal(populationCapacity(g),8);assert.match(sim.birthDecision(g,'player').reason,/人口上限 8/);assert.equal(sim.enqueue(g,'incubate','nursery').ok,false);
  g.civilization.observations=3;g.wonders.archive=3;assert.equal(populationCapacity(g),8);
  g.civilization.visits.spore=1;assert.equal(populationCapacity(g),16);assert.equal(sim.birthDecision(g,'player').ready,true);assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);g.queue=[];
- g.space.backs.spore=true;g.civilization.visits.spore=20;assert.equal(populationCapacity(g),16);g.civilization.discoveryPath=['home','spore','city'];g.civilization.visits.city=1;assert.equal(populationCapacity(g),24);
+ g.space.backs.spore=true;g.civilization.visits.spore=20;g.civilization.discoveryPath=['home','spore'];assert.equal(populationCapacity(g),16);const island=generateIsland(g.civilization.seed,0);g.civilization.islands[island.id]=island;g.civilization.discoveryPath.push(island.id);g.civilization.visits[island.id]=1;g.civilization.surveys[island.id]=0;g.civilization.surveyDays[island.id]=0;g.civilization.projects[island.id]=createProject(g.civilization.seed);assert.equal(populationCapacity(g),24);
  for(let i=3;i<11;i++){const p=structuredClone(g.npcs.pip);p.uid=`extra-${i}`;g.npcs[p.uid]=p;}
  for(const id of Object.keys(g.npcs)){g.relationships[id]??=0;for(const [other,n]of Object.entries(g.npcs))if(other!==id)n.relationships[id]??=0;}
  assert.equal(sim.enqueue(g,'incubate','nursery').ok,true);assert.equal(populationCapacity(sim.restore(sim.serialize(g))),24);

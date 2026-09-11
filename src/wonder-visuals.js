@@ -8,9 +8,9 @@ export function createWonderVisual(group,type){
  if(type==='glowlight')for(let i=0;i<18;i++)particles.push(glow(effects,new THREE.SphereGeometry(.035,6,4),0xb8ffe7));
  if(type==='relic'){
   for(let i=0;i<3;i++){const ring=glow(effects,new THREE.TorusGeometry(.5+i*.13,.017,4,32),[0x94dacd,0xc8b0ff,0xf8d79b][i]);ring.rotation.x=Math.PI/2;ring.position.y=.5+i*.38;glyphs.push(ring);}
-  const city=new THREE.Group();effects.add(city);city.position.y=2;
-  for(let i=0;i<7;i++){const h=.2+(i%3)*.15,tower=glow(city,new THREE.BoxGeometry(.1,h,.1),0xa7f6ea);tower.position.set(Math.cos(i)*.38,h/2,Math.sin(i)*.38);}
-  glyphs.push(city);
+  const archiveGlyph=new THREE.Group();effects.add(archiveGlyph);archiveGlyph.position.y=2;
+  for(let i=0;i<7;i++){const h=.2+(i%3)*.15,tower=glow(archiveGlyph,new THREE.BoxGeometry(.1,h,.1),0xa7f6ea);tower.position.set(Math.cos(i)*.38,h/2,Math.sin(i)*.38);}
+  glyphs.push(archiveGlyph);
  }
  const aura=['polelight','crystal'].includes(type)?glow(effects,new THREE.RingGeometry(.7,.76,48),0xb9d8ff):null;
  if(aura){aura.rotation.x=-Math.PI/2;aura.position.y=.015;}

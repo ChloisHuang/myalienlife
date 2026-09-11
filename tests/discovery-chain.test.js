@@ -27,5 +27,5 @@ test('exploration stays empty after the last released island',()=>{
 });
 test('old saves keep all discovered worlds without rolling new ones on reload',()=>{
  const g=createGame();g.version=21;delete g.civilization.discoveryPath;g.civilization.observations=50;g.wonders.archive=3;
- const loaded=restore(serialize(g));assert.deepEqual(loaded.civilization.discoveryPath,['home','spore','city']);assert.equal(Object.keys(loaded.civilization.islands).length,0);
+ const loaded=restore(serialize(g));assert.deepEqual(loaded.civilization.discoveryPath,['home','spore']);assert.equal(Object.keys(loaded.civilization.islands).length,0);assert.equal(loaded.version,24);
 });

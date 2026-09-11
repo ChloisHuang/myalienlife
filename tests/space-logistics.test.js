@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchControl,autonomousCandidates} from '../src/simulation.js';
 import {backDiscovered} from '../src/space-logistics.js';
 import {autonomyBonus} from '../src/autonomy.js';
+import {generateIsland} from '../src/island-generator.js';
+import {createProject} from '../src/settlements.js';
 const run=(g,seconds=80)=>{for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.5);};
 function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const key in g.config.needDecay)g.config.needDecay[key]=0;g.civilization.technology=240;g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];g.skills.science=18;g.money=10000;return g;}
 function equip(g,tier=2){g.space.ships.push({id:'ship-a',tier,island:'home',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.home=24;}
+function addGenerated(g,index=0,visited=1){const island=generateIsland(g.civilization.seed,index);g.civilization.islands[island.id]=island;g.civilization.discoveryPath.push(island.id);g.civilization.visits[island.id]=visited;g.civilization.surveys[island.id]=0;g.civilization.surveyDays[island.id]=0;g.civilization.projects[island.id]=createProject(g.civilization.seed^index);return island;}
 test('manufacture and rations require their professions and create persisted resources after completion',()=>{
  const g=setup();g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);run(g);assert.equal(g.space.ships[0].tier,2);assert.match(g.space.ships[0].id,/^ufo-\d+$/);assert.equal(g.money,8600);
  const stove=buyItem(g,'stove',5,5).object;assert.ok(stove);assert.equal(enqueue(g,'prepareRations',stove.id).ok,false);g.career={id:'chef',level:1,shifts:0};g.skills.cooking=3;const money=g.money;assert.equal(enqueue(g,'prepareRations',stove.id).ok,true);run(g);assert.equal(g.space.provisions.home,8);assert.equal(g.money,money-30);assert.deepEqual(restore(serialize(g)).space,g.space);
@@ -46,13 +49,13 @@ test('autonomous voyage chooses its action first and only then draws occasional 
  const g=setup();equip(g);g.player.preferences.voyage=10000;g.autonomy.enabled=true;for(const n of Object.values(g.npcs))n.preferences.explore=10;let draws=0;tick(g,.1,()=>{draws++;return 0;});assert.equal(g.queue[0].type,'voyage');assert.equal(g.queue[0].passengerUids.length,2);assert.equal(draws,4);assert.equal(Object.values(g.npcs).filter(n=>n.queue.some(q=>q.type==='boardUfo')).length,2);
 });
 test('autonomous settlements attract residents and keep them local until a need is critical',()=>{
- const g=setup(),person={id:'nova',position:g.npcs.nova,skills:g.npcs.nova.skills,needs:g.npcs.nova.needs,queue:[],ai:g.npcs.nova.ai};g.objects=[{id:'home-portal',type:'portal',island:'home',side:'front',x:0,z:0,rotation:0},{id:'city-portal',type:'portal',island:'city',side:'front',x:0,z:0,rotation:0},{id:'city-food',type:'food',island:'city',side:'front',x:2,z:0,rotation:0},{id:'city-pod',type:'pod',island:'city',side:'front',x:4,z:0,rotation:0},{id:'city-shower',type:'shower',island:'city',side:'front',x:6,z:0,rotation:0}];g.civilization.visits.city=1;
- for(const key in person.needs)person.needs[key]=80;const empty=autonomyBonus(g,person,{type:'voyage',targetId:'home-portal',destinationId:'city'},[person]);assert.ok(empty>10);
- g.civilization.projects.city.blueprint=300;g.civilization.projects.city.construction=600;
- person.position.island='city';for(const key in person.needs)person.needs[key]=40;const healthyReturn=autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person]);assert.equal(healthyReturn,null);
- for(const key in person.needs)person.needs[key]=80;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'spore'},[person]),null);
- for(const key in person.needs)person.needs[key]=20;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person]),null);
- for(const key in person.needs)person.needs[key]=10;assert.ok(autonomyBonus(g,person,{type:'voyage',targetId:'city-portal',destinationId:'home'},[person])>0);
+ const g=setup(),island=addGenerated(g),id=island.id,person={id:'nova',position:g.npcs.nova,skills:g.npcs.nova.skills,needs:g.npcs.nova.needs,queue:[],ai:g.npcs.nova.ai};g.objects=[{id:'home-portal',type:'portal',island:'home',side:'front',x:0,z:0,rotation:0},{id:`${id}-portal`,type:'portal',island:id,side:'front',x:0,z:0,rotation:0},{id:`${id}-food`,type:'food',island:id,side:'front',x:2,z:0,rotation:0},{id:`${id}-pod`,type:'pod',island:id,side:'front',x:4,z:0,rotation:0},{id:`${id}-shower`,type:'shower',island:id,side:'front',x:6,z:0,rotation:0}];
+ for(const key in person.needs)person.needs[key]=80;const empty=autonomyBonus(g,person,{type:'voyage',targetId:'home-portal',destinationId:id},[person]);assert.ok(empty>10);
+ g.civilization.projects[id].blueprint=300;g.civilization.projects[id].construction=600;
+ person.position.island=id;for(const key in person.needs)person.needs[key]=40;const healthyReturn=autonomyBonus(g,person,{type:'voyage',targetId:`${id}-portal`,destinationId:'home'},[person]);assert.equal(healthyReturn,null);
+ for(const key in person.needs)person.needs[key]=80;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:`${id}-portal`,destinationId:'spore'},[person]),null);
+ for(const key in person.needs)person.needs[key]=20;assert.equal(autonomyBonus(g,person,{type:'voyage',targetId:`${id}-portal`,destinationId:'home'},[person]),null);
+ for(const key in person.needs)person.needs[key]=10;assert.ok(autonomyBonus(g,person,{type:'voyage',targetId:`${id}-portal`,destinationId:'home'},[person])>0);
 });
 test('autonomous residents use a local UFO before taking a direct star-gate route',()=>{
  const g=setup();equip(g,2);g.skills.science=135;const candidates=autonomousCandidates(g,'player');assert.ok(candidates.some(q=>q.type==='voyage'&&q.destinationId==='spore'));assert.equal(candidates.some(q=>q.type==='starVoyage'&&q.destinationId==='spore'),false);
@@ -89,7 +92,7 @@ test('a chef arriving during boarding stops an understocked departure and releas
  const g=setup();equip(g);assert.ok(buyItem(g,'stove',5,5).object);g.space.provisions.home=0;assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);g.npcs.zig.career.id='chef';run(g,40);assert.equal(g.player.island??'home','home');assert.equal(g.npcs.nova.island??'home','home');assert.equal(g.queue.length,0);assert.equal(g.npcs.nova.queue.length,0);assert.equal(g.space.ships[0].durability,100);assert.equal(g.space.ships[0].reservedBy,null);
 });
 test('fleet capacity is two per active island',async()=>{
- const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();assert.equal(fleetLimit(g),4);g.civilization.discoveryPath.push('city');assert.equal(fleetLimit(g),6);g.civilization.destroyedIslands.push('spore');assert.equal(fleetLimit(g),4);
+ const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();assert.equal(fleetLimit(g),4);addGenerated(g);assert.equal(fleetLimit(g),6);g.civilization.destroyedIslands.push('spore');assert.equal(fleetLimit(g),4);
 });
 test('fleet capacity includes pending manufacture and permits completion of the final slot',async()=>{
  const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();equip(g);assert.equal(fleetLimit(g),4);g.space.ships.push({...g.space.ships[0],id:'ship-b'});g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);assert.equal(enqueue(g,'buildUfo2','lab').ok,true);assert.equal(enqueue(g,'buildUfo2','lab').ok,false);run(g,120);assert.equal(g.space.ships.length,4);assert.equal(g.space.ships.at(-1).durability,100);switchControl(g,'nova');assert.equal(fleetLimit(g),4);

@@ -10,12 +10,11 @@ import {FAIRYTALE_LAYOUT} from './fairytale-definition.js';
 
 export const STAR_ISLANDS={
  home:{name:'露米纳星湾',level:0,color:0xbce0d4,skill:null,required:0,interests:[]},
- spore:{name:'童梦星屿',theme:'fairytale',layout:FAIRYTALE_LAYOUT,level:1,color:0x83b965,skill:'botany',required:6,interests:['garden','observe','explore']},
- city:{name:'失落星城',level:2,color:0x9c8bcc,skill:'science',required:12,interests:['research','observe','explore']}
+ spore:{name:'童梦星屿',theme:'fairytale',layout:FAIRYTALE_LAYOUT,level:1,color:0x83b965,skill:'botany',required:6,interests:['garden','observe','explore']}
 };
 export const SPACE_LEVELS=Array.from({length:19},(_,level)=>({name:['地表时代','近星航行','深空跃迁'][level]??`星域航行 ${level-2} 阶`,points:20*level*(level+1)}));
 const MAX_TECH=SPACE_LEVELS.at(-1).points;
-export const islandCatalog=g=>Object.fromEntries(Object.entries({...STAR_ISLANDS,...g.civilization.islands}).filter(([id])=>!g.civilization.destroyedIslands.includes(id)&&(id!=='city'||g.version<22||g.civilization.discoveryPath?.includes('city'))));
+export const islandCatalog=g=>Object.fromEntries(Object.entries({...STAR_ISLANDS,...g.civilization.islands}).filter(([id])=>!g.civilization.destroyedIslands.includes(id)));
 export const activeDiscoveryPath=g=>g.civilization.discoveryPath.filter(id=>!g.civilization.destroyedIslands.includes(id));
 export const populationCapacity=g=>Object.keys(islandCatalog(g)).filter(id=>id==='home'||g.civilization.visits[id]>0).length*8;
 export const islandDefinition=(g,id)=>STAR_ISLANDS[id]??g.civilization.islands[id];
@@ -29,7 +28,7 @@ export function discoverAdjacentIsland(g,source){
  // No additional authored island is released yet; keep surveying quiet until one ships.
  return null;
 }
-export const createCivilization=()=>({seed:crypto.getRandomValues(new Uint32Array(1))[0],islands:{},destroyedIslands:[],projects:{spore:createProject(),city:createProject()},discoveryPath:['home'],knowledge:0,technology:0,observations:0,lastDiscoveryObservation:0,surveys:{spore:0,city:0},surveyDays:{spore:0,city:0},visits:{home:1,spore:0,city:0}});
+export const createCivilization=()=>({seed:crypto.getRandomValues(new Uint32Array(1))[0],islands:{},destroyedIslands:[],projects:{spore:createProject()},discoveryPath:['home'],knowledge:0,technology:0,observations:0,lastDiscoveryObservation:0,surveys:{spore:0},surveyDays:{spore:0},visits:{home:1,spore:0}});
 export const spaceLevel=g=>SPACE_LEVELS.reduce((level,s,i)=>g.civilization.technology>=s.points?i:level,0);
 export const discovered=(g,id)=>g.civilization.discoveryPath.includes(id)&&!g.civilization.destroyedIslands.includes(id);
 function destinationError(g,p,id){
@@ -55,7 +54,7 @@ export function civilizationError(g,type,o,p,skills,id,count=1,actionId=null,shi
 }
 export function contributeCivilization(g,type,p,skills,career){
  const c=g.civilization,id=islandOf(p);
- const knowledge={research:1,observe:1,traceRelic:2,decodeRelic:3,decodeTogether:3,restoreMemory:5,memoryExpedition:4,explore:id==='home'?1:6}[type]??0;c.knowledge+=knowledge;
+ const knowledge={research:1,observe:1,traceRelic:2,decodeRelic:3,decodeTogether:3,restoreMemory:5,explore:id==='home'?1:6}[type]??0;c.knowledge+=knowledge;
  if(type==='spaceResearch')c.technology=Math.min(MAX_TECH,c.technology+spaceResearchYield(career,skills));
  if(type==='observe')c.observations++;
  if(type==='explore'){
@@ -67,7 +66,7 @@ export function contributeCivilization(g,type,p,skills,career){
 export function validCivilization(c){
  const count=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9;
  if(!c||!Array.isArray(c.destroyedIslands)||new Set(c.destroyedIslands).size!==c.destroyedIslands.length||c.destroyedIslands.some(id=>id==='home'||!c.discoveryPath?.includes(id))||!validProjects(c))return false;
- const sequence=['home','spore',...(c.discoveryPath?.includes('city')?['city']:[]),...Object.values(c?.islands??{}).sort((a,b)=>a.index-b.index).map(b=>b.id)];
+ const sequence=['home','spore',...Object.values(c?.islands??{}).sort((a,b)=>a.index-b.index).map(b=>b.id)];
  if(!Array.isArray(c?.discoveryPath)||c.discoveryPath.length<1||c.discoveryPath.length>sequence.length||c.discoveryPath.some((id,i)=>id!==sequence[i])||Object.keys(c.islands??{}).some(id=>!c.discoveryPath.includes(id)))return false;
- return !!c&&Number.isInteger(c.seed)&&c.seed>=0&&c.seed<=0xffffffff&&c.islands&&Object.keys(c.islands).length<=64&&Object.entries(c.islands).every(([id,b])=>validIslandBlueprint(b,id)&&count(c.visits?.[id])&&count(c.surveys?.[id])&&count(c.surveyDays?.[id]))&&count(c.knowledge)&&count(c.technology)&&c.technology<=MAX_TECH&&count(c.observations)&&count(c.lastDiscoveryObservation)&&c.lastDiscoveryObservation<=c.observations&&['spore','city'].every(id=>count(c.surveys?.[id])&&count(c.surveyDays?.[id]))&&Object.keys(STAR_ISLANDS).every(id=>count(c.visits?.[id]));
+ return !!c&&Number.isInteger(c.seed)&&c.seed>=0&&c.seed<=0xffffffff&&c.islands&&Object.keys(c.islands).length<=64&&Object.entries(c.islands).every(([id,b])=>validIslandBlueprint(b,id)&&count(c.visits?.[id])&&count(c.surveys?.[id])&&count(c.surveyDays?.[id]))&&count(c.knowledge)&&count(c.technology)&&c.technology<=MAX_TECH&&count(c.observations)&&count(c.lastDiscoveryObservation)&&c.lastDiscoveryObservation<=c.observations&&count(c.surveys?.spore)&&count(c.surveyDays?.spore)&&Object.keys(STAR_ISLANDS).every(id=>count(c.visits?.[id]));
 }

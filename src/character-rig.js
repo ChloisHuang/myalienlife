@@ -87,7 +87,6 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
    if(type==='chaseOrb'){local=[Math.sin(action.elapsed*2)*.65,0,1.25+Math.cos(action.elapsed*2)*.25];bob+=Math.abs(wave)*.05;tips.Left=[-.4,-.1+wave*.15,.35];tips.Right=[.4,-.1-wave*.15,.35];}
    if(type==='passOrb'){local=[0,0,action.hostId?-1.15:1.15];facing=action.hostId?0:Math.PI;tips.Left=[-.2,.1+wave*.12,.5];tips.Right=[.2,.1+wave*.12,.5];}
    if(type==='sootheOrb'){local=[0,0,1.15];rig.joints.Core.rotation.x=.18;tips.Right=[.25,-.05+wave*.06,.5];}
-   if(type==='memoryExpedition'){local=[0,.15,Math.sin(action.elapsed*.7)*.3];tips.Left=[-.54,.06,.28];tips.Right=[.54,.06,.28];}
    const p=localToWorld(object,local);if(type==='pray')p.y=groundHeight(p.x,p.z,object.side,object.island);target.lerp(new THREE.Vector3(p.x,p.y,p.z),settle);yaw=object.rotation+facing;
   }else if(['treeRest','seekLight'].includes(type)){kneel=settle;tips.Left=[-.28,-.32,.4];tips.Right=[.28,-.32,.4];rig.joints.Head.rotation.x=.12;
   }else if(type==='witnessPrayer'){tips.Left=[-.15,.05,.4];tips.Right=[.15,.05,.4];rig.joints.Head.rotation.x=-.15;

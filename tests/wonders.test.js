@@ -54,10 +54,10 @@ test('night insects produce limited dust, cannot be harvested twice, charge supp
  const crystal=buyItem(g,'crystal',3,0).object;crystal.wonder.charge=100;perform(g,'tuneInsight',crystal);crystal.wonder.charge=100;perform(g,'activateCrystal',crystal);assert.equal(crystal.wonder.armed,true);
  const lab=buyItem(g,'lab',5,0).object;const skill=g.skills.science;perform(g,'research',lab);assert.equal(g.skills.science,skill+2);assert.equal(crystal.wonder.armed,false);assert.ok(crystal.wonder.charge<100);
 });
-test('relic progresses in chapters with cooldown, unlocks a bounded expedition',()=>{
+test('relic progresses in chapters with cooldown and archives the completed route without creating a legacy city',()=>{
  const {g,o}=setup('relic');perform(g,'traceRelic',o);assert.equal(o.wonder.chapter,1);assert.equal(enqueue(g,'decodeRelic',o.id).ok,false);
  o.wonder.nextStudy=0;perform(g,'decodeRelic',o);o.wonder.nextStudy=0;g.skills.science=9;perform(g,'restoreMemory',o);assert.equal(g.wonders.archive,3);assert.equal(enqueue(g,'traceRelic',o.id).ok,false);
- const portal=buyItem(g,'portal',3,0).object;assert.equal(enqueue(g,'memoryExpedition',portal.id).ok,false);g.civilization.discoveryPath=['home','spore','city'];g.civilization.technology=120;g.skills.science=18;g.space.ships.push({id:'fixture-ufo',tier:3,island:'home',side:'front',food:2,durability:100,reservedBy:null});g.skills.science=12;g.player.preferences.research=10;assert.equal(enqueue(g,'voyage',portal.id,undefined,null,'city').ok,true);run(g);const money=g.money;const cityPortal=g.objects.find(o=>o.id==='city-portal');perform(g,'memoryExpedition',cityPortal);assert.ok(g.money>money);assert.equal(enqueue(g,'memoryExpedition',portal.id).ok,false);
+ assert.equal(g.civilization.discoveryPath.includes('city'),false);assert.equal(ACTIONS.memoryExpedition,undefined);
 });
 test('paired orb action requires a partner and cancellation cannot leave a guest stuck',()=>{
  const {g,o}=setup('lamp');assert.equal(enqueue(g,'passOrb',o.id).ok,false);const relation=g.relationships.nova;
@@ -67,7 +67,7 @@ test('paired orb action requires a partner and cancellation cannot leave a guest
 test('v10 migration removes legacy admire from queues, preferences and config without losing furniture',()=>{
  const {g,o}=setup('lamp');g.version=10;delete g.wonders;delete o.wonder;g.player.preferences.admire=10;g.autonomy.lastAction='admire';g.config.actionDurations.admire=8;
  g.queue=[{id:g.nextId++,type:'admire',targetId:o.id,target:{x:0,z:1,side:'front'},phase:'acting',source:'manual',elapsed:3,path:null}];
- const loaded=restore(serialize(g));assert.equal(loaded.version,23);assert.equal(loaded.objects[0].id,o.id);assert.equal(loaded.queue.length,0);assert.equal(loaded.autonomy.lastAction,null);assert.equal(loaded.player.preferences.admire,undefined);assert.equal(loaded.config.actionDurations.admire,undefined);assert.deepEqual(restore(serialize(loaded)),loaded);
+ const loaded=restore(serialize(g));assert.equal(loaded.version,24);assert.equal(loaded.objects[0].id,o.id);assert.equal(loaded.queue.length,0);assert.equal(loaded.autonomy.lastAction,null);assert.equal(loaded.player.preferences.admire,undefined);assert.equal(loaded.config.actionDurations.admire,undefined);assert.deepEqual(restore(serialize(loaded)),loaded);
  loaded.objects[0].wonder.cooldown=-1;assert.throws(()=>restore(serialize(loaded)));
 });
 test('insect release benefits only nearby same-face residents and consumes the captured swarm',()=>{

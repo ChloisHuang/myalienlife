@@ -2,7 +2,6 @@ import {fleetLimit,UFOS,ufoDefinition,backDiscovered,shipFoodStatus} from './spa
 import {activeDiscoveryPath,islandCatalog,islandDefinition,SPACE_LEVELS,spaceLevel,discovered,voyageError,starVoyageError} from './civilization.js';
 import {sideOf,SIDES} from './island.js';
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export const CITY_RECORDS=['星能补给站','星城档案馆','发光生态温室'];
 export function explorationContent(g){
  const w=g.wonders,c=g.civilization,level=spaceLevel(g),next=SPACE_LEVELS[level+1],path=activeDiscoveryPath(g);
  const relics=g.objects.filter(o=>o.type==='relic');
@@ -15,9 +14,8 @@ export function explorationContent(g){
  <article><h4>UFO 舰队 <b>${g.space.ships.length} / ${fleetLimit(g)} 艘</b></h4>${UFOS.map(d=>`<p>${d.name} · 科技 ${d.technology} 级解锁 · ${d.price} 星币<br>载 ${d.seats} 人 · 货舱 ${d.cargoCapacity} 份植生复材 · 可达科技 ${d.range} 级星岛<br>制造：量子科学 ${d.tier} 阶、科学 ${d.tier*2} 级</p>`).join('')}<small>在全息研究台制造，完成后悬浮停靠在岛边外圈；上限为每座未摧毁星岛 2 艘；每航段消耗 10 耐久，耗尽到站回收；量子科学职业且科学满级可独自通过星门，无需飞船或食物；储备粮由星厨在所在星球制作；出发星球有在世星厨时，缺粮禁止出航，无星厨才允许扣营养和能量航行；UFO 自动导航，乘坐不限技能、种族和职业，幼体可由同行居民携带。</small>${g.space.ships.map(s=>`<p>${ufoDefinition(s).name} · ${islandDefinition(g,s.island).name} ${SIDES[s.side]}<br>${s.reservedBy?'等待本次航行':'空闲'} · 耐久 ${s.durability}/100 · 舱内食物 ${s.food} / ${shipFoodStatus(s).capacity} 份 · ${shipFoodStatus(s).full?'满载':'未满'}</p><button class="island-launch" data-ufo="${s.id}">定位并查看这艘 UFO</button>`).join('')}</article>
  <article><h4>植生复材仓库</h4>${path.map(id=>`<p>${islandDefinition(g,id).name} · ${g.space.materials[id]??0} 份</p>`).join('')}<small>异星植物职业可从成熟的发光孢子或星伞菇提取材料，提取后植物重新生长，不会同时获得可出售的收成。材料留在产出星岛；在 UFO 货舱装载，航行抵达后自动卸入目标星岛。</small></article>
  <article><h4>航行食物</h4>${Object.entries(g.space.provisions).map(([id,n])=>`<p>${islandDefinition(g,id).name} · 库存 ${n} 份</p>`).join('')||'<p>尚未储备航行食物。</p>'}<small>星云膳造职业一阶、烹饪二级可在孢火星釜储备；每次花费 30 星币，产出 6 + 职业阶位 × 2 份。每人每航段消耗 1 份，可按需装载多次航行的食物；本航段每缺 1 份，每人扣 10 营养、5 能量，最低为 0。</small><p>主岛幽星面默认开放；其他星岛由幽冥族或两仪族发现后，购买折跃门建立同岛两面通路。</p></article>
- <article><h4>古文明记忆 <b>${w.archive} / 3</b></h4><progress value="${w.archive}" max="3"></progress><p>${['拓印迁徙残纹','解读失落星图','重现文明记忆'].map((t,i)=>`${w.archive>i?'✓':'○'} ${t}`).join('<br>')}</p><p>${w.coauthored?'✓ 已发现双人生态线索':'○ 邀请邻居协作解读可发现生态线索'}</p><small>${discovered(g,'city')?'已定位失落星城，登岛需要太空科技 2 级':w.archive===3?'古文明记忆已完成，新的星岛尚未上线':'完成三章古文明记忆，等待新的星岛上线'}</small></article>
- <article><h4>星城考察 <b>${w.expeditions} 次</b></h4><p>独特记录 ${w.cityRecords.length} / 3</p><p>${CITY_RECORDS.map((t,i)=>`${w.cityRecords.includes(i)?'✓':'○'} ${t}`).join('<br>')}</p><small>${w.lastExpeditionDay===g.day?'今日已探访，明日可再出发':'今日尚未探访'} · 单次带回 120 星币、2 份微尘<br>次数与独特记录从本次更新起累计，旧存档未记录的历史不补算。</small></article>
- <article><h4>幽光微尘 <b>${w.dust} 份</b></h4><p>来源：捕捉幽光虫、探访失落星城。</p><p>用途：晶簇充满后消耗 1 份，激活一次共振。</p><small>安眠：附近一次睡眠额外恢复 15 能量。<br>灵感：附近一次研究额外获得 1 科学经验。<br>有效范围 5 米；免费切换频率会从零充能。</small></article>
+ <article><h4>古文明记忆 <b>${w.archive} / 3</b></h4><progress value="${w.archive}" max="3"></progress><p>${['拓印迁徙残纹','解读失落星图','重现文明记忆'].map((t,i)=>`${w.archive>i?'✓':'○'} ${t}`).join('<br>')}</p><p>${w.coauthored?'✓ 已发现双人生态线索':'○ 邀请邻居协作解读可发现生态线索'}</p><small>${w.archive===3?'古文明记忆已完成，新的星岛尚未上线':'完成三章古文明记忆，等待新的星岛上线'}</small></article>
+ <article><h4>幽光微尘 <b>${w.dust} 份</b></h4><p>来源：捕捉幽光虫。</p><p>用途：晶簇充满后消耗 1 份，激活一次共振。</p><small>安眠：附近一次睡眠额外恢复 15 能量。<br>灵感：附近一次研究额外获得 1 科学经验。<br>有效范围 5 米；免费切换频率会从零充能。</small></article>
  <article><h4>遗迹现场 <b>${relics.length} 座</b></h4>${relics.map(o=>`<p>${islandDefinition(g,o.island??'home').name} · ${SIDES[sideOf(o)]} (${o.x}, ${o.z}) · ${o.wonder.chapter} / 3 章${o.wonder.coauthored?' · 协作线索':''}</p>`).join('')||'<p>尚未摆放虚空遗迹。</p>'}</article>
 </div><p class="exploration-intro">先按需求、兴趣和技能选择动作；选中多人活动后再挑伙伴并邀请排队。候选伙伴数量不增加活动触发权重。</p>`;
 }

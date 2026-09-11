@@ -10,5 +10,5 @@ test('devotion can be edited, survives control changes and reload, and rejects i
  assert.equal(updateResident(g,'player',{gender:g.player.gender,age:28,devotion:101}).ok,false);g.player.devotion=-1;assert.throws(()=>restore(serialize(g)));
 });
 test('version sixteen gets stable individual devotion without resetting progress or prayer attributes',()=>{
- const g=createGame();g.version=16;g.day=170;for(const p of [g.player,...Object.values(g.npcs)])delete p.devotion;g.player.prayer.nether=10;const a=restore(serialize(g)),b=restore(serialize(g));assert.equal(a.version,23);assert.equal(a.day,170);assert.equal(a.player.prayer.nether,10);assert.equal(a.player.devotion,b.player.devotion);assert.ok(new Set([a.player,...Object.values(a.npcs)].map(p=>p.devotion)).size>1);assert.deepEqual(a.objects,g.objects);
+ const g=createGame();g.version=16;g.day=170;for(const p of [g.player,...Object.values(g.npcs)])delete p.devotion;g.player.prayer.nether=10;const a=restore(serialize(g)),b=restore(serialize(g));assert.equal(a.version,24);assert.equal(a.day,170);assert.equal(a.player.prayer.nether,10);assert.equal(a.player.devotion,b.player.devotion);assert.ok(new Set([a.player,...Object.values(a.npcs)].map(p=>p.devotion)).size>1);assert.deepEqual(a.objects,g.objects);
 });

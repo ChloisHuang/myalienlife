@@ -17,7 +17,7 @@ test('every moving leg leans along travel, brakes back and levels at transfers',
 });
 test('all dock slots stay on the screen-left outer arc on either island face',()=>{
  const g=createGame();
- for(const island of ['home','spore','city'])for(const side of ['front','back']){
+ for(const island of ['home','spore'])for(const side of ['front','back']){
   g.space.ships=Array.from({length:24},(_,i)=>({id:`left-dock-${i}`,tier:i%3+1,island,side}));
   const outline=islandDefinition(g,island).outline,rx=outline?Math.max(...outline.map(p=>Math.abs(p.x))):15.4,rz=outline?Math.max(...outline.map(p=>Math.abs(p.z))):10.9;
   for(const ship of g.space.ships){const dock=ufoDock(g,ship);assert.ok(dock.x<0&&dock.z>0,`${island}/${side}: ${dock.x}, ${dock.z}`);assert.ok((dock.x/rx)**2+(dock.z/rz)**2>1);}

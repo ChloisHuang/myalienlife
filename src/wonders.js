@@ -1,4 +1,3 @@
-import {islandOf} from './island.js';
 import {sameSide} from './island.js';
 
 export const WONDER_ACTIONS={
@@ -16,11 +15,10 @@ export const WONDER_ACTIONS={
  activateCrystal:{name:'激活当前共振 · 1 幽光微尘',icon:'Zap',duration:8,effects:{}},
  chaseOrb:{name:'追逐漂浮光球',icon:'Footprints',duration:14,effects:{fun:35,energy:-6}},
  passOrb:{name:'邀请邻居双人传光',icon:'Users',duration:18,effects:{fun:25,social:25},paired:true},
- sootheOrb:{name:'用光球陪伴附近幼体',icon:'Heart',duration:12,effects:{social:15}},
- memoryExpedition:{name:'探访失落星城 · 每日一次',icon:'Compass',duration:32,effects:{fun:35,energy:-12},skill:'science'}
+ sootheOrb:{name:'用光球陪伴附近幼体',icon:'Heart',duration:12,effects:{social:15}}
 };
 export const WONDER_OPTIONS={polelight:['lightDaily','lightGrow','lightParty'],glowlight:['catchBugs','releaseBugs'],relic:['traceRelic','decodeRelic','decodeTogether','restoreMemory'],crystal:['tuneSleep','tuneInsight','activateCrystal'],lamp:['chaseOrb','passOrb','sootheOrb']};
-export const createWonders=()=>({dust:0,archive:0,lastExpeditionDay:0,expeditions:0,cityRecords:[],coauthored:false});
+export const createWonders=()=>({dust:0,archive:0,coauthored:false});
 export function createWonder(type){
  if(type==='polelight')return {mode:'daily'};
  if(type==='glowlight')return {bugs:0,showUntil:0};
@@ -38,7 +36,7 @@ const modeFor={lightDaily:'daily',lightGrow:'grow',lightParty:'party'};
 export const pairedCooldown=(g,type,o)=>Math.max(0,(type==='passOrb'?o.wonder.cooldown:type==='decodeTogether'?o.wonder.nextStudy:0)-now(g));
 export function wonderError(g,type,o,person,people,partnerId=null,queued=false){
  if(!WONDER_ACTIONS[type])return null;
- if(!o||(type==='memoryExpedition'?o.type!=='portal':!WONDER_OPTIONS[o.type]?.includes(type)))return '请选择对应的互动设备。';
+ if(!o||!WONDER_OPTIONS[o.type]?.includes(type))return '请选择对应的互动设备。';
  const s=o.wonder;
  if(type in modeFor&&modeFor[type]===s?.mode)return '已经是这个星光模式。';
  if(['catchBugs','releaseBugs'].includes(type)&&s.bugs<1)return '还没有幽光虫；夜间每 3 游戏小时引来一只，最多三只。';
@@ -49,7 +47,6 @@ export function wonderError(g,type,o,person,people,partnerId=null,queued=false){
  if(type==='sootheOrb'&&!peopleNear(people,o,3).some(p=>isBaby(g,p)))return '请将光球放在幼体附近 3 米内。';
  if(type==='sootheOrb'&&person.position.age<g.config.lifeStages.teenEnd)return '成年居民才能陪伴幼体。';
  if(WONDER_ACTIONS[type].paired){const partner=people.find(p=>p.id===partnerId);if(!partner||partner.id===person.id||isBaby(g,partner)||!sameSide(partner.position,o))return '请选择同一面的非幼体邻居。';}
- if(type==='memoryExpedition'){if(islandOf(person.position)!=='city')return '请先通过太空科技与居民资格检查，乘星舟登上失落星城。';if(g.wonders.archive<3)return '先完成虚空遗迹的三章记忆，解锁失落星城航路。';if(g.wonders.lastExpeditionDay>=g.day)return '今天已经探访过失落星城，明天再出发。';}
  return null;
 }
 // Integral of night minutes, including intervals crossing midnight or several days.
@@ -69,11 +66,10 @@ export function finishWonder(g,type,o,person,people,partnerId){
  if(type in modeFor){s.mode=modeFor[type];return `已切换${{daily:'日常星光',grow:'孢子生长光 · 9 米内植物缓慢恢复健康',party:'聚会星光 · 9 米内多人活动增加社交收益'}[s.mode]}。`;}
  if(type==='catchBugs'){const count=Math.floor(s.bugs);s.bugs-=count;g.wonders.dust+=count;return `收集 ${count} 份幽光微尘，存入家园共享材料；现有 ${g.wonders.dust} 份。`;}
  if(type==='releaseBugs'){s.bugs-=Math.floor(s.bugs);s.showUntil=now(g)+60;for(const p of peopleNear(people,o,6))if(p.id!==person.id)p.needs.fun=clamp(p.needs.fun+20);return '幽光虫在空中绽放，6 米内的居民共同获得乐趣。';}
- if(type in chapterFor){s.chapter++;s.nextStudy=now(g)+360;s.coauthored ||= type==='decodeTogether';g.wonders.coauthored ||= s.coauthored;g.wonders.archive=Math.max(g.wonders.archive,s.chapter);return ['','拓印显露了古文明的迁徙残纹。','星图指向一座失落星城。'+(s.coauthored?' 两位居民共同发现了星城的生态线索。':''),'文明记忆已重现：已定位失落星城。需要深空跃迁科技与合格居民才能登岛。'][s.chapter];}
+ if(type in chapterFor){s.chapter++;s.nextStudy=now(g)+360;s.coauthored ||= type==='decodeTogether';g.wonders.coauthored ||= s.coauthored;g.wonders.archive=Math.max(g.wonders.archive,s.chapter);return ['','拓印显露了古文明的迁徙残纹。','星图记录了一段通往远方星域的航路。'+(s.coauthored?' 两位居民共同发现了额外的生态线索。':''),'文明记忆已重现：远方星域资料已归档，等待新的星岛上线。'][s.chapter];}
  if(['tuneSleep','tuneInsight'].includes(type)){s.mode=type==='tuneSleep'?'sleep':'insight';s.charge=0;s.armed=false;s.retuneAfter=now(g)+360;return `已切换${s.mode==='sleep'?'安眠':'灵感'}频率，从零开始充能；6 游戏小时充满后可用 1 份微尘激活。`;}
  if(type==='activateCrystal'){g.wonders.dust--;s.armed=true;return `晶簇已储存${s.mode==='sleep'?'安眠':'灵感'}共振，将帮助 5 米内完成的一次${s.mode==='sleep'?'睡眠，额外恢复 15 能量':'研究，额外获得 1 科学技能'}。`;}
  if(o.type==='lamp'){s.cooldown=now(g)+120;if(type==='sootheOrb'){for(const p of peopleNear(people,o,3).filter(p=>isBaby(g,p))){p.needs.fun=clamp(p.needs.fun+30);p.needs.social=clamp(p.needs.social+20);}return '光球陪幼体玩耍：乐趣 +30、社交 +20，仍需正常喂养与照料。';}return type==='passOrb'?`${person.position.name}与${people.find(p=>p.id===partnerId).position.name}完成双人传光，关系更亲近了。`:'追逐光球结束，它将休息 2 游戏小时。';}
- if(type==='memoryExpedition'){g.wonders.lastExpeditionDay=g.day;g.wonders.expeditions++;if(!g.wonders.cityRecords.includes(g.day%3))g.wonders.cityRecords.push(g.day%3);g.wonders.dust+=2;return ['在失落星城找到了星能补给，带回 2 份幽光微尘和 120 星币。','在星城档案馆补全星图，带回 2 份幽光微尘和 120 星币。','在星城温室发现了发光生态记录，带回 2 份幽光微尘和 120 星币。'][g.day%3];}
 }
 export function useCrystal(g,type,target,person){
  if(!target||!['sleep','research'].includes(type))return;
@@ -98,4 +94,4 @@ export function validWonder(o){const s=o.wonder;if(!WONDER_OPTIONS[o.type])retur
  if(o.type==='crystal')return ['sleep','insight'].includes(s.mode)&&range(s.charge,100)&&typeof s.armed==='boolean'&&range(s.retuneAfter,1e12)&&(!s.armed||s.charge===100);
  return range(s.cooldown,1e12);
 }
-export const validWonders=s=>s&&Number.isSafeInteger(s.expeditions)&&range(s.expeditions,1e12)&&typeof s.coauthored==='boolean'&&Array.isArray(s.cityRecords)&&s.cityRecords.length<=3&&new Set(s.cityRecords).size===s.cityRecords.length&&s.cityRecords.every(n=>Number.isInteger(n)&&range(n,2))&&Number.isSafeInteger(s.dust)&&range(s.dust,1e9)&&Number.isInteger(s.archive)&&range(s.archive,3)&&Number.isInteger(s.lastExpeditionDay)&&range(s.lastExpeditionDay,1e12);
+export const validWonders=s=>s&&typeof s.coauthored==='boolean'&&Number.isSafeInteger(s.dust)&&range(s.dust,1e9)&&Number.isInteger(s.archive)&&range(s.archive,3);

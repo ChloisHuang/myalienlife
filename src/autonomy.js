@@ -2,8 +2,8 @@ import {autonomousCooperationReady} from './cooperation.js';
 import {islandOf,sameSide} from './island.js';
 import {projectComplete} from './settlements.js';
 
-const interests={starVoyage:'explore',buildUfo1:'research',buildUfo2:'research',buildUfo3:'research',prepareRations:'cook',spaceResearch:'research',voyage:'explore',lightGrow:'garden',lightParty:'chat',lightDaily:'relax',releaseBugs:'garden',catchBugs:'garden',traceRelic:'research',decodeRelic:'research',decodeTogether:'research',restoreMemory:'research',memoryExpedition:'observe',tuneInsight:'research',tuneSleep:'relax',activateCrystal:'research',passOrb:'chat',chaseOrb:'dance',sootheOrb:'chat',lounge:'chat',joke:'chat',gift:'chat',flirt:'chat',travel:'explore'};
-const specialties={starVoyage:'science',buildUfo1:'science',buildUfo2:'science',buildUfo3:'science',prepareRations:'cooking',spaceResearch:'science',voyage:'science',lightGrow:'botany',catchBugs:'botany',releaseBugs:'botany',traceRelic:'science',decodeRelic:'science',decodeTogether:'science',restoreMemory:'science',memoryExpedition:'science',tuneInsight:'science',tuneSleep:'science',activateCrystal:'science',passOrb:'social',lounge:'social',sootheOrb:'social',gift:'social',flirt:'social',travel:'science'};
+const interests={starVoyage:'explore',buildUfo1:'research',buildUfo2:'research',buildUfo3:'research',prepareRations:'cook',spaceResearch:'research',voyage:'explore',lightGrow:'garden',lightParty:'chat',lightDaily:'relax',releaseBugs:'garden',catchBugs:'garden',traceRelic:'research',decodeRelic:'research',decodeTogether:'research',restoreMemory:'research',tuneInsight:'research',tuneSleep:'relax',activateCrystal:'research',passOrb:'chat',chaseOrb:'dance',sootheOrb:'chat',lounge:'chat',joke:'chat',gift:'chat',flirt:'chat',travel:'explore'};
+const specialties={starVoyage:'science',buildUfo1:'science',buildUfo2:'science',buildUfo3:'science',prepareRations:'cooking',spaceResearch:'science',voyage:'science',lightGrow:'botany',catchBugs:'botany',releaseBugs:'botany',traceRelic:'science',decodeRelic:'science',decodeTogether:'science',restoreMemory:'science',tuneInsight:'science',tuneSleep:'science',activateCrystal:'science',passOrb:'social',lounge:'social',sootheOrb:'social',gift:'social',flirt:'social',travel:'science'};
 export function actionPreference(p,type){return p.position.preferences[type]??(p.position.preferences[interests[type]]||0)*.65;}
 const near=(a,b,r)=>sameSide(a,b)&&Math.hypot(a.x-b.x,a.z-b.z)<=r;
 const residentsOn=(people,island)=>people.filter(person=>islandOf(person.position)===island).length;
@@ -26,7 +26,6 @@ export function autonomyBonus(g,p,c,people){
  if(type==='prepareRations'){if((g.space.provisions[islandOf(p.position)]??0)>=24)return null;bonus+=15;}
  if(type==='extractMaterials'){if((g.space.materials[islandOf(p.position)]??0)>=120)return null;bonus+=70;}
  if(type.startsWith('buildUfo')){const tier=Number(type.at(-1));if(g.space.ships.some(s=>s.island===islandOf(p.position)&&s.tier>=tier)||people.some(n=>n!==p&&n.queue.some(q=>q.type===type)))return null;bonus+=10;}
- if(type==='memoryExpedition')bonus+=14;
  if(type==='developBlueprint'||type==='constructIsland'){if(Math.min(p.needs.energy,p.needs.hunger)<40)return null;bonus+=22;}
  if(type==='settleIsland')bonus+=12;
  if(type==='voyage'||type==='starVoyage'){

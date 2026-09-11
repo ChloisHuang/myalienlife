@@ -49,3 +49,128 @@
 .time-control{height:48px;padding:0 12px 0 16px;border:0;background:#151f31e8;border-radius:6px;box-shadow:0 8px 18px #101a2c55;backdrop-filter:none}
 .speed-buttons button.active{border-radius:3px}
 @media(max-width:760px){.time-control{height:42px}}
+
+
+/* Storybook island selector v24: portrait-card navigator matching the supplied UI concept. */
+.locations{top:6px;right:calc(var(--dashboard-width) + 14px);display:block;width:min(610px,calc(100% - var(--dashboard-width) - 128px));max-width:none;min-width:0;padding:0;overflow:visible;background:transparent;border:0;border-radius:0;color:#3b514d;filter:none;pointer-events:auto;z-index:3}
+.island-selector-heading{position:relative;padding:0 16px 9px;text-align:center}
+.island-selector-title{position:absolute;left:12px;top:-7px;display:flex;align-items:center;gap:8px;height:38px;padding:0 20px 0 16px;background:linear-gradient(180deg,#71988b,#5f8479);color:#f8fbf5;border:1px solid #9eb7aa;border-radius:4px 7px 7px 4px;box-shadow:0 7px 18px #17342d33;font-size:17px;font-weight:700;letter-spacing:2px;transform:rotate(-1deg);z-index:2;pointer-events:none}
+.island-selector-title:before,.island-selector-title:after{content:'';position:absolute;top:6px;width:16px;height:27px;background:#789c8c;z-index:-1}.island-selector-title:before{left:-10px;clip-path:polygon(0 0,100% 15%,82% 100%,0 82%,30% 50%)}.island-selector-title:after{right:-10px;clip-path:polygon(0 15%,100% 0,70% 50%,100% 82%,18% 100%)}
+.island-selector-title .icon{width:20px;height:20px;stroke-width:1.6}
+.island-selector-current{width:min(390px,66%);min-height:48px;margin:0 auto;display:grid;grid-template-columns:44px minmax(0,1fr) 48px 44px;align-items:center;background:linear-gradient(180deg,#f8f8eeed,#eef2e5ed);border:2px solid #72988c;border-radius:25px;box-shadow:inset 0 0 0 3px #ffffff9e,0 7px 17px #203e3730;overflow:hidden}
+.island-selector-current>[data-island-step]{height:44px;display:grid;place-items:center;padding:0;color:#34524d;border-radius:50%;filter:none}.island-selector-current>[data-island-step]:hover:not(:disabled){background:#dce8df}.island-selector-current>[data-island-step]:disabled{opacity:.28}.island-selector-current>[data-island-step] .icon{width:22px;height:22px;stroke-width:2.2}
+.island-selector-toggle{height:44px;display:flex;align-items:baseline;justify-content:center;gap:12px;min-width:0;padding:0 8px;border-radius:18px;color:#304b47;cursor:pointer;filter:none}.island-selector-toggle:hover{background:#dce8df99}.island-selector-toggle:focus-visible{outline:2px solid #5e8f7e;outline-offset:-3px}.island-selector-current small{font-size:15px;font-weight:800;color:#46665d}.island-selector-current strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:18px;letter-spacing:1.2px;color:#304b47}
+.island-selector-emblem{width:44px;height:36px;display:grid;place-items:center;border-left:1px solid #c7d5cc;color:#668e7f}.island-selector-emblem .icon{width:25px;height:25px;transform:rotate(-16deg)}
+.island-selector-heading>p{margin-top:5px;color:#e6efea;font-size:10px;letter-spacing:1.2px;text-shadow:0 2px 7px #213944b5}.locations:not(.is-expanded) .island-selector-heading{padding-bottom:0}.locations:not(.is-expanded) .island-selector-heading>p{display:none}
+.island-card-sheet[hidden]{display:none!important}.island-card-sheet{position:relative;padding:10px 12px 11px;background:linear-gradient(180deg,#eef2eaf2,#e5ebe3f2);border:1px solid #d9e2d8;border-radius:13px;box-shadow:0 12px 28px #162c3340,inset 0 0 0 2px #ffffff82;backdrop-filter:blur(10px)}
+.island-card-sheet:before,.island-card-sheet:after{content:'';position:absolute;width:22px;height:42px;top:-16px;opacity:.7;background:radial-gradient(ellipse at 65% 50%,#89ad79 0 22%,transparent 24%),radial-gradient(ellipse at 35% 78%,#aac59a 0 22%,transparent 24%);transform:rotate(25deg);pointer-events:none}.island-card-sheet:before{left:-10px}.island-card-sheet:after{right:-8px;transform:scaleX(-1) rotate(25deg)}
+.island-card-rail{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:2px;scrollbar-width:thin;scrollbar-color:#a8bdb1 transparent;overscroll-behavior-inline:contain;scroll-snap-type:x proximity}
+.locations .island-card{position:relative;flex:0 0 90px;display:flex;flex-direction:column;gap:0;padding:5px 5px 7px;background:#f9faf4;border:1px solid #d5ddd6;border-radius:8px;color:#3b504c;text-align:left;box-shadow:0 2px 7px #20362d18;scroll-snap-align:start;filter:none;overflow:hidden}
+.locations .island-card:hover{background:#fff;transform:translateY(-1px)}
+.locations .island-card[aria-current=true]{border-color:#46a97e;box-shadow:0 0 0 2px #d9eee1,0 5px 13px #2e735328;background:#fbfff9}
+.island-thumb{position:relative;display:block;width:100%;aspect-ratio:1 / 2;overflow:hidden;border-radius:5px;background:linear-gradient(180deg,color-mix(in srgb,var(--island-accent) 75%,#dff2ec),color-mix(in srgb,var(--island-color) 72%,#253c49));background-size:cover;background-position:center;box-shadow:inset 0 0 0 1px #ffffff8c}
+.island-thumb:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 48%,#1931291f 100%);pointer-events:none}
+.island-thumb[data-thumb=home]{background-image:linear-gradient(180deg,#ffffff0c,#1d483d32),url('../docs/images/orbit-life-day.png');background-position:34% 52%}
+.island-thumb[data-thumb=spore]{background-image:linear-gradient(180deg,#ffffff05,#173d2828),url('../docs/images/island-02-front.png');background-position:49% 51%}
+.island-thumb-mark{position:absolute;left:50%;top:50%;width:42px;height:42px;display:grid;place-items:center;transform:translate(-50%,-50%);border:1px solid #ffffff70;border-radius:50%;background:#eff6ef42;color:#f7fff8;filter:drop-shadow(0 2px 5px #19353077);z-index:1}.island-thumb-mark .icon{width:25px;height:25px;stroke-width:1.5}.island-thumb[data-thumb=home] .island-thumb-mark,.island-thumb[data-thumb=spore] .island-thumb-mark{opacity:0}
+.island-card-check{position:absolute;right:5px;top:5px;width:25px;height:25px;display:grid;place-items:center;border:2px solid #f6fff8;border-radius:50%;background:#259b71;color:#fff;box-shadow:0 2px 5px #173b2e44;opacity:0;transform:scale(.75);transition:opacity .16s,transform .16s;z-index:2}.island-card[aria-current=true] .island-card-check{opacity:1;transform:scale(1)}.island-card-check .icon{width:15px;height:15px;stroke-width:2.7}
+.island-card-copy{display:grid;grid-template-columns:auto 1fr;gap:1px 5px;padding:7px 2px 0;min-width:0}.island-card-number{grid-row:1/3;align-self:start;font-size:12px;font-weight:800;color:#5d766f;line-height:1.35}.island-card-copy strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:700;color:#334942;line-height:1.4}.island-card-copy small{grid-column:1/-1;display:flex;align-items:center;justify-content:center;gap:3px;width:max-content;max-width:100%;margin-top:5px;padding:3px 7px;border-radius:10px;background:#dce8e2;color:#5b7068;font-size:9px;white-space:nowrap}.island-card-copy small .icon{width:10px;height:10px}.island-card[data-state=visited] .island-card-copy small{background:#d5eee0;color:#318060}.island-card[data-state=locked] .island-card-copy small{background:#e2e5e4;color:#75817e}
+.island-card-track{grid-column:1/-1;display:block;height:4px;margin-top:7px;overflow:hidden;border-radius:4px;background:#dfe5e1}.island-card-track i{display:block;height:100%;width:12%;border-radius:inherit;background:#72847f}.island-card[data-state=visited] .island-card-track i{width:72%;background:#39a77c}
+.island-select-accessible{position:absolute!important;left:-10000px!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}
+.locations{pointer-events:none}
+.island-selector-heading{pointer-events:none}
+.island-selector-current,.island-card-sheet{pointer-events:auto}
+.locations .island-mobile-launcher{display:grid;width:44px;height:44px;place-items:center;padding:0;border:1px solid #b7ccc2;border-radius:50%;background:linear-gradient(180deg,#f4f7ef,#dfe9e2);color:#4f786c;box-shadow:0 7px 18px #172c3442,inset 0 0 0 3px #ffffffa6;backdrop-filter:blur(10px);filter:none;position:absolute;right:0;top:0;z-index:8;opacity:1;transition:filter .18s}
+.locations .island-mobile-launcher .icon{width:25px;height:25px;stroke-width:1.8}
+.locations .island-mobile-launcher:hover{filter:brightness(1.035)}
+.locations .island-mobile-launcher:focus-visible{outline:2px solid #5e8f7e;outline-offset:3px}
+.island-selector-current{position:relative;left:0;margin-left:auto;margin-right:auto;transform:none;transform-origin:center center}
+body.dossier-collapsed .locations:is([data-selector-state=announce],[data-selector-state=opening],[data-selector-state=open],[data-selector-state=collapsing],[data-selector-state=compact]){right:20px}
+.locations[data-selector-state=compact] .island-selector-title{display:none!important}
+.locations[data-selector-state=compact] .island-selector-current{width:44px;min-width:44px;left:calc((100% - 44px)/2);overflow:visible;background:transparent;border-color:transparent;box-shadow:none}
+.locations[data-selector-state=compact] .island-selector-toggle,.locations[data-selector-state=compact] .island-selector-current>[data-island-step]{visibility:hidden;pointer-events:none}
+.locations[data-selector-state=open] .island-selector-heading{padding-right:16px}
+.locations[data-selector-state=announce] .island-selector-heading,.locations[data-selector-state=opening] .island-selector-heading,.locations[data-selector-state=collapsing] .island-selector-heading{overflow:visible}
+.locations[data-selector-state=announce]:not([data-announce-continuous=true]) .island-selector-current{animation:island-selector-bar-open .32s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=announce]:not([data-announce-continuous=true]) .island-selector-title{animation:island-selector-title-in .24s .12s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=announce][data-announce-continuous=true] .island-selector-current,.locations[data-selector-state=announce][data-announce-continuous=true] .island-selector-title{animation:none}
+.locations[data-selector-state=opening] .island-selector-current{animation:island-selector-bar-open .32s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=opening] .island-selector-title{animation:island-selector-title-in .22s .11s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=opening] .island-selector-toggle,.locations[data-selector-state=opening] .island-selector-current>[data-island-step]{animation:island-selector-controls-in .2s .1s ease both}
+.locations[data-selector-state=collapsing] .island-selector-title{animation:island-selector-title-out .16s ease forwards;pointer-events:none}
+.locations[data-selector-state=collapsing] .island-selector-current{overflow:hidden;animation:island-selector-bar-collapse .36s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none}
+.locations[data-selector-state=collapsing] .island-selector-toggle,.locations[data-selector-state=collapsing] .island-selector-current>[data-island-step]{animation:island-selector-controls-out .15s ease forwards}
+@keyframes island-selector-bar-open{from{width:44px;min-width:44px;left:calc((100% - 44px)/2)}to{left:0}}
+@keyframes island-selector-title-in{from{opacity:0;transform:translateX(12px) rotate(-1deg)}to{opacity:1;transform:translateX(0) rotate(-1deg)}}
+@keyframes island-selector-controls-in{from{opacity:0}to{opacity:1}}
+@keyframes island-selector-title-out{to{opacity:0;transform:translateX(10px) rotate(-1deg)}}
+@keyframes island-selector-controls-out{to{opacity:0}}
+@keyframes island-selector-bar-collapse{0%{left:0;opacity:1}100%{width:44px;min-width:44px;left:calc((100% - 44px)/2);opacity:1}}
+.phone-layout .locations:is([data-selector-state=announce],[data-selector-state=opening],[data-selector-state=collapsing],[data-selector-state=open],[data-selector-state=compact]){left:12px;right:20px;top:8px;width:auto;max-width:520px;min-width:0;margin-left:auto;overflow:visible;z-index:7}
+.phone-layout .locations:is([data-selector-state=announce],[data-selector-state=opening],[data-selector-state=open]) .island-selector-current{width:100%;min-height:44px}
+.phone-layout .locations[data-selector-state=collapsing] .island-selector-current,.phone-layout .locations[data-selector-state=compact] .island-selector-current{min-height:44px}
+.phone-layout .locations .island-mobile-launcher{top:0}
+.phone-layout .locations[data-selector-state=open] .island-card-sheet{max-width:100%;overflow:hidden}
+.phone-layout .locations[data-selector-state=open] .island-card-rail{max-width:100%;overflow-x:auto;overflow-y:hidden}
+@media(prefers-reduced-motion:reduce){.locations[data-selector-state=announce] .island-selector-current,.locations[data-selector-state=announce] .island-selector-title,.locations[data-selector-state=opening] .island-selector-current,.locations[data-selector-state=opening] .island-selector-title,.locations[data-selector-state=opening] .island-selector-toggle,.locations[data-selector-state=opening] .island-selector-current>[data-island-step],.locations[data-selector-state=collapsing] .island-selector-title,.locations[data-selector-state=collapsing] .island-selector-current,.locations[data-selector-state=collapsing] .island-selector-toggle,.locations[data-selector-state=collapsing] .island-selector-current>[data-island-step]{animation:none}.locations .island-mobile-launcher{transition:none}}
+@media(max-width:1200px){.locations{top:9px;right:calc(var(--dashboard-width) + 12px);width:min(555px,calc(100% - var(--dashboard-width) - 82px))}.island-selector-current{width:min(340px,72%)}.locations .island-card{flex-basis:82px}.island-selector-title{font-size:15px;padding-inline:14px}.island-selector-current strong{font-size:16px}}
+@media(max-width:760px){.locations{top:118px;right:0;width:calc(100vw - 28px);max-width:none}.island-selector-heading{padding-inline:8px}.island-selector-title{position:relative;left:auto;top:auto;width:max-content;height:30px;margin:0 0 -3px 7px;padding:0 12px;font-size:12px;letter-spacing:1.3px}.island-selector-title:before,.island-selector-title:after{height:21px;top:4px}.island-selector-title .icon{width:15px;height:15px}.island-selector-current{width:100%;min-height:39px;grid-template-columns:38px minmax(0,1fr) 38px 38px;border-radius:20px}.island-selector-current>[data-island-step]{height:36px}.island-selector-toggle{height:36px;padding-inline:5px}.island-selector-current strong{font-size:13px}.island-selector-current small{font-size:11px}.island-selector-emblem{width:34px;height:30px}.island-selector-emblem .icon{width:20px;height:20px}.island-selector-heading>p{display:none}.island-card-sheet{padding:7px;border-radius:10px}.island-card-rail{gap:6px}.locations .island-card{flex-basis:64px;padding:4px}.island-card-copy{padding-top:5px;gap:0 3px}.island-card-number{font-size:9px}.island-card-copy strong{font-size:9px}.island-card-copy small{font-size:7px;padding:2px 5px}.island-card-copy small .icon{width:8px;height:8px}.island-card-track{margin-top:5px;height:3px}.island-card-check{width:20px;height:20px;right:3px;top:3px}.island-card-check .icon{width:12px;height:12px}}
+
+/* Island selector final docking geometry: one persistent icon, fixed-height capsule, two-stage dock. */
+.locations{pointer-events:none}
+.locations .island-selector-heading{position:relative;height:48px;padding:0 16px;text-align:center;pointer-events:none;overflow:visible}
+.locations[data-selector-state=open] .island-selector-heading{height:77px}
+.locations .island-selector-heading>p{position:absolute;top:53px;left:0;right:0;margin:0}
+.locations .island-selector-current{position:absolute;top:0;left:50%;width:min(390px,66%);height:48px;min-height:48px;margin:0;transform:translateX(-50%);transform-origin:center center;border-radius:24px;pointer-events:auto;overflow:hidden}
+.locations .island-mobile-launcher{display:grid;width:48px;height:48px;place-items:center;padding:0;border:0;border-radius:24px;background:transparent;color:#668e7f;box-shadow:none;backdrop-filter:none;filter:none;position:absolute;right:-1px;top:-1px;z-index:8;opacity:1;transform:none;transition:filter .18s}
+.locations .island-mobile-launcher .icon{width:26px;height:26px;stroke-width:initial;transform:none}
+.locations .island-mobile-launcher:hover{filter:brightness(.94)}
+.locations .island-mobile-launcher:active{transform:none}
+.locations .island-mobile-launcher:focus-visible{outline:2px solid #5e8f7e;outline-offset:-3px}
+.locations .island-card-sheet{pointer-events:auto}
+.locations[data-selector-state=compact] .island-selector-title,.locations[data-selector-state=docking] .island-selector-title,.locations[data-selector-state=undocking] .island-selector-title{display:none!important}
+.locations[data-selector-state=compact] .island-selector-toggle,.locations[data-selector-state=compact] .island-selector-current>[data-island-step],.locations[data-selector-state=docking] .island-selector-toggle,.locations[data-selector-state=docking] .island-selector-current>[data-island-step],.locations[data-selector-state=undocking] .island-selector-toggle,.locations[data-selector-state=undocking] .island-selector-current>[data-island-step]{opacity:0;pointer-events:none}
+.locations[data-selector-state=compact] .island-selector-heading{display:block!important;height:48px;padding-bottom:0}
+.locations[data-selector-state=compact] .island-card-sheet{display:none!important}
+.locations[data-selector-state=compact] .island-selector-current,.locations[data-selector-state=docking] .island-selector-current,.locations[data-selector-state=undocking] .island-selector-current{width:48px;min-width:48px;height:48px;min-height:48px;border-radius:24px}
+.locations[data-selector-state=compact] .island-selector-current{left:100%;transform:translateX(-100%)}
+.locations[data-selector-state=docking] .island-selector-current{animation:island-selector-dock .3s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=undocking] .island-selector-current{animation:island-selector-undock .3s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=announce] .island-selector-current{left:50%;transform:translateX(-50%)}
+.locations[data-selector-state=announce]:not([data-announce-continuous=true]) .island-selector-current{animation:island-selector-open-width .32s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=announce]:not([data-announce-continuous=true]) .island-selector-title{animation:island-selector-title-in-final .24s .12s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=announce][data-announce-continuous=true] .island-selector-current,.locations[data-selector-state=announce][data-announce-continuous=true] .island-selector-title{animation:none}
+.locations[data-selector-state=opening] .island-selector-current{left:50%;transform:translateX(-50%);animation:island-selector-open-width .32s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=opening] .island-selector-title{animation:island-selector-title-in-final .22s .11s cubic-bezier(.2,.8,.2,1) both}
+.locations[data-selector-state=opening] .island-selector-toggle,.locations[data-selector-state=opening] .island-selector-current>[data-island-step]{animation:island-selector-controls-in-final .2s .1s ease both}
+.locations[data-selector-state=collapsing] .island-selector-current{left:50%;transform:translateX(-50%);animation:island-selector-close-width .36s cubic-bezier(.4,0,.2,1) forwards;pointer-events:none}
+.locations[data-selector-state=collapsing] .island-selector-title{animation:island-selector-title-out-final .16s ease forwards;pointer-events:none}
+.locations[data-selector-state=collapsing] .island-selector-toggle,.locations[data-selector-state=collapsing] .island-selector-current>[data-island-step]{animation:island-selector-controls-out-final .15s ease forwards}
+@keyframes island-selector-open-width{from{width:48px;min-width:48px}to{}}
+@keyframes island-selector-close-width{0%{}100%{width:48px;min-width:48px}}
+@keyframes island-selector-dock{from{left:50%;transform:translateX(-50%)}to{left:100%;transform:translateX(-100%)}}
+@keyframes island-selector-undock{from{left:100%;transform:translateX(-100%)}to{left:50%;transform:translateX(-50%)}}
+@keyframes island-selector-title-in-final{from{opacity:0;transform:translateX(10px) rotate(-1deg)}to{opacity:1;transform:translateX(0) rotate(-1deg)}}
+@keyframes island-selector-title-out-final{to{opacity:0;transform:translateX(8px) rotate(-1deg)}}
+@keyframes island-selector-controls-in-final{from{opacity:0}to{opacity:1}}
+@keyframes island-selector-controls-out-final{to{opacity:0}}
+.phone-layout .locations{left:auto!important;right:20px!important;top:8px!important;width:min(520px,calc(var(--layout-width,100vw) - 32px))!important;max-width:520px!important;min-width:0!important;margin:0!important;overflow:visible!important;z-index:7}
+.phone-layout .locations .island-selector-heading{height:44px;padding:0}
+.phone-layout .locations[data-selector-state=open] .island-selector-heading{height:68px}
+.phone-layout .locations .island-selector-heading>p{display:none!important}
+.phone-layout .locations .island-selector-current{width:min(390px,calc(100% - 32px));height:44px;min-height:44px;border-radius:22px;grid-template-columns:38px minmax(0,1fr) 38px 44px}
+.phone-layout .locations .island-mobile-launcher{width:44px;height:44px;right:-1px;top:-1px;border-radius:22px}
+.phone-layout .locations .island-mobile-launcher .icon{width:25px;height:25px}
+.phone-layout .locations[data-selector-state=compact] .island-selector-heading{height:44px}
+.phone-layout .locations[data-selector-state=compact] .island-selector-current,.phone-layout .locations[data-selector-state=docking] .island-selector-current,.phone-layout .locations[data-selector-state=undocking] .island-selector-current{width:44px;min-width:44px;height:44px;min-height:44px;border-radius:22px}
+.phone-layout .locations[data-selector-state=announce]:not([data-announce-continuous=true]) .island-selector-current,.phone-layout .locations[data-selector-state=opening] .island-selector-current{animation:island-selector-phone-open-width .32s cubic-bezier(.2,.8,.2,1) both}
+.phone-layout .locations[data-selector-state=collapsing] .island-selector-current{animation:island-selector-phone-close-width .36s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes island-selector-phone-open-width{from{width:44px;min-width:44px}to{}}
+@keyframes island-selector-phone-close-width{0%{}100%{width:44px;min-width:44px}}
+.phone-layout .locations[data-selector-state=open] .island-card-sheet{max-width:100%;overflow:hidden}
+.phone-layout .locations[data-selector-state=open] .island-card-rail{max-width:100%;overflow-x:auto;overflow-y:hidden}
+@media(prefers-reduced-motion:reduce){.locations[data-selector-state=announce] .island-selector-current,.locations[data-selector-state=announce] .island-selector-title,.locations[data-selector-state=opening] .island-selector-current,.locations[data-selector-state=opening] .island-selector-title,.locations[data-selector-state=opening] .island-selector-toggle,.locations[data-selector-state=opening] .island-selector-current>[data-island-step],.locations[data-selector-state=collapsing] .island-selector-current,.locations[data-selector-state=collapsing] .island-selector-title,.locations[data-selector-state=collapsing] .island-selector-toggle,.locations[data-selector-state=collapsing] .island-selector-current>[data-island-step],.locations[data-selector-state=docking] .island-selector-current,.locations[data-selector-state=undocking] .island-selector-current{animation:none!important}}
+
+
+/* Keep the restored Orbit mark visually bold in every selector state. */
+.locations .island-mobile-launcher .icon{stroke-width:2.0}

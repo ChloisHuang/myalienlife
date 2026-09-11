@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,tick,enqueue,cancelAction,restore,serialize,switchControl} from '../src/simulation.js';
 import {loadConstructionCargo} from '../src/space-logistics.js';
+import {generateIsland} from '../src/island-generator.js';
+import {createProject} from '../src/settlements.js';
 
 function setup(tier=2){
  const g=createGame();g.autonomy.enabled=false;
@@ -58,9 +60,9 @@ test('other reserved inbound cargo prevents duplicate supply, and canceled shipm
 });
 
 test('automatic shipping uses only stock beyond the departure islands own unfinished construction needs',()=>{
- const g=setup();arrange(g);g.civilization.projects.city.blueprint=300;g.civilization.projects.city.construction=401;
- g.space.ships[0].island='city';g.space.materials.city=25;
- assert.equal(loadConstructionCargo(g,g.queue[0]),6);assert.equal(g.space.materials.city,19);assert.equal(g.space.cargo.freighter,6);
+ const g=setup(),island=generateIsland(g.civilization.seed,0);g.civilization.islands[island.id]=island;g.civilization.discoveryPath.push(island.id);g.civilization.visits[island.id]=1;g.civilization.surveys[island.id]=0;g.civilization.surveyDays[island.id]=0;g.civilization.projects[island.id]=createProject(g.civilization.seed);arrange(g);g.civilization.projects[island.id].blueprint=300;g.civilization.projects[island.id].construction=401;
+ g.space.ships[0].island=island.id;g.space.materials[island.id]=25;
+ assert.equal(loadConstructionCargo(g,g.queue[0]),6);assert.equal(g.space.materials[island.id],19);assert.equal(g.space.cargo.freighter,6);
  assert.equal(loadConstructionCargo(g,g.queue[0]),0);
 });
 

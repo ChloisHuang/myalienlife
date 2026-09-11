@@ -114,8 +114,8 @@ test('new exploration stops until another authored island is released',()=>{
  g.civilization.visits.spore=1;g.civilization.observations=12;
  assert.equal(discoverAdjacentIsland(g,'spore'),null);
  assert.deepEqual(restore(serialize(g)).civilization.discoveryPath,['home','spore']);
- const legacy=createGame();legacy.civilization.discoveryPath=['home','spore','city'];
- assert.equal(islandCatalog(restore(serialize(legacy))).city.name,'失落星城');
+ const legacy=createGame();legacy.version=23;legacy.civilization.discoveryPath=['home','spore','city'];legacy.civilization.visits.city=1;legacy.civilization.surveys.city=0;legacy.civilization.surveyDays.city=0;
+ const migrated=restore(serialize(legacy));assert.equal(islandCatalog(migrated).city,undefined);assert.deepEqual(migrated.civilization.discoveryPath,['home','spore']);
 });
 test('fairytale furniture is purchasable outside the island, fixed landmarks are not',()=>{
  const g=createGame();
