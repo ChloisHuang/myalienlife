@@ -1,4 +1,5 @@
 import {createPrayerVisuals} from './prayer-visuals.js';
+import {updateSkinBounds} from './skin-bounds.js';
 import * as THREE from 'three';
 import {appearance,localToWorld,groundHeight,SOFA_SEATS} from './characters.js';
 import {StarToonMaterial} from './npr.js';
@@ -143,7 +144,7 @@ export function updateCharacter(rig,{person,action,object,partner,time,delta,con
  rig.root.updateMatrixWorld(true);
  const headBone=rig.joints.HeadBone,head=rig.joints.Head;headBone.position.copy(headBone.parent.worldToLocal(head.getWorldPosition(new THREE.Vector3())));headBone.quaternion.copy(headBone.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(head.getWorldQuaternion(new THREE.Quaternion())));headBone.scale.copy(head.scale);headBone.updateMatrixWorld(true);
  for(const limb of Object.values(rig.limbs))poseSkin(rig,limb);
- const skin=rig.limbs.LeftLeg.mesh;skin.skeleton.update();skin.computeBoundingSphere();
+ const skin=rig.limbs.LeftLeg.mesh;skin.skeleton.update();updateSkinBounds(skin);
  if(rig.effects.wash.visible){for(let i=0;i<60;i++){const angle=i*2.399;rig.particles[i*3]=Math.cos(angle)*(.4+(i%3)*.035);rig.particles[i*3+1]=(2.2-(time*1.2+i*.13)%2.2)*look.scale;rig.particles[i*3+2]=Math.sin(angle)*(.4+(i%3)*.035);}rig.drops.geometry.attributes.position.needsUpdate=true;rig.halo.position.y=(.4+(Math.sin(time*2)+1)*.65)*look.scale;}
  if(action?.scoutElapsed!==undefined&&action.scoutElapsed<3.2){rig.joints.Head.rotation.x=.35;rig.joints.Head.rotation.y=Math.sin(action.scoutElapsed*2)*.3;}
  rig.prayerVisuals.update(person,time,living.mode);

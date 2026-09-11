@@ -10,6 +10,10 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
+test('postprocessed scene does not allocate redundant canvas multisampling',async({page})=>{
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ expect(await page.locator('#world canvas').evaluate(canvas=>canvas.getContext('webgl2').getContextAttributes().antialias)).toBe(false);
+});
 test('dossier roster lists a switched controlled resident only once',async({page})=>{
  const g=createGame();g.speed=0;switchControl(g,'lumi');fixtures.set(page,g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});

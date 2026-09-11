@@ -1,0 +1,212 @@
+{
+  "label": "batch-before",
+  "objects": 50,
+  "island": "home",
+  "renderInfo": {
+    "frame": 14239,
+    "calls": 2649,
+    "triangles": 1236517,
+    "points": 1564,
+    "lines": 5312,
+    "programs": 44,
+    "memory": {
+      "geometries": 772,
+      "textures": 19
+    }
+  },
+  "heapBefore": {
+    "usedSize": 74863336,
+    "totalSize": 136462336,
+    "embedderHeapUsedSize": 23042200,
+    "backingStorageSize": 52025229
+  },
+  "heapAfter": {
+    "usedSize": 42784928,
+    "totalSize": 135938048,
+    "embedderHeapUsedSize": 15320376,
+    "backingStorageSize": 45784549
+  },
+  "gpu": {
+    "supported": true,
+    "renderer": "WebKit WebGL",
+    "mean": 20.103886802589017,
+    "p95": 24.137375,
+    "samples": 618
+  },
+  "errors": [],
+  "dt": {
+    "mean": 19.461326860783554,
+    "p50": 19.19999998807907,
+    "p95": 23
+  },
+  "tick": {
+    "mean": 0.5880258891574773,
+    "p50": 0.5,
+    "p95": 1
+  },
+  "render": {
+    "mean": 18.367961164913517,
+    "p50": 18.399999976158142,
+    "p95": 21
+  },
+  "fps": 51.383957895239725,
+  "cpu": {
+    "computeBoundingSphere": 0,
+    "updateCharacter": 14.738592661885457,
+    "tick": 3.3780272320964553,
+    "refresh": 0.4989086373557842,
+    "(garbage collector)": 0.2910300384575408
+  },
+  "hot": [
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 2059
+    },
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 825
+    },
+    {
+      "name": "uniform3f",
+      "url": "",
+      "line": 0,
+      "samples": 587
+    },
+    {
+      "name": "uniformMatrix3fv",
+      "url": "",
+      "line": 0,
+      "samples": 331
+    },
+    {
+      "name": "getPoint",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 18077,
+      "samples": 291
+    },
+    {
+      "name": "(program)",
+      "url": "",
+      "line": 0,
+      "samples": 254
+    },
+    {
+      "name": "drawElements",
+      "url": "",
+      "line": 0,
+      "samples": 219
+    },
+    {
+      "name": "WebGLRenderer.renderBufferDirect",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40314,
+      "samples": 173
+    },
+    {
+      "name": "initNonuniformCatmullRom",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 18034,
+      "samples": 158
+    },
+    {
+      "name": "bindVertexArray",
+      "url": "",
+      "line": 0,
+      "samples": 134
+    },
+    {
+      "name": "WebGLRenderer.renderBufferDirect",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40314,
+      "samples": 131
+    },
+    {
+      "name": "updateMatrixWorld",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 8325,
+      "samples": 120
+    },
+    {
+      "name": "projectObject",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40593,
+      "samples": 88
+    },
+    {
+      "name": "updateMatrixWorld",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 8325,
+      "samples": 79
+    },
+    {
+      "name": "allActors",
+      "url": "http://127.0.0.1:5177/src/simulation.js",
+      "line": 337,
+      "samples": 76
+    },
+    {
+      "name": "sort",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 36041,
+      "samples": 73
+    },
+    {
+      "name": "renderObjects",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40732,
+      "samples": 72
+    },
+    {
+      "name": "bindVertexArray",
+      "url": "",
+      "line": 0,
+      "samples": 72
+    },
+    {
+      "name": "renderObjects",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40732,
+      "samples": 71
+    },
+    {
+      "name": "render",
+      "url": "http://127.0.0.1:5177/src/world.js",
+      "line": 215,
+      "samples": 70
+    },
+    {
+      "name": "setProgram",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40855,
+      "samples": 69
+    },
+    {
+      "name": "allActors",
+      "url": "http://127.0.0.1:5177/src/simulation.js",
+      "line": 337,
+      "samples": 66
+    },
+    {
+      "name": "poseSkin",
+      "url": "http://127.0.0.1:5177/src/character-rig.js",
+      "line": 12,
+      "samples": 59
+    },
+    {
+      "name": "renderObject",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 36700,
+      "samples": 58
+    },
+    {
+      "name": "copyArray",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 34135,
+      "samples": 57
+    }
+  ]
+}

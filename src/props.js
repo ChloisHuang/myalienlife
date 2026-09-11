@@ -4,21 +4,24 @@ import {createSpiritTree} from './spirit-tree.js';
 import {createWonderVisual} from './wonder-visuals.js';
 import {ITEMS} from './simulation.js';
 import {CROPS} from './plants.js';
+import {batchStatic} from './static-batching.js';
 import {StarToonMaterial,BiolumeMaterial,createPortalMaterial,createBioluminescence} from './npr.js';
 
 export const colors={ivory:0xe9e5d5,mint:0x93cbbb,pink:0xe8a1bc,purple:0x82789f,dark:0x34495b,gold:0xf6cd83,glow:0xb4ffe0};
 const materials=new Map();
+const sphereGeometry=new THREE.SphereGeometry(1,20,12);
+const staticProps=new Set(['blueprintTable','constructionTerminal','loadingPlatform','stove','tea','banquet','beacon','pod','food','shower','sofa','music','telescope']);
 function material(color,glow=0){const key=`${color}-${glow}`;if(!materials.has(key))materials.set(key,new StarToonMaterial({color,emissive:color,emissiveIntensity:glow}));return materials.get(key);}
 function mesh(parent,geo,color,pos,scale,glow=0){const o=new THREE.Mesh(geo,material(color,glow));o.position.set(...pos);if(scale)o.scale.set(...scale);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;}
 const box=(p,c,xyz,s)=>mesh(p,new RoundedBoxGeometry(...s,3,.09),c,xyz);
-const sphere=(p,c,xyz,s,glow=0)=>mesh(p,new THREE.SphereGeometry(1,20,12),c,xyz,s,glow);
+const sphere=(p,c,xyz,s,glow=0)=>mesh(p,sphereGeometry,c,xyz,s,glow);
 const cylinder=(p,c,xyz,r,h,rt=r)=>mesh(p,new THREE.CylinderGeometry(rt,r,h,32),c,xyz);
 const ring=(p,c,xyz,r,t=.07)=>mesh(p,new THREE.TorusGeometry(r,t,10,60),c,xyz,null,.25);
 
 export {material,mesh,box,sphere,cylinder,ring};
 
 export function createPropFactory({mushroomAsset,mushroomVariants,model,crystal,fairytaleKit}){
- function prop(type,island){const themed=fairytaleKit?.prop(type,island);if(themed)return themed;if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
+ function prop(type,island,batching=true){const themed=fairytaleKit?.prop(type,island,batching);if(themed)return themed;if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
   if(type==='blueprintTable'){
    for(const x of [-.6,.6])box(g,0x96aaa1,[x,.5,0],[.15,1,.85]);
    const desk=new THREE.Group();desk.position.y=1.02;desk.rotation.x=.22;g.add(desk);
@@ -114,7 +117,7 @@ export function createPropFactory({mushroomAsset,mushroomVariants,model,crystal,
   if(type==='lamp'){cylinder(g,colors.ivory,[0,.15,0],.35,.3);cylinder(g,colors.purple,[0,.7,0],.045,1);g.userData.playOrb=sphere(g,colors.gold,[0,1.4,0],[.35,.35,.35],.7);ring(g,colors.ivory,[0,1.4,0],.48,.035).rotation.x=1.1;}
   const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const light=new THREE.PointLight(lighting.color,lighting.intensity,Math.hypot(lighting.radius,lighting.height),2);light.position.set(0,lighting.height,0);g.add(light);g.userData.areaLight=light;}
   if(CROPS[type]){g.userData.cropLight=createBioluminescence(g,{radius:type==='garden'?.8:.65,height:type==='garden'?1.3:1.8,color:0xc9e8e4});for(const crop of g.userData.cropVisual)crop.traverse(n=>{if(n.isMesh){n.material=n.material.clone();n.userData.plantColor=n.material.color.clone();}});for(const crop of g.userData.cropVisual)if(crop.userData.fruit){const fruit=crop.userData.fruit;fruit.material=new BiolumeMaterial({color:fruit.material.color,emissive:0xbce6d9,emissiveIntensity:1});}}
-  g.userData.wonderVisual=createWonderVisual(g,type);return g;
+  g.userData.wonderVisual=createWonderVisual(g,type);if(batching&&staticProps.has(type))batchStatic(g);return g;
  }
 
  return prop;

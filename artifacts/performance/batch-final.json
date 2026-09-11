@@ -1,0 +1,212 @@
+{
+  "label": "batch-final",
+  "objects": 50,
+  "island": "home",
+  "renderInfo": {
+    "frame": 15694,
+    "calls": 2133,
+    "triangles": 1236517,
+    "points": 1564,
+    "lines": 5312,
+    "programs": 52,
+    "memory": {
+      "geometries": 563,
+      "textures": 22
+    }
+  },
+  "heapBefore": {
+    "usedSize": 52794880,
+    "totalSize": 116359168,
+    "embedderHeapUsedSize": 21792064,
+    "backingStorageSize": 47409659
+  },
+  "heapAfter": {
+    "usedSize": 72679040,
+    "totalSize": 119767040,
+    "embedderHeapUsedSize": 46060280,
+    "backingStorageSize": 47420611
+  },
+  "gpu": {
+    "supported": true,
+    "renderer": "WebKit WebGL",
+    "mean": 17.569119627737226,
+    "p95": 22.088833,
+    "samples": 685
+  },
+  "errors": [],
+  "dt": {
+    "mean": 17.529883381924197,
+    "p50": 17.099999964237213,
+    "p95": 21.099999964237213
+  },
+  "tick": {
+    "mean": 0.6236151596721338,
+    "p50": 0.40000003576278687,
+    "p95": 0.699999988079071
+  },
+  "render": {
+    "mean": 15.712390670015235,
+    "p50": 16.100000023841858,
+    "p95": 19.19999998807907
+  },
+  "fps": 57.04544509583801,
+  "cpu": {
+    "computeBoundingSphere": 0,
+    "updateCharacter": 18.278790389395194,
+    "tick": 3.5418392709196356,
+    "refresh": 0.652444076222038,
+    "(garbage collector)": 0.35211267605633806
+  },
+  "hot": [
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 769
+    },
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 591
+    },
+    {
+      "name": "(idle)",
+      "url": "",
+      "line": 0,
+      "samples": 340
+    },
+    {
+      "name": "getPoint",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 18077,
+      "samples": 328
+    },
+    {
+      "name": "(program)",
+      "url": "",
+      "line": 0,
+      "samples": 313
+    },
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 241
+    },
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 219
+    },
+    {
+      "name": "initNonuniformCatmullRom",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 18034,
+      "samples": 195
+    },
+    {
+      "name": "uniformMatrix3fv",
+      "url": "",
+      "line": 0,
+      "samples": 187
+    },
+    {
+      "name": "WebGLRenderer.renderBufferDirect",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 40314,
+      "samples": 185
+    },
+    {
+      "name": "drawArrays",
+      "url": "",
+      "line": 0,
+      "samples": 155
+    },
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 138
+    },
+    {
+      "name": "WebGLRenderer.renderBufferDirect",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 40314,
+      "samples": 129
+    },
+    {
+      "name": "bindVertexArray",
+      "url": "",
+      "line": 0,
+      "samples": 95
+    },
+    {
+      "name": "render",
+      "url": "http://127.0.0.1:5177/src/world.js",
+      "line": 218,
+      "samples": 90
+    },
+    {
+      "name": "updateMatrixWorld",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 8325,
+      "samples": 89
+    },
+    {
+      "name": "projectObject",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 40593,
+      "samples": 87
+    },
+    {
+      "name": "setProgram",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 40855,
+      "samples": 83
+    },
+    {
+      "name": "renderObject",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 36700,
+      "samples": 81
+    },
+    {
+      "name": "renderObjects",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 40732,
+      "samples": 81
+    },
+    {
+      "name": "bindVertexArray",
+      "url": "",
+      "line": 0,
+      "samples": 80
+    },
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 77
+    },
+    {
+      "name": "updateMatrixWorld",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 8325,
+      "samples": 74
+    },
+    {
+      "name": "texSubImage2D",
+      "url": "",
+      "line": 0,
+      "samples": 72
+    },
+    {
+      "name": "copyArray",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=a907dccb",
+      "line": 34135,
+      "samples": 72
+    }
+  ]
+}

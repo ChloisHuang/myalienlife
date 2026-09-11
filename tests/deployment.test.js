@@ -47,8 +47,10 @@ test('production serves Draco WebAssembly decoders with the correct MIME type',a
 test('production CSP permits WebAssembly decoder compilation without enabling JavaScript eval',async()=>{
  const {createHttpService}=await import('../server/http-service.js');const directory=await mkdtemp(join(tmpdir(),'orbit-csp-'));let service;
  try{
+  await writeFile(join(directory,'index.html'),'<html><head><script async src="https://www.googletagmanager.com/gtag/js?id=G-TEST123"></script><script>\nwindow.dataLayer=window.dataLayer||[];gtag(\'config\',\'G-TEST123\');\n</script></head></html>');
   service=await createHttpService({directory,dist:directory,token:'csp-test-token',origin:'http://game.example',autoStart:false});await new Promise(resolve=>service.server.listen(0,'127.0.0.1',resolve));
   const response=await fetch(`http://127.0.0.1:${service.server.address().port}/api/state`);const policy=response.headers.get('content-security-policy')??'';
   assert.match(policy,/script-src 'self' 'wasm-unsafe-eval'/);assert.doesNotMatch(policy,/script-src[^;]*'unsafe-eval'/);
+  assert.match(policy,/script-src[^;]*https:\/\/www\.googletagmanager\.com/);assert.match(policy,/script-src[^;]*'sha256-[^']+'/);assert.match(policy,/connect-src[^;]*https:\/\/www\.google-analytics\.com/);
  }finally{await service?.close();await rm(directory,{recursive:true,force:true});}
 });

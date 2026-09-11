@@ -8,6 +8,25 @@ import {groundHeight} from '../src/characters.js';
 
 const bytes=await readFile(new URL('../public/assets/alien.glb',import.meta.url));
 const asset=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
+test('animated skin bounds contain every posed vertex without reskinning all vertices each frame',async()=>{
+ const {createCharacter,updateCharacter}=await import('../src/character-rig.js');
+ const {createGame}=await import('../src/simulation.js');
+ const person=createGame().player,rig=createCharacter(asset.scene,person),skin=rig.limbs.LeftLeg.mesh;
+ updateCharacter(rig,{person,time:0,delta:0});
+ let reads=0;const getVertex=skin.getVertexPosition;
+ skin.getVertexPosition=function(...args){reads++;return getVertex.apply(this,args);};
+ updateCharacter(rig,{person,time:1,delta:1/60});
+ assert.equal(reads,0,'animation bounds must scale with bones, not mesh vertices');
+ const vertex=new Vector3();
+ for(const age of [0,8,28,68])for(const type of ['sleep','relax','wash','dance','pray','garden']){
+  person.age=age;person.genome={...person.genome,jaw:age===8?.8:1.2};
+  updateCharacter(rig,{person,action:{id:1,type,phase:'acting',elapsed:3,seat:1},object:{x:3,z:4,rotation:Math.PI/2},time:3,delta:1});
+  for(let i=0;i<skin.geometry.attributes.position.count;i++){
+   getVertex.call(skin,i,vertex);
+   assert.ok(vertex.distanceTo(skin.boundingSphere.center)<=skin.boundingSphere.radius+1e-5,`${age} ${type}: vertex ${i} outside bounds`);
+  }
+ }
+});
 test('prayer kneels on both knees, joins hands and keeps the pose through blessing on either face',async()=>{
  const {createCharacter,updateCharacter}=await import('../src/character-rig.js');const {createGame}=await import('../src/simulation.js');
  for(const side of ['front','back'])for(const age of [8,28,68]){
@@ -68,6 +87,8 @@ test('the shipped alien has two skinned legs, colored skin and original antenna 
  for(const name of ['Core','Head','BodySkin','LeftTendrilTip','RightTendrilTip','LeftLegTip','RightLegTip'])assert.ok(asset.scene.getObjectByName(name),name);
  const skins=[];asset.scene.traverse(n=>{if(n.isSkinnedMesh)skins.push(n);assert.ok(!n.name.includes('Fin'));});assert.equal(skins.length,1);
  const mesh=skins[0];assert.equal(mesh.material.name,'Alien skin');assert.equal(mesh.skeleton.bones.length,39);assert.ok(mesh.geometry.attributes.skinWeight);
+ const weights=mesh.geometry.attributes.skinWeight;
+ for(let i=0;i<weights.count;i++){let sum=0;for(let j=0;j<4;j++){const w=weights.getComponent(i,j);assert.ok(w>=0);sum+=w;}assert.ok(Math.abs(sum-1)<1e-6,'bone bounds require normalized nonnegative skin weights');}
  assert.equal(mesh.skeleton.bones.filter(b=>b.name.endsWith('LegBone0')).length,2);
  for(const side of ['Left','Right']){const bulb=asset.scene.getObjectByName(side+'AntennaLight');assert.ok(Math.abs(new Box3().setFromObject(bulb).getSize(new Vector3()).x-.13)<.002);}
  for(const side of ['Left','Right'])for(const part of ['Elbow','Knee','Boot','Palm','UpperSleeve','LowerLeg'])assert.equal(asset.scene.getObjectByName(side+part),undefined);

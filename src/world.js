@@ -1,4 +1,5 @@
 import {elementPoint,controlSurface} from './viewport.js';
+import {batchStatic,disposeStaticBatches} from './static-batching.js';
 import {BLINK_SECONDS} from './nether-blink.js';
 import {isRadiant} from './prayer.js';
 import {createBlinkVisual} from './nether-blink-visuals.js';
@@ -37,7 +38,8 @@ function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return s
 export async function createWorld(container,getGame,{onClick,onHover,onPlace,weatherProvider=getWeather}){
  let sceneOnly=false;
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x10152e);scene.fog=new THREE.FogExp2(0x171c39,.006);
- const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
+ // The scene is already multisampled in the composer; the canvas receives only its fullscreen output.
+ const renderer=new THREE.WebGLRenderer({antialias:false,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
  const createCrystalMesh=createCrystalFactory(renderer);
  const cameraStart=new THREE.Vector3(23,25,30),camera=new THREE.OrthographicCamera(-20,20,15,-15,.1,180);camera.position.copy(cameraStart);
  const controls=new OrbitControls(camera,controlSurface(renderer.domElement));controls.target.set(0,0,0);controls.enableDamping=true;controls.minZoom=.65;controls.maxZoom=2.5;controls.minPolarAngle=.25;controls.maxPolarAngle=1.25;controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
@@ -123,6 +125,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    const mesh=fairytaleKit.environment(`fragment-${side}`);mesh.scale.copy(object.scale).multiplyScalar(object.geometry.parameters.radius*.65);root.add(mesh);return {mesh,source:object};
   });return {side,root,fragments,materials:prepareSurroundings(root)};
  });
+ batchStatic(terrain,{exclude:new Set([...swaying,...floating.map(f=>f.object),...ripples])});batchStatic(darkTerrain);
  let remoteTerrain=null,remoteHousing=null,terrainIsland=null;
  function syncTerrain(g){
   terrain.visible=darkTerrain.visible=g.viewIsland==='home';
@@ -141,7 +144,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const livingTrails=['front','back'].map(side=>{const visual=createLivingTrailVisual(side);faces[side].add(visual.root);return visual;});
  const prop=createPropFactory({mushroomAsset,mushroomVariants,model,crystal,fairytaleKit});
  function syncObjects(g=getGame()){
-  for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.userData.gardenBond?.dispose();o.removeFromParent();objectMeshes.delete(id);}
+  for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.userData.gardenBond?.dispose();disposeStaticBatches(o);o.removeFromParent();objectMeshes.delete(id);}
   for(const o of g.objects){
    if(!objectMeshes.has(o.id)){
     const group=prop(o.type,islandOf(o));group.position.set(o.x,o.type==='spiritTree'||islandOf(o)==='spore'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};
@@ -278,7 +281,8 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    }
    controls.update();composer.render();
   },
-  setBuild(type){buildType=type;buildGrid.visible=!!type;ghost.visible=false;if(ghostProp){ghost.remove(ghostProp);ghostProp.userData.spiritTree?.dispose();ghostProp.traverse(n=>{if(n.isMesh)n.material.dispose();});}if(type){ghostProp=prop(type);ghostProp.traverse(n=>{if(n.isLight||n.isPoints)n.visible=false;if(n.isMesh)n.material=new THREE.MeshBasicMaterial({color:0xafffca,transparent:true,opacity:.45,side:n.material.side});});ghost.add(ghostProp);const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const coverage=ring(ghostProp,lighting.color,[0,.025,0],lighting.radius,.025);coverage.rotation.x=-Math.PI/2;coverage.material=new THREE.MeshBasicMaterial({color:lighting.color,transparent:true,opacity:.45,depthWrite:false});}}return type;},
+  // Transparent build ghosts retain per-piece sorting rather than opaque batches.
+  setBuild(type){buildType=type;buildGrid.visible=!!type;ghost.visible=false;if(ghostProp){ghost.remove(ghostProp);ghostProp.userData.spiritTree?.dispose();ghostProp.traverse(n=>{if(n.isMesh)n.material.dispose();});}if(type){ghostProp=prop(type,undefined,false);ghostProp.traverse(n=>{if(n.isLight||n.isPoints)n.visible=false;if(n.isMesh)n.material=new THREE.MeshBasicMaterial({color:0xafffca,transparent:true,opacity:.45,side:n.material.side});});ghost.add(ghostProp);const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const coverage=ring(ghostProp,lighting.color,[0,.025,0],lighting.radius,.025);coverage.rotation.x=-Math.PI/2;coverage.material=new THREE.MeshBasicMaterial({color:lighting.color,transparent:true,opacity:.45,depthWrite:false});}}return type;},
   rotateBuild(){buildRotation+=Math.PI/2;ghost.rotation.y=buildRotation;},
   focus(id){const game=getGame(),p=id==='home'?{x:-3,z:-1}:id==='garden'?{x:7,z:3}:id==='lab'?{x:6,z:-3}:id==='player'?game.player:game.npcs[id];if(!p)return;const dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
   focusUfo(id){const g=getGame(),ship=g.space.ships.find(s=>s.id===id);if(!ship)return;const p=ufoDock(g,ship),dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},

@@ -1,0 +1,22 @@
+[
+  {
+    "name": "home-front",
+    "changedChannels": 0,
+    "colors": 5922
+  },
+  {
+    "name": "spore-front",
+    "changedChannels": 0,
+    "colors": 9768
+  },
+  {
+    "name": "spore-back",
+    "changedChannels": 0,
+    "colors": 8105
+  },
+  {
+    "name": "mobile",
+    "changedChannels": 0,
+    "colors": 1839
+  }
+]

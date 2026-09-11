@@ -1,0 +1,51 @@
+[
+  {
+    "name": "home-front",
+    "changedChannels": 200,
+    "meanDifference": 0.00011875,
+    "largePixelRatio": 0,
+    "colors": 5935
+  },
+  {
+    "name": "home-back-night",
+    "changedChannels": 4,
+    "meanDifference": 9.259259259259259e-7,
+    "largePixelRatio": 0,
+    "colors": 7831
+  },
+  {
+    "name": "home-rain",
+    "changedChannels": 207,
+    "meanDifference": 0.0001400462962962963,
+    "largePixelRatio": 0,
+    "colors": 5930
+  },
+  {
+    "name": "spore-front",
+    "changedChannels": 1,
+    "meanDifference": 2.3148148148148148e-7,
+    "largePixelRatio": 0,
+    "colors": 9693
+  },
+  {
+    "name": "spore-back",
+    "changedChannels": 0,
+    "meanDifference": 0,
+    "largePixelRatio": 0,
+    "colors": 8098
+  },
+  {
+    "name": "spore-night",
+    "changedChannels": 0,
+    "meanDifference": 0,
+    "largePixelRatio": 0,
+    "colors": 8241
+  },
+  {
+    "name": "mobile",
+    "changedChannels": 0,
+    "meanDifference": 0,
+    "largePixelRatio": 0,
+    "colors": 1836
+  }
+]

@@ -5,17 +5,19 @@ import {spawnSync} from 'node:child_process';
 import {deploymentConfig} from './deploy-config.js';
 import {deploymentTransport,uploadRelease} from './deploy-transport.js';
 import {buildRelease,run,root} from './build-release.js';
+import {readAnalyticsSnippet} from './deploy-analytics.js';
 
 const configPath=resolve(root,'deploy.config.json');
 const input=JSON.parse(await readFile(configPath,'utf8'));
 const c=deploymentConfig(input),seed=process.argv.includes('--seed-local');
+const analyticsSnippet=await readAnalyticsSnippet(resolve(root,'.deploy/google-analytics-head.html'));
 const transport=deploymentTransport(c),{target,ssh}=transport;
 // Fail before the build when the configured route or transfer dependency is unavailable.
 run('rsync',['--version']);
 run('ssh',[...ssh,target,'command -v rsync >/dev/null']);
 const tests=(await readdir(resolve(root,'tests'))).filter(n=>n.endsWith('.test.js')).map(n=>`tests/${n}`);
 run(process.execPath,['--test',...tests]);
-const directory=await buildRelease(),id=new Date().toISOString().replace(/[^0-9]/g,''),archive=resolve(root,'.deploy',`${id}.tgz`);
+const directory=await buildRelease({analyticsSnippet}),id=new Date().toISOString().replace(/[^0-9]/g,''),archive=resolve(root,'.deploy',`${id}.tgz`);
 run('tar',[...(process.platform==='darwin'?['--no-xattrs']:[]),'-czf',archive,'-C',directory,'.'],{env:{...process.env,COPYFILE_DISABLE:'1'}});
 const hash=createHash('sha256').update(await readFile(archive)).digest('hex');
 run('ssh',[...ssh,target,'mkdir -p /opt/myalienlife/incoming && chmod 700 /opt/myalienlife/incoming']);

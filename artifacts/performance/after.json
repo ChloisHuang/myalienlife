@@ -1,0 +1,212 @@
+{
+  "label": "after",
+  "objects": 53,
+  "island": "home",
+  "renderInfo": {
+    "frame": 12304,
+    "calls": 2656,
+    "triangles": 1242271,
+    "points": 1564,
+    "lines": 5312,
+    "programs": 46,
+    "memory": {
+      "geometries": 793,
+      "textures": 21
+    }
+  },
+  "heapBefore": {
+    "usedSize": 95656576,
+    "totalSize": 138297344,
+    "embedderHeapUsedSize": 22480344,
+    "backingStorageSize": 52032602
+  },
+  "heapAfter": {
+    "usedSize": 82051824,
+    "totalSize": 142229504,
+    "embedderHeapUsedSize": 45282656,
+    "backingStorageSize": 52034220
+  },
+  "gpu": {
+    "supported": true,
+    "renderer": "WebKit WebGL",
+    "mean": 18.553093772639695,
+    "p95": 24.110374,
+    "samples": 519
+  },
+  "errors": [],
+  "dt": {
+    "mean": 23.13038461540754,
+    "p50": 22.30000001192093,
+    "p95": 30.200000047683716
+  },
+  "tick": {
+    "mean": 1.0026923055832202,
+    "p50": 0.699999988079071,
+    "p95": 1.199999988079071
+  },
+  "render": {
+    "mean": 21.3396153863806,
+    "p50": 21.100000023841858,
+    "p95": 26.400000035762787
+  },
+  "fps": 43.23317647445789,
+  "cpu": {
+    "computeBoundingSphere": 0,
+    "updateCharacter": 19.200618306282433,
+    "tick": 4.537926465717125,
+    "refresh": 0.7839240366567296,
+    "(garbage collector)": 0.38644142652092306
+  },
+  "hot": [
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 1405
+    },
+    {
+      "name": "getPoint",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 18077,
+      "samples": 338
+    },
+    {
+      "name": "(program)",
+      "url": "",
+      "line": 0,
+      "samples": 312
+    },
+    {
+      "name": "uniformMatrix3fv",
+      "url": "",
+      "line": 0,
+      "samples": 286
+    },
+    {
+      "name": "uniformMatrix4fv",
+      "url": "",
+      "line": 0,
+      "samples": 251
+    },
+    {
+      "name": "WebGLRenderer.renderBufferDirect",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40314,
+      "samples": 217
+    },
+    {
+      "name": "initNonuniformCatmullRom",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 18034,
+      "samples": 214
+    },
+    {
+      "name": "WebGLRenderer.renderBufferDirect",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40314,
+      "samples": 143
+    },
+    {
+      "name": "uniform3f",
+      "url": "",
+      "line": 0,
+      "samples": 141
+    },
+    {
+      "name": "bindVertexArray",
+      "url": "",
+      "line": 0,
+      "samples": 134
+    },
+    {
+      "name": "drawElements",
+      "url": "",
+      "line": 0,
+      "samples": 118
+    },
+    {
+      "name": "updateMatrixWorld",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 8325,
+      "samples": 112
+    },
+    {
+      "name": "render",
+      "url": "http://127.0.0.1:5177/src/world.js",
+      "line": 215,
+      "samples": 109
+    },
+    {
+      "name": "renderObjects",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40732,
+      "samples": 109
+    },
+    {
+      "name": "bindVertexArray",
+      "url": "",
+      "line": 0,
+      "samples": 99
+    },
+    {
+      "name": "setProgram",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40855,
+      "samples": 98
+    },
+    {
+      "name": "projectObject",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40593,
+      "samples": 96
+    },
+    {
+      "name": "renderObject",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 36700,
+      "samples": 92
+    },
+    {
+      "name": "allActors",
+      "url": "http://127.0.0.1:5177/src/simulation.js",
+      "line": 337,
+      "samples": 92
+    },
+    {
+      "name": "updateMatrixWorld",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 8325,
+      "samples": 89
+    },
+    {
+      "name": "renderObjects",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40732,
+      "samples": 87
+    },
+    {
+      "name": "copyArray",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 34135,
+      "samples": 75
+    },
+    {
+      "name": "sort",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 36041,
+      "samples": 71
+    },
+    {
+      "name": "projectObject",
+      "url": "http://127.0.0.1:5177/node_modules/.vite/deps/chunk-IT3TP6RZ.js?v=c8c60f82",
+      "line": 40593,
+      "samples": 68
+    },
+    {
+      "name": "updateCharacter",
+      "url": "http://127.0.0.1:5177/src/character-rig.js",
+      "line": 44,
+      "samples": 61
+    }
+  ]
+}

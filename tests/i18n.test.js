@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeLanguage,resolveLanguage,translateText} from '../src/i18n.js';
+test('repeated translations reuse dictionary results and keep languages independent',()=>{
+ const source='第 987654 天';let splits=0;
+ const split=String.prototype.split;
+ String.prototype.split=function(...args){splits++;return split.apply(this,args);};
+ try{
+  assert.equal(translateText(source,'en'),'Day 987654');assert.ok(splits>0);
+  splits=0;assert.equal(translateText(source,'en'),'Day 987654');assert.equal(splits,0);
+  assert.equal(translateText(source,'zh'),source);
+  assert.equal(translateText('Day 987654','zh'),source);
+ }finally{String.prototype.split=split;}
+});
 
 test('normalizes system language to the supported Chinese or English locale',()=>{
  assert.equal(normalizeLanguage('zh-CN'),'zh');

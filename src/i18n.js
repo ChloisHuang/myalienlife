@@ -179,10 +179,13 @@ let activeLanguage=resolveLanguage({stored:storedLanguage(),system:systemLanguag
 if(typeof document!=='undefined')document.documentElement.lang=activeLanguage==='zh'?'zh-CN':'en';
 
 export function getLanguage(){return activeLanguage;}
+const translationCache={zh:new Map(),en:new Map()};
 export function translateText(value,target=activeLanguage){
- const text=String(value??'');
- if(target==='zh')return applyDynamic(applyResidentNames(applyPairs(text,reversePairs),'zh'),'zh');
- return applyDynamic(applyResidentNames(applyPairs(text,sortedPairs),'en'),'en');
+ const text=String(value??''),language=target==='zh'?'zh':'en',cache=translationCache[language];
+ if(cache.has(text))return cache.get(text);
+ const translated=applyDynamic(applyResidentNames(applyPairs(text,language==='zh'?reversePairs:sortedPairs),language),language);
+ if(cache.size>=1024)cache.delete(cache.keys().next().value);
+ cache.set(text,translated);return translated;
 }
 export function translateHtml(value,target=activeLanguage){return target==='zh'?String(value):translateText(value,target);}
 export function setLanguage(value){

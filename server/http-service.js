@@ -12,9 +12,20 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status});}
 const digest=value=>createHash('sha256').update(value).digest();
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.wasm':'application/wasm','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};
 
+async function pageSecurityPolicy(root){
+ let html='';
+ try{html=await readFile(join(root,'index.html'),'utf8');}catch(error){if(error.code!=='ENOENT')throw error;}
+ const analytics=/googletagmanager\.com\/gtag\/js/i.test(html),hashes=[];
+ for(const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi))if(!/\bsrc\s*=/.test(match[1]))hashes.push(`'sha256-${createHash('sha256').update(match[2]).digest('base64')}'`);
+ const scriptSources=["'self'","'wasm-unsafe-eval'",...hashes],imageSources=["'self'",'data:','blob:'],connectSources=["'self'"];
+ if(analytics){scriptSources.push('https://www.googletagmanager.com');imageSources.push('https://www.google-analytics.com');connectSources.push('https://www.google-analytics.com','https://analytics.google.com');}
+ return{scriptSources,imageSources,connectSources};
+}
+
 export async function createHttpService({directory,dist,token,origin,initial,autoStart=true,release='development',trustProxy=false,geoLookup}={}){
  if(typeof token!=='string'||token.length<12||token.length>256)throw new Error('操作口令需要 12 到 256 个字符');
  const allowedOrigin=new URL(origin).origin,tokenHash=digest(token),root=resolve(dist);
+ const securityPolicy=await pageSecurityPolicy(root);
  const configStore=createProjectConfigStore(join(directory,'project-config.json'));
  const authority=await createAuthority({directory,initial,config:await configStore.read(),autoStart});
  const visitors=await createVisitors({directory,lookup:geoLookup});
@@ -33,7 +44,7 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
  function json(res,value,status=200){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));}
  const server=createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');
-  res.setHeader('Content-Security-Policy',`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ${allowedOrigin.replace(/^http/,'ws')}; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`);
+  res.setHeader('Content-Security-Policy',`default-src 'self'; script-src ${securityPolicy.scriptSources.join(' ')}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src ${securityPolicy.imageSources.join(' ')}; media-src 'self' blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src ${securityPolicy.connectSources.join(' ')} ${allowedOrigin.replace(/^http/,'ws')}; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`);
   try{
    const path=new URL(req.url,'http://localhost').pathname;
    if(path==='/healthz'&&req.method==='GET')return json(res,{ok:!authority.error,release},authority.error?503:200);
