@@ -57,6 +57,7 @@ export function createOnlineClient({onState,onStatus}){
   async visitors(){return request('/api/visitors');},
   async login(token){authVersion++;const value=await request('/api/login',{token});session=value.session;authenticated=true;canOperate=false;authenticate();status({});},
   async claim(){return request('/api/control/claim',{});},
+  async release(){return request('/api/control/release',{});},
   async logout(){authVersion++;try{await request('/api/logout',{});}finally{session='';authenticated=false;canOperate=false;authenticate();status({});}},
   async mutate(path,input={}){if(!connected||!canOperate)throw new Error('当前为只读，请先获取操作权');return request(path,input);}
  };

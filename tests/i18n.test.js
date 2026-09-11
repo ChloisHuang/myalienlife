@@ -53,3 +53,8 @@ test('translates dynamic resident, interaction, save, and radio text',()=>{
  assert.equal(translateText('Mi-You出生了！Pip的星芽成为星湾的新居民，请照料这位幼体。','en'),"Mi-You was born! Pip's starbud is now a new resident of the bay. Please care for this infant.");
  assert.equal(translateText('已自动保存 · 07:47:13','en'),'Autosaved · 07:47:13');
 });
+
+test('translates hosted access status labels',()=>{
+ assert.equal(translateText('访客 · 只读','en'),'Guest · read-only');
+ assert.equal(translateText('已验证 · 只读','en'),'Verified · read-only');
+});

@@ -34,6 +34,12 @@ test('public viewers cannot mutate; last explicit claim fences all old browser c
   assert.equal((await request('/api/command',{name:'enqueue',args:['__proto__']},headersB)).status,400);
   assert.equal((await request('/api/save',{state:{money:999}},headersB)).status,404);
   assert.equal((await request('/api/command',{name:'speed',args:[0]},{...headersB,Origin:'https://evil.example'})).status,403);
+  assert.equal((await request('/api/control/release',{})).status,401);
+  assert.equal((await request('/api/control/release',{},headersA)).status,409);
+  const released=await request('/api/control/release',{},headersB);assert.equal(released.status,200);
+  const releasedStatus=await released.json();assert.equal(releasedStatus.authenticated,true);assert.equal(releasedStatus.canOperate,false);assert.ok(releasedStatus.epoch>b.epoch);
+  assert.equal((await request('/api/command',{name:'speed',args:[3]},headersB)).status,409);
+  assert.equal((await(await request('/api/visitors',undefined,{Authorization})).json()).operatorHeld,false);
   await writeFile(join(dir,'token.txt'),'private');assert.equal((await request('/token.txt')).status,404);
   assert.equal((await request('/api/state')).status,200);assert.equal(service.authority.state.speed,1);
  }finally{await service?.close();await rm(dir,{recursive:true,force:true});}

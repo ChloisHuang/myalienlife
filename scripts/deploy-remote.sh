@@ -77,7 +77,7 @@ cp -a "$base/data" "$base/backups/before-$id"
 trap rollback ERR
 start_world "$release"
 healthy=false
-for i in $(seq 1 30); do if curl --max-time 3 -fsS "http://127.0.0.1:$backend/healthz" >"$base/health.json"; then healthy=true; break; fi; sleep 1; done
+for i in $(seq 1 30); do if curl --max-time 3 -fsS "http://127.0.0.1:$backend/healthz" >"$base/health.json" 2>/dev/null; then healthy=true; break; fi; sleep 1; done
 [[ $healthy == true ]]
 cat >"$conf" <<EOF
 # Managed by myalienlife deploy
@@ -127,7 +127,7 @@ nginx -s reload
 healthy=false
 # nginx reload only sends a signal; wait until the new listener is actually ready.
 for i in $(seq 1 30); do
- if curl --noproxy '*' --max-time 3 -fsS --resolve "$domain:$public:127.0.0.1" "$origin/healthz"; then healthy=true; break; fi
+ if curl --noproxy '*' --max-time 3 -fsS --resolve "$domain:$public:127.0.0.1" "$origin/healthz" 2>/dev/null; then healthy=true; break; fi
  sleep 1
 done
 [[ $healthy == true ]]

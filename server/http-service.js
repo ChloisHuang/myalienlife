@@ -56,7 +56,7 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
     }
     if(req.method==='GET'&&path==='/api/visitors'){if(!sessionFor(req))fail(401,'请先验证操作 Token');return json(res,{...visitors.summary(),...liveStatus()});}
     if(req.method==='GET'&&path==='/api/session')return json(res,status(req));
-    if(req.method!=='POST'||!['/api/login','/api/logout','/api/control/claim','/api/command','/api/checkpoint','/api/new-game','/api/project-config'].includes(path))fail(404,'接口不存在');
+    if(req.method!=='POST'||!['/api/login','/api/logout','/api/control/claim','/api/control/release','/api/command','/api/checkpoint','/api/new-game','/api/project-config'].includes(path))fail(404,'接口不存在');
     if(req.headers.origin!==allowedOrigin)fail(403,'请求来源不匹配');
     if(!String(req.headers['content-type']).startsWith('application/json'))fail(415,'需要 JSON 请求');
     const input=await body(req);if(!input||typeof input!=='object'||Array.isArray(input))fail(400,'请求必须是对象');
@@ -73,6 +73,7 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
     const client=clientFor(req);
     if(path==='/api/control/claim'){controller={session,client};epoch++;return json(res,{...status(req),ok:true});}
     if(!owns(req,session)||String(epoch)!==req.headers['x-orbit-epoch'])fail(409,'操作权已转移，请重新获取操作权');
+    if(path==='/api/control/release'){releaseController();return json(res,{...status(req),ok:true});}
     rate(req,'mutation',120);
     let result;
     if(path==='/api/command')result=await authority.command(input);

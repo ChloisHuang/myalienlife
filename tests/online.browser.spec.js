@@ -5,6 +5,88 @@ import {join,resolve} from 'node:path';
 import {createHttpService} from '../server/http-service.js';
 import {createGame,ensureStarIsland} from '../src/simulation.js';
 
+test('identity card flips for token verification and docks as guest or VIP',async({browser})=>{
+ const directory=await mkdtemp(join(tmpdir(),'orbit-identity-')),initial=createGame();initial.speed=0;
+ const token='identity-test-'.repeat(5),service=await createHttpService({directory,dist:resolve('.deploy/release/dist'),token,origin:'http://127.0.0.1:18195',initial});
+ await new Promise(r=>service.server.listen(18195,'127.0.0.1',r));
+ try{
+  for(const viewport of [{width:1440,height:1000},{width:390,height:844},{width:844,height:390}]){
+   const page=await browser.newPage({viewport,locale:'zh-CN'});
+   try{
+    await page.goto('http://127.0.0.1:18195');await expect(page.locator('#loading')).toBeHidden({timeout:60000});
+    const card=page.locator('#operator-login'),dialog=page.locator('#operator-dialog');
+    await expect(card).toHaveAttribute('data-tier','guest');await expect(page.locator('#identity-hint')).toHaveText('点击验证');
+    const sizes=await card.evaluate(el=>({card:el.offsetHeight,paper:el.closest('.online-controls').offsetHeight}));expect(sizes.card).toBeLessThan(sizes.paper);
+    const inset=await card.evaluate(el=>{const c=el.getBoundingClientRect(),p=el.closest('.online-controls').getBoundingClientRect(),rotated=getComputedStyle(document.querySelector('#app')).getPropertyValue('--rotated-layout').trim()==='1';return rotated?[c.left-p.left,p.right-c.right]:[c.top-p.top,p.bottom-c.bottom];});expect(Math.min(...inset)).toBeGreaterThan(0);
+    for(const [credential,tier] of [['wrong-token','guest'],[token,'vip']]){
+     await card.click();await expect(dialog).toHaveAttribute('data-phase','editing');
+     await expect(dialog).toHaveAttribute('data-rotated',String(viewport.width<viewport.height));
+     const corners=await dialog.locator('.identity-front,.identity-back').evaluateAll(elements=>elements.map(el=>getComputedStyle(el).borderRadius));expect(corners[0]).toBe(corners[1]);
+     const rotation=await dialog.locator('.identity-turn').evaluate(el=>{const matrix=new DOMMatrix(getComputedStyle(el).transform);return [matrix.m11,matrix.m22,matrix.m33];});expect(rotation).toEqual([1,-1,-1]);
+     await expect(page.locator('#operator-token')).toBeFocused();
+     await page.screenshot({path:`artifacts/identity-back-${viewport.width}.png`});
+     await page.locator('#operator-token').fill(credential);await page.locator('#operator-form button[type="submit"]').click();
+     await expect(dialog).toHaveAttribute('data-phase','result');
+     await expect(dialog.locator('.identity-front')).toHaveAttribute('data-tier',tier);
+     await expect(dialog.locator('.identity-tier')).toHaveCSS('background-clip','text');
+     const artStyles=await page.locator('#operator-login .identity-art,.identity-front .identity-art').evaluateAll(elements=>elements.map(el=>{const s=getComputedStyle(el);return [s.width,s.height,s.fontSize,s.padding,el.textContent];}));expect(artStyles).toHaveLength(2);expect(artStyles[0]).toEqual(artStyles[1]);
+     await expect(page.locator('#operator-token')).toHaveValue('');
+     await page.screenshot({path:`artifacts/identity-${tier}-${viewport.width}.png`});
+     await expect(dialog).not.toBeVisible();await expect(card).toHaveAttribute('data-tier',tier);
+     await expect(card).toBeFocused();
+    }
+    await expect(page.locator('#claim-control')).toBeVisible();
+    await page.locator('#visitor-stats').click();await expect(page.locator('#visitor-results')).toBeVisible();
+    for(const id of ['visitor-dialog','config-dialog']){
+     if(id==='config-dialog')await page.locator('#config').click();
+     const modal=page.locator(`#${id}`);await expect(modal).toBeVisible();
+     const bounds=await modal.boundingBox();expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.y).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(viewport.width);expect(bounds.y+bounds.height).toBeLessThanOrEqual(viewport.height);
+     if(Math.min(viewport.width,viewport.height)<500)expect(await modal.evaluate(el=>el.offsetWidth>el.offsetHeight)).toBe(true);
+     await page.screenshot({path:`artifacts/${id}-${viewport.width}.png`});
+     await modal.locator(id==='visitor-dialog'?'button[aria-label="关闭访问统计"]':'button[aria-label="关闭参数配置"]').click();
+    }
+    await expect(page.locator('#operator-logout')).toHaveCount(0);
+    await page.emulateMedia({reducedMotion:'reduce'});await card.click();await expect(dialog).toHaveAttribute('data-phase','viewing');
+    await page.keyboard.press('Escape');await expect(dialog).not.toBeVisible();await expect(card).toBeFocused();
+    await page.screenshot({path:`artifacts/identity-docked-${viewport.width}.png`});
+   }finally{await page.close();}
+  }
+ }finally{await service.close();await rm(directory,{recursive:true,force:true});}
+});
+
+test('guest authentication strip extends flush from the left edge',async({browser})=>{
+ const directory=await mkdtemp(join(tmpdir(),'orbit-auth-strip-')),initial=createGame();initial.speed=0;
+ const service=await createHttpService({directory,dist:resolve('.deploy/release/dist'),token:'strip-test-'.repeat(5),origin:'http://127.0.0.1:18193',initial});
+ await new Promise(r=>service.server.listen(18193,'127.0.0.1',r));
+ try{
+  for(const viewport of [{width:1440,height:1000},{width:390,height:844},{width:844,height:390}]){
+   const page=await browser.newPage({viewport,locale:'en-US'});
+   try{
+    await page.goto('http://127.0.0.1:18193');await expect(page.locator('#loading')).toBeHidden({timeout:60000});
+    await expect(page.locator('#online-status')).toHaveAttribute('data-status','guest');
+    const strip=page.locator('.online-controls');
+    const geometry=await strip.evaluate(el=>{const style=getComputedStyle(el),rect=el.getBoundingClientRect(),rotated=getComputedStyle(document.querySelector('#app')).getPropertyValue('--rotated-layout').trim()==='1';return {x:rotated?rect.y:rect.x,radii:[style.borderTopLeftRadius,style.borderBottomLeftRadius,style.borderTopRightRadius,style.borderBottomRightRadius]};});
+    expect(geometry.x).toBe(0);expect(geometry.radii).toEqual(['0px','0px','6px','6px']);
+    await expect(strip).toHaveCSS('border-left-width','0px');
+    await expect(strip).toHaveCSS('border-top-width','0px');
+    await expect(strip).toHaveCSS('border-right-width','0px');
+    await expect(strip).toHaveCSS('border-bottom-width','0px');
+    await expect(page.locator('#operator-login')).toBeInViewport();
+    if(viewport.width===1440){
+     const gap=await page.locator('.location').evaluate(el=>parseFloat(document.querySelector('#journal').style.top)-el.offsetTop-el.offsetHeight);
+     expect(gap).toBeGreaterThanOrEqual(24);
+    }
+    if(Math.min(viewport.width,viewport.height)<500){
+     const gap=await strip.evaluate(el=>{const bar=el.getBoundingClientRect(),queue=document.querySelector('#queue-wrap').getBoundingClientRect(),rotated=getComputedStyle(document.querySelector('#app')).getPropertyValue('--rotated-layout').trim()==='1';return rotated?queue.left-bar.right:bar.top-queue.bottom;});
+     expect(gap).toBeGreaterThanOrEqual(8);
+    }
+    await page.screenshot({path:`artifacts/guest-strip-${viewport.width}.png`});
+    await page.locator('#operator-login').click();await expect(page.locator('#operator-dialog')).toBeVisible();
+   }finally{await page.close();}
+  }
+ }finally{await service.close();await rm(directory,{recursive:true,force:true});}
+});
+
 test('guests browse resident dossiers locally and navigate once without tracking',async({browser})=>{
  const directory=await mkdtemp(join(tmpdir(),'orbit-dossier-guest-')),initial=createGame();initial.speed=0;
  initial.civilization.discoveryPath.push('spore');initial.civilization.visits.spore=1;ensureStarIsland(initial,'spore');
@@ -12,7 +94,7 @@ test('guests browse resident dossiers locally and navigate once without tracking
  const service=await createHttpService({directory,dist:resolve('.deploy/release/dist'),token:'dossier-test-'.repeat(5),origin:'http://127.0.0.1:18192',initial});
  await new Promise(r=>service.server.listen(18192,'127.0.0.1',r));
  const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'zh-CN'}),writes=[],errors=[];
- page.on('request',r=>{if(r.method()==='POST')writes.push(r.url());});page.on('pageerror',e=>errors.push(e.message));
+ page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname.startsWith('/api/'))writes.push(r.url());});page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto('http://127.0.0.1:18192');await expect(page.locator('#loading')).toBeHidden({timeout:60000});
   await expect(page.locator('#online-status')).toHaveAttribute('data-status','guest');
@@ -46,7 +128,7 @@ test('hosted world renders on phones, transfers authority, and runs with every b
   service.authority.state.player.side='front';
   await expect(a.locator('#world')).toHaveAttribute('data-side','front');
   const originalPlayer=service.authority.state.player.uid;
-  let viewerWrites=0;a.on('request',request=>{if(request.method()==='POST')viewerWrites++;});
+  let viewerWrites=0;a.on('request',request=>{if(request.method()==='POST'&&new URL(request.url()).pathname.startsWith('/api/'))viewerWrites++;});
   await a.locator('#active-character').click();const watched=await a.locator('[data-character]').first().getAttribute('data-character');await a.locator('[data-character]').first().click();
   await expect(a.locator('#toast')).toContainText('视角');
   expect(service.authority.state.player.uid).toBe(originalPlayer);expect(viewerWrites).toBe(0);
@@ -57,13 +139,21 @@ test('hosted world renders on phones, transfers authority, and runs with every b
   await a.locator('#focus-player').click();await expect(a.locator('#world')).toHaveAttribute('data-side','front');
   for(const page of [a,b]){
    await page.locator('#operator-login').click();await page.locator('#operator-token').fill(token);await page.locator('#operator-form button[type="submit"]').click();await expect(page.locator('#operator-dialog')).not.toBeVisible();
-   const heights=await page.locator('.online-controls button:visible').evaluateAll(buttons=>buttons.map(button=>button.getBoundingClientRect().height));
+   const heights=await page.locator('.online-controls button:visible:not(#operator-login)').evaluateAll(buttons=>buttons.map(button=>button.offsetHeight));
    expect(Math.max(...heights)-Math.min(...heights)).toBeLessThanOrEqual(1);
    await page.locator('#visitor-stats').click();await expect(page.locator('#visitor-results')).toBeVisible();await expect(page.locator('#visitor-total')).toHaveText('1');await expect(page.locator('#visitor-online')).toHaveText('2');await expect(page.locator('#visitor-operator')).toHaveText(page===a?'无人持有':'有人持有');
    await page.screenshot({path:`artifacts/visitors-${page===a?'desktop':'mobile'}.png`});await page.getByRole('button',{name:'关闭访问统计',exact:true}).click();
    await page.locator('#claim-control').click();await expect(page.locator('#online-status')).toHaveText('操作中');await expect(page.locator('#online-status')).toHaveAttribute('data-status','operator');await expect(page.locator('#online-status')).toHaveCSS('color','rgb(230, 126, 34)');
+   await expect(page.locator('.online-controls')).toHaveClass(/is-operating/);await expect(page.locator('.identity-operating-label')).toBeVisible();await expect(page.locator('#claim-control')).toBeHidden();
+   await expect(page.locator('.identity-operating-label small')).toHaveText('点击卡片退出操作模式');
+   const statusGap=await page.locator('.identity-operating-label').evaluate(el=>{const label=el.getBoundingClientRect(),stats=document.querySelector('#visitor-stats').getBoundingClientRect(),rotated=getComputedStyle(document.querySelector('#app')).getPropertyValue('--rotated-layout').trim()==='1';return rotated?stats.top-label.bottom:stats.left-label.right;});expect(statusGap).toBeGreaterThanOrEqual(8);
+   await expect.poll(()=>page.locator('#operator-login').evaluate(el=>{const r=el.getBoundingClientRect(),rotated=getComputedStyle(document.querySelector('#app')).getPropertyValue('--rotated-layout').trim()==='1';return rotated?r.y/r.height:r.x/r.width;})).toBe(-.5);
+   await page.screenshot({path:`artifacts/control-inserted-${page===a?'desktop':'mobile'}.png`});
+   await page.locator('#operator-login').click();await expect(page.locator('.online-controls')).not.toHaveClass(/is-operating/);await expect(page.locator('#operator-login')).toHaveAttribute('data-tier','vip');await expect(page.locator('#operator-dialog')).not.toBeVisible();
+   await page.locator('#claim-control').click();await expect(page.locator('.online-controls')).toHaveClass(/is-operating/);
   }
   await expect(a.locator('#online-status')).toHaveText('已验证 · 只读');await expect(a.locator('#online-status')).toHaveAttribute('data-status','verified');await expect(a.locator('#online-status')).toHaveCSS('color','rgb(196, 154, 26)');
+  await expect(a.locator('.online-controls')).not.toHaveClass(/is-operating/);await expect(a.locator('#claim-control')).toBeVisible();
   await a.locator('[data-speed="3"]').dispatchEvent('click');expect(service.authority.state.speed).toBe(0);
   await b.locator('[data-speed="1"]').click();await expect.poll(()=>service.authority.state.speed).toBe(1);
   await b.locator('#dossier-toggle').click();await b.locator('#autonomy').click();await expect.poll(()=>service.authority.state.autonomy.enabled).toBe(false);

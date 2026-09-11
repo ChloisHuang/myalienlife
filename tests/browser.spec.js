@@ -70,6 +70,7 @@ test('phone dossiers start closed and portrait renders a usable horizontal scene
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  await expect(page.locator('#dossier-toggle')).toHaveAttribute('aria-expanded','false');
  const islandLauncher=page.locator('[data-island-mobile-launcher]');await expect(islandLauncher).toBeVisible();await expect(islandLauncher).toHaveAttribute('aria-expanded','false');await expect(page.locator('.island-selector-title')).toBeHidden();
+ const launcherStyle=await islandLauncher.evaluate(el=>{const style=getComputedStyle(el);return {background:style.backgroundImage,border:style.borderTopWidth,radius:style.borderTopLeftRadius};});expect(launcherStyle.background).toContain('linear-gradient');expect(launcherStyle.border).toBe('2px');expect(launcherStyle.radius).toBe('22px');
  expect(await page.locator('#app').evaluate(e=>[e.clientWidth,e.clientHeight])).toEqual([844,390]);
  const bounds=await page.locator('#world canvas').boundingBox(),point=new Vector3(-5,.29,4).project(sceneCamera({width:bounds.height,height:bounds.width}));
  await page.mouse.click(bounds.x+bounds.width-(1-point.y)*bounds.width/2,bounds.y+(point.x+1)*bounds.height/2);
@@ -128,10 +129,13 @@ test('GitHub project link sits beside the time controls and targets the reposito
  expect(timeBox.x-(linkBox.x+linkBox.width)).toBeLessThanOrEqual(12);
  const linkStyle=await link.evaluate(el=>{const style=getComputedStyle(el);return {background:style.backgroundColor,border:style.borderTopWidth,radius:style.borderTopLeftRadius,height:el.getBoundingClientRect().height};});
  expect(linkStyle.background).toBe('rgba(0, 0, 0, 0)');expect(linkStyle.border).toBe('0px');expect(linkStyle.radius).toBe('0px');expect(linkStyle.height).toBe(timeBox.height);
- await page.setViewportSize({width:390,height:844});await expect(link).toBeVisible();
- expect(await page.evaluate(()=>document.querySelector('#github-link').getBoundingClientRect().height===document.querySelector('.time-control').getBoundingClientRect().height)).toBe(true);
+ await page.setViewportSize({width:844,height:390});await expect(link).toBeVisible();await expect(page.locator('body')).toHaveClass(/phone-layout/);
+ const phoneLayout=await page.evaluate(()=>{const a=document.querySelector('#github-link').getBoundingClientRect(),b=document.querySelector('.time-control').getBoundingClientRect();return {gap:b.left-a.right,timeCenter:b.left+b.width/2,githubPosition:getComputedStyle(document.querySelector('#github-link')).position,timePosition:getComputedStyle(document.querySelector('.time-control')).position};});
+ expect(phoneLayout.githubPosition).toBe('absolute');expect(phoneLayout.timePosition).toBe('absolute');expect(phoneLayout.timeCenter).toBeCloseTo(422,0);expect(phoneLayout.gap).toBeLessThanOrEqual(12);
  expect(await page.evaluate(()=>{const a=document.querySelector('#github-link').getBoundingClientRect(),b=document.querySelector('.top-actions').getBoundingClientRect();return a.right<=b.left||a.left>=b.right||a.bottom<=b.top||a.top>=b.bottom;})).toBe(true);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ await page.setViewportSize({width:390,height:844});await expect(link).toBeVisible();
+ expect(await page.evaluate(()=>{const a=document.querySelector('#github-link').getBoundingClientRect(),b=document.querySelector('.time-control').getBoundingClientRect();return b.top-a.bottom;})).toBeLessThanOrEqual(12);
 });
 
 test('build mode keeps only a green hammer until activated',async({page})=>{
@@ -149,6 +153,12 @@ test('time control uses the selected matte compact style',async({page})=>{
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  const style=await page.locator('.time-control').evaluate(el=>{const css=getComputedStyle(el),active=getComputedStyle(el.querySelector('.speed-buttons button.active'));return {background:css.backgroundColor,border:css.borderTopWidth,radius:css.borderTopLeftRadius,paddingLeft:css.paddingLeft,paddingRight:css.paddingRight,height:el.getBoundingClientRect().height,shadow:css.boxShadow,blur:css.backdropFilter,activeRadius:active.borderTopLeftRadius};});
  expect(style.background).toBe('rgba(21, 31, 49, 0.91)');expect(style.border).toBe('0px');expect(style.radius).toBe('6px');expect(style.paddingLeft).toBe('16px');expect(style.paddingRight).toBe('12px');expect(style.height).toBe(48);expect(style.shadow).toContain('8px 18px');expect(style.blur).toBe('none');expect(style.activeRadius).toBe('3px');
+});
+
+test('phone camera tools keep only follow and sound controls',async({page})=>{
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await page.setViewportSize({width:844,height:390});
+ await expect(page.locator('body')).toHaveClass(/phone-layout/);await expect(page.locator('.view-tools button:visible')).toHaveCount(2);
+ await expect(page.locator('#focus-player')).toBeVisible();await expect(page.locator('#sound')).toBeVisible();
 });
 
 test('language follows the system by default and can be switched manually',async({page})=>{
@@ -267,7 +277,22 @@ test('weather indicator stays visible below the location and above the station p
  await page.locator('.location').evaluate(el=>{const bar=document.createElement('div');bar.className='online-controls';bar.innerHTML='<span>连接中</span>';el.prepend(bar);});
  const weather=page.locator('#weather'),journal=page.locator('#journal');
  await expect(weather).toContainText('°');await expect(weather).toBeVisible();
+ expect(await weather.evaluate(el=>{const style=getComputedStyle(el);return {color:style.color,mixBlendMode:style.mixBlendMode,background:style.backgroundColor,border:style.borderTopWidth,radius:style.borderTopLeftRadius,padding:style.padding};})).toEqual({color:'rgb(255, 255, 255)',mixBlendMode:'difference',background:'rgba(0, 0, 0, 0)',border:'0px',radius:'0px',padding:'0px'});
  for(const width of [1440,1200]){await page.setViewportSize({width,height:900});const weatherBox=await weather.boundingBox(),journalBox=await journal.boundingBox();expect(journalBox.y).toBeGreaterThanOrEqual(weatherBox.y+weatherBox.height);}
+});
+
+test('mobile action queue keeps the current action visible',async({page})=>{
+ await page.setViewportSize({width:390,height:844});
+ const state=createGame();state.speed=0;state.autonomy.enabled=false;state.queue=[{id:999,type:'walk',target:{x:1,z:1},targetId:null,source:'manual',phase:'acting',elapsed:1,path:[]}];fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await expect(page.locator('#queue-current')).toBeVisible();await expect(page.locator('#queue-current')).toContainText('走到这里');
+});
+
+test('obsolete gate routes shortcut is absent on desktop and mobile',async({page})=>{
+ const state=createGame();state.speed=0;fixtures.set(page,state);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await expect(page.locator('#travel-menu')).toHaveCount(0);
+ await page.setViewportSize({width:390,height:844});await expect(page.locator('#travel-menu')).toHaveCount(0);
 });
 
 test('repaired school record displays real foundation requirements and persists without inflated credits',async({page})=>{
@@ -484,6 +509,7 @@ test('island selector uses one docking icon and centers the expanded header',asy
  await launcher.click();await expect(locations).toHaveAttribute('data-selector-state','undocking');await expect(launcher).toBeVisible();await expect.poll(()=>locations.getAttribute('data-selector-state'),{timeout:1500}).toBe('opening');await expect.poll(()=>locations.getAttribute('data-selector-state'),{timeout:1500}).toBe('open');
  const parentBox=await locations.boundingBox(),openBarBox=await current.boundingBox();expect(Math.abs((openBarBox.x+openBarBox.width/2)-(parentBox.x+parentBox.width/2))).toBeLessThan(6);
  const openIcon=await launcher.boundingBox();expect(Math.abs(openIcon.width-compactIcon.width)).toBeLessThan(1);expect(Math.abs(openIcon.height-compactIcon.height)).toBeLessThan(1);
+ const openLauncherStyle=await launcher.evaluate(el=>{const s=getComputedStyle(el);return {border:s.borderTopWidth,background:s.backgroundColor,shadow:s.boxShadow}});expect(openLauncherStyle.border).toBe('0px');expect(openLauncherStyle.background).toBe('rgba(0, 0, 0, 0)');expect(openLauncherStyle.shadow).toBe('none');
  await page.evaluate(()=>{const locations=document.querySelector('.locations'),launcher=document.querySelector('[data-island-mobile-launcher]');window.__islandDockTrace={states:[locations.dataset.selectorState],frames:[]};new MutationObserver(()=>window.__islandDockTrace.states.push(locations.dataset.selectorState)).observe(locations,{attributes:true,attributeFilter:['data-selector-state']});const start=performance.now();const frame=()=>{const r=launcher.getBoundingClientRect();window.__islandDockTrace.frames.push({t:performance.now()-start,state:locations.dataset.selectorState,x:r.x,y:r.y,w:r.width,h:r.height});if(performance.now()-start<2600)requestAnimationFrame(frame)};requestAnimationFrame(frame)});
  await page.locator('.island-card[data-island="spore"]').click();await expect(locations).toHaveAttribute('data-selector-state','announce');await expect(launcher).toBeVisible();await expect.poll(()=>locations.getAttribute('data-selector-state'),{timeout:4000}).toBe('compact');const trace=await page.evaluate(()=>window.__islandDockTrace);expect(trace.states).toContain('collapsing');expect(trace.states).toContain('docking');const dockFrames=trace.frames.filter(frame=>frame.state==='docking'&&frame.w>0);expect(dockFrames.length).toBeGreaterThan(2);expect(Math.hypot(dockFrames.at(-1).x-dockFrames[0].x,dockFrames.at(-1).y-dockFrames[0].y)).toBeGreaterThan(20);expect(Math.max(...dockFrames.map(frame=>Math.abs(frame.w-compactIcon.width)))).toBeLessThan(1);expect(Math.max(...dockFrames.map(frame=>Math.abs(frame.h-compactIcon.height)))).toBeLessThan(1);
  const redockedIcon=await launcher.boundingBox();expect(Math.abs(redockedIcon.width-compactIcon.width)).toBeLessThan(1);expect(Math.abs(redockedIcon.height-compactIcon.height)).toBeLessThan(1);
@@ -713,7 +739,7 @@ test('dark reverse face supports building, free gate travel, cooking and reload'
  await page.screenshot({path:'test-results/island-front.png'});
  await page.getByRole('button',{name:'翻转星岛',exact:true}).click();
  await expect(page.locator('#world')).toHaveAttribute('data-side','back');await expect(page.locator('#world')).toHaveAttribute('data-flipping','false');
- await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在晴昼面');
+ await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在露米纳星湾 晴昼面');
  await page.getByRole('button',{name:'建造模式',exact:true}).click();
  await page.getByRole('button',{name:'星云膳坊',exact:true}).click();await expect(page.locator('.item-card')).toHaveCount(3);
  await page.getByRole('button',{name:'幽星秘境',exact:true}).click();await page.getByRole('button',{name:'购买 双面折跃门'}).click();
@@ -723,15 +749,15 @@ test('dark reverse face supports building, free gate travel, cooking and reload'
  const built=await savedState(page),newGate=built.objects.find(o=>o.type==='gate'&&!o.fixed);expect(newGate).toBeTruthy();expect(newGate.side).toBe('back');
  await page.getByRole('button',{name:'职业',exact:true}).click();await page.getByRole('button',{name:'加入星云膳造'}).click();
  await expect(page.locator('#panel-content')).toContainText('孢火学徒 → 星釜调味师 → 星宴织味宗师');
- await page.getByRole('button',{name:'选择星门目的地'}).click();await expect(page.locator('[data-destination]')).toHaveCount(2);
+ const gatePoint=new Vector3(-7,.8,3).project(sceneCamera(canvas));await page.mouse.click(canvas.x+(gatePoint.x+1)*canvas.width/2,canvas.y+(1-gatePoint.y)*canvas.height/2);await expect(page.locator('[data-destination]')).toHaveCount(2);
  await page.locator(`[data-destination="${newGate.id}"]`).click();await page.getByRole('button',{name:'三倍速度',exact:true}).click();
- await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在幽星面',{timeout:25000});
+ await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在露米纳星湾 幽星面',{timeout:25000});
  await page.getByRole('button',{name:'开始工作'}).click();await expect(page.locator('#queue')).toContainText('开始一个工作班次');
  await expect(page.locator('#queue [data-cancel]')).toHaveCount(0,{timeout:25000});
  await page.getByRole('button',{name:'暂停',exact:true}).click();
  await page.getByRole('button',{name:'保存游戏',exact:true}).click();const saved=await savedState(page);expect(saved.player.side).toBe('back');expect(saved.career.shifts).toBe(1);
  await page.screenshot({path:'test-results/island-back.png'});
- await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在幽星面');
+ await page.reload();await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('#island-side')).toHaveText('幽星面 · 居民在露米纳星湾 幽星面');
  expect(errors).toEqual([]);
 });
 

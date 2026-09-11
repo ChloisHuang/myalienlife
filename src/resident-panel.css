@@ -1,4 +1,4 @@
-#app{position:absolute;inset:0;overflow:clip;--rotated-layout:0;--layout-width:100dvw}
+#app{position:absolute;inset:0;overflow:clip;--rotated-layout:0;--layout-width:100dvw;--layout-height:100dvh}
 .dashboard {
  --panel-ink:#2b363b;--panel-muted:#707c82;--panel-line:#e0e5e6;--panel-accent:#3c7164;--panel-soft:#eef3f1;
  position:absolute;top:104px;right:0;bottom:16px;width:var(--dashboard-width);min-height:0;z-index:4;
@@ -186,19 +186,29 @@ body.dossier-collapsed .locations{right:36px}body.dossier-collapsed .camera-cont
 .phone-layout .camera-controls{right:calc(min(340px,var(--layout-width) - 70px) + 20px)}
 .phone-layout.dossier-collapsed .locations,.phone-layout.dossier-collapsed .camera-controls{right:20px}
 .phone-layout #toast,.phone-layout #build-hint{bottom:16px}
-.phone-layout .topbar{height:56px;padding:0 14px;gap:10px}
+.phone-layout .topbar{height:56px;padding:0 14px;gap:10px;justify-content:space-between}
 .phone-layout .brand{gap:6px}.phone-layout .brand b{font-size:16px;letter-spacing:0}
 .phone-layout .brand small,.phone-layout .brand b span{display:none}
 .phone-layout .brand>.icon{width:28px;height:28px}
-.phone-layout .github-link{position:static;transform:none;width:30px;height:30px;flex-shrink:0}
-.phone-layout .time-control{position:static;transform:none;padding:4px 8px;gap:7px}
+.phone-layout .github-link{position:absolute;top:50%;left:calc(50% - 165px);right:auto;transform:translateY(-50%);width:30px;height:30px;flex-shrink:0}
+.phone-layout .time-control{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:4px 8px;gap:7px}
 .phone-layout .top-actions{gap:8px}.phone-layout .wallet strong{font-size:15px}
+.phone-layout .view-tools :is(#zoom-in,#zoom-out,#fullscreen,#float-island){display:none}
 .phone-layout .location{top:8px}.phone-layout .location h1{font-size:18px;margin:0 0 5px;letter-spacing:0}
 .phone-layout .location>.eyebrow{display:none}
-.phone-layout .online-controls{position:fixed;left:8px;bottom:8px;font-size:11px;margin:0;padding:4px 6px}
-.phone-layout .online-controls button{height:28px;min-height:28px}
+.phone-layout .online-controls{position:fixed;left:0;bottom:8px;margin:0;padding:0 8px 0 14px;min-height:50px;gap:10px;max-width:calc(var(--layout-width) - 28px)}
+.phone-layout .online-controls button:not(#operator-login){height:28px;min-height:28px}
+.phone-layout .identity-slot{flex-basis:72px;width:72px}
+.phone-layout:has(.online-controls) #queue-wrap{bottom:56px}
+.phone-layout :is(#config-dialog,#visitor-dialog){width:min(760px,calc(var(--layout-width) - 32px));max-width:calc(var(--layout-width) - 32px);max-height:calc(var(--layout-height) - 24px);padding:16px;overflow:auto}
+.phone-layout #config-dialog .config-scroll{max-height:none;overflow:visible;padding-right:0}
+.phone-layout #config-dialog :is(.config-grid,.config-actions){grid-template-columns:repeat(2,minmax(0,1fr))}
+.phone-layout #visitor-dialog .visitor-totals{grid-template-columns:repeat(5,minmax(0,1fr))}
+.phone-layout #visitor-dialog .visitor-chart{height:150px}
+.phone-layout #visitor-dialog header{position:sticky;top:-16px;background:#f8faf9;z-index:1}
 @media(max-width:760px) and (orientation:portrait){
- #app{inset:auto;left:100dvw;top:0;width:100dvh;height:100dvw;transform:rotate(90deg);transform-origin:0 0;--rotated-layout:1;--layout-width:100dvh}
+ .phone-layout .github-link{left:calc(50% - 132px)}
+ #app{inset:auto;left:100dvw;top:0;width:100dvh;height:100dvw;transform:rotate(90deg);transform-origin:0 0;--rotated-layout:1;--layout-width:100dvh;--layout-height:100dvw}
  .phone-layout dialog{position:fixed;left:50%;top:50%;margin:0;transform:translate(-50%,-50%) rotate(90deg);max-width:calc(100dvh - 32px);max-height:calc(100dvw - 24px)}
  .phone-layout #dossier-list{max-height:calc(100dvw - 160px)}
 }

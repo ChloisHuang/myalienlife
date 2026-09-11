@@ -80,7 +80,7 @@
 .locations{pointer-events:none}
 .island-selector-heading{pointer-events:none}
 .island-selector-current,.island-card-sheet{pointer-events:auto}
-.locations .island-mobile-launcher{display:grid;width:44px;height:44px;place-items:center;padding:0;border:1px solid #b7ccc2;border-radius:50%;background:linear-gradient(180deg,#f4f7ef,#dfe9e2);color:#4f786c;box-shadow:0 7px 18px #172c3442,inset 0 0 0 3px #ffffffa6;backdrop-filter:blur(10px);filter:none;position:absolute;right:0;top:0;z-index:8;opacity:1;transition:filter .18s}
+.locations .island-mobile-launcher{display:grid;width:44px;height:44px;place-items:center;padding:0;border:2px solid #72988c;border-radius:50%;background:linear-gradient(180deg,#f8f8eeed,#eef2e5ed);color:#34524d;box-shadow:inset 0 0 0 3px #ffffff9e,0 7px 17px #203e3730;backdrop-filter:blur(10px);filter:none;position:absolute;right:0;top:0;z-index:8;opacity:1;transition:filter .18s}
 .locations .island-mobile-launcher .icon{width:25px;height:25px;stroke-width:1.8}
 .locations .island-mobile-launcher:hover{filter:brightness(1.035)}
 .locations .island-mobile-launcher:focus-visible{outline:2px solid #5e8f7e;outline-offset:3px}
@@ -122,7 +122,6 @@ body.dossier-collapsed .locations:is([data-selector-state=announce],[data-select
 .locations[data-selector-state=open] .island-selector-heading{height:77px}
 .locations .island-selector-heading>p{position:absolute;top:53px;left:0;right:0;margin:0}
 .locations .island-selector-current{position:absolute;top:0;left:50%;width:min(390px,66%);height:48px;min-height:48px;margin:0;transform:translateX(-50%);transform-origin:center center;border-radius:24px;pointer-events:auto;overflow:hidden}
-.locations .island-mobile-launcher{display:grid;width:48px;height:48px;place-items:center;padding:0;border:0;border-radius:24px;background:transparent;color:#668e7f;box-shadow:none;backdrop-filter:none;filter:none;position:absolute;right:-1px;top:-1px;z-index:8;opacity:1;transform:none;transition:filter .18s}
 .locations .island-mobile-launcher .icon{width:26px;height:26px;stroke-width:initial;transform:none}
 .locations .island-mobile-launcher:hover{filter:brightness(.94)}
 .locations .island-mobile-launcher:active{transform:none}
@@ -175,5 +174,12 @@ body.dossier-collapsed .locations:is([data-selector-state=announce],[data-select
 
 /* Keep the restored Orbit mark visually bold in every selector state. */
 .locations .island-mobile-launcher .icon{stroke-width:2.0}
+/* The expanded capsule owns the frame; the launcher keeps its circular frame only when compact. */
+.locations:not([data-selector-state=compact]) .island-mobile-launcher{border:0;background:transparent;box-shadow:none;backdrop-filter:none}
 
 html:fullscreen body,html.app-fullscreen body{overflow:hidden;background:#222b40}
+#weather{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:#fff;mix-blend-mode:difference;white-space:nowrap}
+#queue-current{display:flex;align-items:center;gap:5px;min-width:0;max-width:260px;margin-left:auto;color:#c9e7d0;font-weight:600;letter-spacing:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#queue-current:empty{display:none}
+#queue-current .icon{width:14px}
+@media(max-width:760px){#queue-current{max-width:140px;font-size:9px}}
