@@ -39,6 +39,7 @@ import {createWorld} from './world.js';
 import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,actionCost,canAffordAction,isSellableItem} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,isSeating,lifeStage,skillProgress} from './characters.js';
 import {getLanguage,localizePage,toggleLanguage,translateText,translateHtml} from './i18n.js';
+import {detectDeviceInfo,detectDeviceClass,scoreDevice,getQualityProfile,QUALITY_LEVELS,QUALITY_LABELS,DEVICE_LABELS} from './performance-settings.js';
 
 const $=s=>document.querySelector(s);
 const UFO_BUILD_ACTIONS=new Set(['buildUfo1','buildUfo2','buildUfo3']);
@@ -83,6 +84,7 @@ try{game=hosted?await online.load():await persistence.load();}catch(error){
 }
 let navigationIsland=game.viewIsland,lastViewedIsland=game.viewIsland,islandSelectorState='announce',islandAnnouncementContinuous=false,islandAnnouncementTimer=null,islandTransitionTimer=null;
 if(hosted)presentation.push(game);
+const deviceInfo=detectDeviceInfo(),deviceClass=detectDeviceClass(deviceInfo),deviceScore=scoreDevice(deviceInfo);let qualityLevel='high',qualityProfile=getQualityProfile(deviceClass,qualityLevel),measuredFps=0;const frameDurations=[];
 let lastLifeState='';let world,tab='needs',build=false,speedBeforeBuild=1,pack='全部',selectedItem=null,context=null,toastTimer,portraits={},portraitKey='',selectedResident='player',lastMajorEvents='',lastPanel='',saveBlocked=false,epochRestarting=false;
 const fmt=n=>Math.floor(n).toLocaleString('zh-CN');
 const buttons=(items)=>items.map(([label,i,attr])=>`<button ${attr} title="${label}" aria-label="${label}">${icon(i)}</button>`).join('');
@@ -232,6 +234,7 @@ function clearIslandSelectorTimers(){
 function syncIslandSelectorState(){
  const locations=$('.locations'),open=islandSelectorState==='open',expanding=['undocking','opening','open'].includes(islandSelectorState);document.body.classList.toggle('mobile-island-selector-open',expanding);
  if(!locations)return;locations.dataset.selectorState=islandSelectorState;locations.dataset.announceContinuous=String(islandAnnouncementContinuous);locations.classList.toggle('is-expanded',open);
+ if(open&&world)void world.prepareIslandPreviews();
  const toggle=locations.querySelector('[data-island-toggle]'),sheet=locations.querySelector('.island-card-sheet'),launcher=locations.querySelector('[data-island-mobile-launcher]');
  if(toggle){toggle.setAttribute('aria-expanded',String(expanding));toggle.setAttribute('aria-label',expanding?'收起星岛列表':'展开星岛列表');}
  if(sheet)sheet.hidden=!open;
@@ -302,6 +305,11 @@ function careerRequirementsText(id,level=1){const requirements=careerDefinition(
 function configInput(path,value,min=0,max=1e9,step=1){return `<input class="config-input" data-config-path="${path}" type="number" min="${min}" max="${max}" step="${step}" value="${value}" required/>`;}
 function actionLabel(type){const action=ACTIONS[type],cost=game.config?.actionCosts?.[type];return cost===undefined?action.name:action.name.replace(/\d+(?=\s*星币)/,String(cost));}
 function currentActionLabel(q){return q.phase==='walking'?'正在走过去…':q.phase==='waiting'?'等待家具空闲…':q.phase==='celebrating'?(q.blessing.side==='front'?'接受晴昼赐福':'接受幽冥赐福'):actionLabel(q.type);}
+function qualityFeatureRows(profile){const animation=profile.treeAnimation==='full'?'完整':profile.treeAnimation==='reduced'?'降频':'关闭',lod=profile.modelLod==='off'?'关闭':profile.modelLod==='aggressive'?'激进':'平衡';return [['阴影',profile.shadows?`${profile.shadowMapSize}²`:'关闭'],['树木动画',animation],['雨雾密度',`${Math.round(profile.weatherDensity*100)}%`],['模型 LOD',lod],['贴图',QUALITY_LABELS[profile.textureQuality]]].map(([label,value])=>`<div><span>${label}</span><b>${value}</b></div>`).join('');}
+function updateQualityReadout(){const fps=$('#quality-fps');if(fps)fps.textContent=measuredFps?`${Math.round(measuredFps)} FPS`:'测量中…';}
+function recordFrameRate(dt){frameDurations.push(dt);if(frameDurations.length>60)frameDurations.shift();if(frameDurations.length>=12)measuredFps=1/(frameDurations.reduce((sum,value)=>sum+value,0)/frameDurations.length);}
+function renderQualityControls(){const scroll=$('#config-form .config-scroll');scroll.querySelector('.quality-section')?.remove();scroll.insertAdjacentHTML('afterbegin',translateHtml(`<section class="config-section quality-section"><h3>画质与性能</h3><div class="quality-device-grid"><div class="config-value"><span>当前设备</span><b>${DEVICE_LABELS[deviceClass]}</b><small>设备评分 <strong>${deviceScore} / 100</strong></small></div><div class="config-value"><span>当前帧率</span><b id="quality-fps">${measuredFps?`${Math.round(measuredFps)} FPS`:'测量中…'}</b><small>基于最近 60 帧</small></div></div><div class="quality-levels" role="group" aria-label="画质档位">${QUALITY_LEVELS.map(level=>`<button type="button" data-quality-level="${level}" aria-pressed="${String(qualityLevel===level)}" class="${qualityLevel===level?'active':''}">${QUALITY_LABELS[level]}</button>`).join('')}</div><div class="quality-features">${qualityFeatureRows(qualityProfile)}</div></section>`));}
+function setQualityLevel(level){qualityLevel=level;qualityProfile=getQualityProfile(deviceClass,level);world.setQuality(qualityProfile);lastPanel='';renderConfig();renderQualityControls();localizePage();}
 function renderConfig(){
  const config=game.config,stages=config.lifeStages;
  const stageRows=[['infant',null,'infantEnd','幼体只能接受照料'],['child','infantEnd','childEnd','可进行对应阶段的日常活动'],['teen','childEnd','teenEnd','可进行对应阶段的日常活动'],['adult','teenEnd','adultEnd','可进行对应阶段的日常活动'],['elder','adultEnd','elderEnd',`${stages.elderEnd} 星岁时寿终`]].map(([key,startKey,endKey,description])=>{const start=startKey?stages[startKey]:0,end=endKey==='elderEnd'?'': '&lt;';return `<div class="config-row"><span>${STAGES[key]}<small>${startKey?`从 ${stages[startKey]} 星岁开始`:'从出生开始'}</small></span><label class="config-number">范围 ${start}–${end}${configInput(`lifeStages.${endKey}`,stages[endKey],1,120)} 星岁</label><em>${description}</em></div>`;}).join('');
@@ -318,9 +326,9 @@ async function applyConfig(event){
  event.preventDefault();const form=event.target;if(!form.checkValidity()){form.reportValidity();return;}
  const next=structuredClone(game.config);for(const input of form.querySelectorAll('[data-config-path]')){const path=input.dataset.configPath.split('.');let target=next;for(const key of path.slice(0,-1))target=target[key];target[path.at(-1)]=Number(input.value);}
  const normalized=normalizeConfig(next);if(!validConfig(normalized)){toast('配置范围无效：生命阶段必须按年龄递增，且变异概率总和不能超过 100%。');return;}
- if(!(await command('config',normalized)).ok)return;lastPanel='';refresh();renderConfig();localizePage();if(await save(true))toast('参数配置已保存并开始生效。');
+ if(!(await command('config',normalized)).ok)return;lastPanel='';refresh();renderConfig();renderQualityControls();localizePage();if(await save(true))toast('参数配置已保存并开始生效。');
 }
-async function resetConfig(){if(!(await command('config',normalizeConfig())).ok)return;lastPanel='';refresh();renderConfig();localizePage();toast('已恢复默认参数，点击应用并保存配置后持久化。');}
+async function resetConfig(){if(!(await command('config',normalizeConfig())).ok)return;lastPanel='';refresh();renderConfig();renderQualityControls();localizePage();toast('已恢复默认参数，点击应用并保存配置后持久化。');}
 async function persistProjectConfig(){if(!confirm('将当前参数永久覆盖为项目默认配置，之后新建的星湾会使用这些参数。确定继续吗？'))return;try{hosted?await online.mutate('/api/project-config'):await persistence.saveProjectConfig(game.config);toast('当前配置已固化为项目默认配置。');}catch(error){console.error('项目配置保存失败',error);toast('项目配置保存失败，请检查游戏服务。');}}
 async function startNewLife(){
  if(epochRestarting||hosted&&!online.canOperate)return;epochRestarting=true;const speed=game.speed;if(!hosted)game.speed=0;
@@ -409,6 +417,10 @@ function refresh(){
   if(persistentLauncher){launcherSlot.replaceWith(persistentLauncher);persistentLauncher.setAttribute('aria-expanded',String(selectorOpen));}
   else {launcherSlot.outerHTML=`<button type="button" class="island-mobile-launcher" data-island-mobile-launcher aria-label="星岛选择" aria-expanded="${selectorOpen}">${icon('Orbit')}</button>`;}
   syncIslandSelectorState();
+ }
+ for(const thumb of document.querySelectorAll('[data-thumb]')){
+  const canvas=world?.islandPreview(thumb.dataset.thumb);
+  if(canvas&&canvas.parentElement!==thumb)thumb.prepend(canvas);
  }
  $('.location h1').innerHTML=islandDefinition(game,game.viewIsland).name+'<span class="live-dot"></span>';
  $('#flip-island').disabled=!backDiscovered(game,game.viewIsland);
@@ -570,6 +582,7 @@ function setupDossierSwipe(){
 $('#app').addEventListener('click',async e=>{
  if(epochRestarting)return;
  const b=e.target.closest('button');if(!b)return;
+ if(b.dataset.qualityLevel){setQualityLevel(b.dataset.qualityLevel);return;}
  if(b.dataset.speed!==undefined){await command('speed',Number(b.dataset.speed));refresh();}
  if(b.id==='autonomy'){await setAutonomy(game,!game.autonomy.enabled);toast(game.autonomy.enabled?'自主行为已开启，手动安排随时优先。':'自主行为已关闭，保留你的手动安排。');refresh();}
  if(b.id==='dossier-toggle')setDossierCollapsed($('.dashboard').dataset.collapsed!=='true');
@@ -613,7 +626,7 @@ $('#app').addEventListener('click',async e=>{
  if(b.id==='work'){const lab=game.objects.find(o=>sameSide(o,game.player)&&canWorkAt(game.career.id,o.type));const result=await enqueue(game,'work',lab?.id);toast(result.ok?`已安排工作班次，${game.player.name}将前往${game.career.id==='chef'?'孢火星釜':'研究台'}。`:result.message);refresh();}
  if(b.id==='study'){const result=await enqueueStudy(game);toast(result.ok?'已安排学习。':result.message);refresh();}
  if(b.id==='save')save(true);
-  if(b.id==='config'){renderConfig();localizePage();$('#config-dialog').showModal();}
+  if(b.id==='config'){renderConfig();renderQualityControls();localizePage();$('#config-dialog').showModal();}
   if(b.id==='config-reset')resetConfig();
  if(b.id==='restart-epoch'&&confirm('重启纪元将永久清除当前居民进度、星岛、工程、材料、飞船与星币，从第 1 天重新开始。此操作无法撤销，确定删档重启吗？'))startNewLife();
   if(b.id==='config-project-default')persistProjectConfig();
@@ -681,15 +694,18 @@ function showHoverTooltip(target,x,y){
 }
 
 try{
+ $('#world').dataset.deviceClass=deviceClass;$('#world').dataset.deviceScore=String(deviceScore);
  world=await createWorld($('#world'),()=>game,{
   onClick:showContext,
   onHover(target,x,y){lastHover={target,x,y};showHoverTooltip(target,x,y);},
-  async onPlace(type,x,z,rotation){const result=await buyItem(game,type,x,z,rotation);if(result.ok){toast(type==='mushroom'?'已安排人物前往种植。':`${ITEMS.find(i=>i.id===type).name}已放入家园。`);cancelPlacement();refresh();}else toast(result.message);}
+  async onPlace(type,x,z,rotation){const result=await buyItem(game,type,x,z,rotation);if(result.ok){toast(type==='mushroom'?'已安排人物前往种植。':`${ITEMS.find(i=>i.id===type).name}已放入家园。`);cancelPlacement();refresh();}else toast(result.message);},
+  qualityProfile
  });
+ await world.prepareIslandPreviews();
  refreshPortraits();
  $('#loading').hidden=true;refresh();announceIslandSelector();
  let previous=performance.now(),uiElapsed=0,frameWindow=window,frameId;
- function frame(){frameId=frameWindow.requestAnimationFrame(frame);const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;if(!hosted)tick(game,dt);if(hosted)visualGame=presentation.sample(game,now);world.render(visualGame);uiElapsed+=dt;if(uiElapsed>.2){refresh();if(lastHover&&!$('#tooltip').hidden)showHoverTooltip(lastHover.target,lastHover.x,lastHover.y);uiElapsed=0;}}
+ function frame(){frameId=frameWindow.requestAnimationFrame(frame);const now=performance.now(),dt=Math.min((now-previous)/1000,.1);previous=now;recordFrameRate(dt);if(!hosted)tick(game,dt);if(hosted)visualGame=presentation.sample(game,now);world.render(visualGame);uiElapsed+=dt;if(uiElapsed>.2){refresh();updateQualityReadout();if(lastHover&&!$('#tooltip').hidden)showHoverTooltip(lastHover.target,lastHover.x,lastHover.y);uiElapsed=0;}}
  const floating=createFloatingIsland($('#world'),{returnIcon:icon('ArrowLeft'),
   onEnter(){if(build)toggleBuild();cancelPlacement();closeContext();closeCharacterSwitcher();$('#tooltip').hidden=true;world.setSceneOnly(true);},
   onLeave(){world.setSceneOnly(false);floatingButton.focus();},

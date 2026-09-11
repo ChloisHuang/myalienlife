@@ -4,13 +4,17 @@ import {createServer} from 'vite';
 import {chromium} from '@playwright/test';
 import {restore} from '../src/simulation.js';
 import {prepareIslandCapture} from './island-capture-fixture.js';
+import {fileURLToPath} from 'node:url';
+import {relative,resolve} from 'node:path';
 
 const snapshotDir=process.argv[2];
+const prefix=process.argv[3]??(snapshotDir?'batch-':'');
+const dpr=Number(process.argv[4]??1);
 const saved=JSON.parse(await readFile(snapshotDir?`${snapshotDir}/save.json`:'.data/orbit-life.json','utf8'));
 const source=restore(JSON.stringify(saved.state));
 const server=await createServer({configFile:false,logLevel:'error',server:{host:'127.0.0.1',port:0}});
-const original=new Map();if(snapshotDir)for(const name of ['world.js','props.js','fairytale.js'])original.set(name,await readFile(`${snapshotDir}/${name}`,'utf8'));
-const baselineServer=snapshotDir?await createServer({configFile:false,logLevel:'error',plugins:[{name:'original-render',enforce:'pre',load(id){if(id.includes('/src/'))return original.get(id.split('/').at(-1));}}],server:{host:'127.0.0.1',port:0}}):null;
+const sourceRoot=fileURLToPath(new URL('../src/',import.meta.url));
+const baselineServer=snapshotDir?await createServer({configFile:false,logLevel:'error',plugins:[{name:'original-render',enforce:'pre',load(id){if(id.startsWith(sourceRoot))return readFile(resolve(snapshotDir,'src',relative(sourceRoot,id.split('?')[0])),'utf8');}}],server:{host:'127.0.0.1',port:0}}):null;
 let browser;
 try{
  await server.listen();await baselineServer?.listen();browser=await chromium.launch({channel:'msedge',headless:true});
@@ -27,8 +31,9 @@ try{
   const fixture=prepareIslandCapture(source,{islandNumber,side,seed:20260910});let previous;
   if(name.includes('night'))fixture.state.minute=1260;
   for(const baseline of [true,false]){
-   const page=await browser.newPage({viewport,deviceScaleFactor:1}),errors=[];
+   const page=await browser.newPage({viewport,deviceScaleFactor:dpr}),errors=[];
    page.on('pageerror',e=>errors.push(e.message));
+   page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
    await page.route('**/api/**',route=>{throw new Error(`Unexpected API access: ${route.request().url()}`);});
    await page.route('**/__island_capture.json',route=>route.fulfill({json:fixture}));
    if(name.includes('rain'))await page.route('**/tools/island-capture-fixture.js',async route=>{
@@ -45,22 +50,26 @@ try{
    const host=baseline&&baselineServer?baselineServer:server;
    await page.goto(`http://127.0.0.1:${host.httpServer.address().port}/tools/island-capture.html`);
    await page.locator('#world[data-ready=true]').waitFor({timeout:180000});assert.deepEqual(errors,[]);
-   const pixels=await page.locator('canvas').first().evaluate(canvas=>{
+   const encoded=await page.locator('canvas').first().evaluate(canvas=>{
     const copy=document.createElement('canvas');copy.width=canvas.width;copy.height=canvas.height;
-    const ctx=copy.getContext('2d');ctx.drawImage(canvas,0,0);return Array.from(ctx.getImageData(0,0,copy.width,copy.height).data);
+    const ctx=copy.getContext('2d');ctx.drawImage(canvas,0,0);const pixels=ctx.getImageData(0,0,copy.width,copy.height).data,chunks=[];
+    for(let i=0;i<pixels.length;i+=32768)chunks.push(String.fromCharCode(...pixels.subarray(i,i+32768)));
+    return btoa(chunks.join(''));
    });
-   await page.screenshot({path:`artifacts/performance/${snapshotDir?'batch-':''}${baseline?'before':'after'}-${name}.png`});
+   const pixels=Buffer.from(encoded,'base64');
+   await page.screenshot({path:`artifacts/performance/${prefix}${baseline?'before':'after'}-${name}.png`});
    if(baseline)previous=pixels;
    else{
+    assert.equal(pixels.length,previous.length,'comparison canvas dimensions changed');
     let changed=0,totalDifference=0,largePixels=0;
     for(let i=0;i<pixels.length;i+=4){let max=0;for(let j=0;j<3;j++){const d=Math.abs(pixels[i+j]-previous[i+j]);if(d)changed++;totalDifference+=d;max=Math.max(max,d);}if(max>16)largePixels++;}
     const colors=new Set();for(let i=0;i<pixels.length;i+=128)colors.add(pixels.slice(i,i+3).join(','));
     const result={name,changedChannels:changed,meanDifference:totalDifference/(pixels.length/4*3),largePixelRatio:largePixels/(pixels.length/4),colors:colors.size};console.log(result);
     assert.ok(colors.size>200,'blank canvas');assert.ok(result.meanDifference<.02&&result.largePixelRatio<.0001,`${name}: visible rendering regression`);
-    await page.screenshot({path:`artifacts/performance/verified-${name}.png`});results.push(result);
+    await page.screenshot({path:`artifacts/performance/${prefix}verified-${name}.png`});results.push(result);
    }
    await page.close();
   }
  }
- await writeFile(`artifacts/performance/${snapshotDir?'batch-':''}visual-verification.json`,JSON.stringify(results,null,2));console.log(results);
+ await writeFile(`artifacts/performance/${prefix}visual-verification.json`,JSON.stringify(results,null,2));console.log(results);
 }finally{await browser?.close();await server.close();await baselineServer?.close();}

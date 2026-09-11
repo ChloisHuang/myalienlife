@@ -10,9 +10,79 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
+test('island switching frame trace',async({page},testInfo)=>{
+ const g=createGame();g.speed=0;g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#world canvas')).toBeVisible({timeout:45000});await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.waitForTimeout(2000);
+ await page.evaluate(()=>{window.__switchFrames=[];let previous=performance.now();window.__switchRecording=true;const frame=now=>{window.__switchFrames.push(now-previous);previous=now;if(window.__switchRecording)requestAnimationFrame(frame);};requestAnimationFrame(frame);});
+ for(const id of ['spore','home','spore','home']){await page.locator('#island-select').selectOption(id);await page.waitForTimeout(800);}
+ const result=await page.evaluate(()=>{window.__switchRecording=false;const frames=window.__switchFrames.sort((a,b)=>a-b);return {p95:frames[Math.floor(frames.length*.95)],max:frames.at(-1),over100ms:frames.filter(t=>t>100).length,frames:frames.length};});
+ console.log('island-switch-timing',JSON.stringify(result));await testInfo.attach('switch-timing',{body:JSON.stringify(result),contentType:'application/json'});
+});
+test('island previews are local cached scene captures on desktop and mobile',async({page})=>{
+ const g=createGame();g.speed=0;g.viewIsland='spore';g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;g.civilization.projects.spore.blueprint=300;g.civilization.projects.spore.construction=600;fixtures.set(page,g);
+ const images=[],errors=[];page.on('request',request=>{if(/orbit-life-day|island-02-front/.test(request.url()))images.push(request.url());});page.on('pageerror',error=>errors.push(error.message));
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const home=page.locator('[data-thumb="home"] canvas');await expect(home).toHaveCount(1);
+ await expect(page.locator('[data-thumb="spore"] canvas')).toHaveCount(1);
+ await expect(page.locator('#world')).toHaveAttribute('data-island','spore');
+ const initial=await home.evaluate(canvas=>{window.__homePreview=canvas;return canvas.toDataURL();});
+ expect(initial.length).toBeGreaterThan(4000);
+ await page.waitForTimeout(800);expect(await home.evaluate(canvas=>canvas.toDataURL())).toBe(initial);
+ await page.locator('#island-select').selectOption('home');await page.locator('#island-select').selectOption('spore');await expect(page.locator('[data-thumb="spore"] canvas')).toHaveCount(1);
+ expect(await home.evaluate(canvas=>canvas===window.__homePreview)).toBe(true);
+ expect(await page.locator('[data-thumb="spore"] canvas').evaluate(canvas=>canvas.toDataURL())).not.toBe(initial);
+ await expect.poll(()=>page.locator('.locations').getAttribute('data-selector-state'),{timeout:5000}).toBe('compact');
+ await page.locator('[data-island-mobile-launcher]').click();await expect(page.locator('.locations')).toHaveAttribute('data-selector-state','open');
+ await page.screenshot({path:'artifacts/island-previews-desktop.png'});
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/island-previews-mobile.png'});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ expect(images).toEqual([]);expect(errors).toEqual([]);
+});
+test('fixed preview camera preserves the main framebuffer and reuses unchanged captures',async({page})=>{
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const result=await page.evaluate(async()=>{
+  const T=await import('/node_modules/three/build/three.module.js'),{createIslandPreviews}=await import('/src/island-previews.js');
+  const renderer=new T.WebGLRenderer({preserveDrawingBuffer:true});renderer.setSize(240,180);
+  const scene=new T.Scene();scene.background=new T.Color('#203040');
+  const box=new T.Mesh(new T.BoxGeometry(10,10,10),new T.MeshBasicMaterial({color:'#ff3333'}));scene.add(box);
+  const marker=new T.Mesh(new T.BoxGeometry(50,50,50),new T.MeshBasicMaterial({color:'#00ff00'}));scene.add(marker);
+  const camera=new T.PerspectiveCamera(50,240/180,.1,180);camera.position.set(23,25,30);camera.lookAt(0,0,0);
+  renderer.render(scene,camera);const main=renderer.domElement.toDataURL(),viewport=renderer.getViewport(new T.Vector4()).toArray();
+  const previews=createIslandPreviews(renderer,scene,[marker]);
+  const game={viewIsland:'home',viewSide:'front',civilization:{projects:{}},objects:[]};
+  await previews.update(game,0);const canvas=previews.get('home'),first=canvas.toDataURL(),frame=renderer.info.render.frame;
+  await previews.update(game,1000);const cached=renderer.info.render.frame===frame;
+  const unchanged=main===renderer.domElement.toDataURL(),restored=marker.visible&&renderer.getRenderTarget()===null&&JSON.stringify(viewport)===JSON.stringify(renderer.getViewport(new T.Vector4()).toArray());
+  camera.position.set(-50,0,0);camera.lookAt(0,0,0);renderer.render(scene,camera);
+  game.objects.push({id:'new',type:'chair',island:'home',side:'front',x:0,z:0,rotation:0});
+  await previews.update(game,2000);const fixed=previews.get('home').toDataURL()===first;
+  game.objects[0].x=1;box.material.color.set('#3333ff');
+  const data=canvas.getContext('2d').getImageData(0,0,192,384).data;
+  await previews.update(game,3000);const frozen=canvas.toDataURL()===first;
+  game.viewIsland='spore';await previews.update(game,4000);game.viewIsland='home';await previews.update(game,5000);
+  const revisitFrozen=canvas.toDataURL()===first;
+  await previews.update(game,300001);const updated=previews.get('home')===canvas&&canvas.toDataURL()!==first;
+  let red=0,green=0;for(let i=0;i<data.length;i+=4){if(data[i]>data[i+1]*2&&data[i]>data[i+2]*2)red++;if(data[i+1]>data[i]*2)green++;}
+  previews.dispose();renderer.dispose();box.geometry.dispose();box.material.dispose();marker.geometry.dispose();marker.material.dispose();
+  return {cached,unchanged,restored,fixed,frozen,revisitFrozen,updated,red,green};
+ });
+ expect(result).toMatchObject({cached:true,unchanged:true,restored:true,fixed:true,frozen:true,revisitFrozen:true,updated:true,green:0});expect(result.red).toBeGreaterThan(12000);
+});
 test('postprocessed scene does not allocate redundant canvas multisampling',async({page})=>{
+ const errors=[];page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});page.on('pageerror',error=>errors.push(error.message));
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  expect(await page.locator('#world canvas').evaluate(canvas=>canvas.getContext('webgl2').getContextAttributes().antialias)).toBe(false);
+ expect(errors).toEqual([]);
+});
+test('lower quality reduces effects without hiding scene models',async({page})=>{
+ const g=createGame();g.speed=0;fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await expect(page.locator('#world')).toHaveAttribute('data-quality','high');
+ await page.locator('#config').click();await page.locator('#config-dialog [data-quality-level="low"]').click();
+ await expect(page.locator('#world')).toHaveAttribute('data-quality','low');
+ await expect(page.locator('#world')).toHaveAttribute('data-quality-lod-hidden','0');
+ await expect(page.locator('#config-dialog [data-quality-level="low"]')).toHaveAttribute('aria-pressed','true');
 });
 test('fullscreen control toggles native fullscreen on desktop and app fullscreen on mobile',async({page})=>{
  const state=createGame();state.speed=0;fixtures.set(page,state);

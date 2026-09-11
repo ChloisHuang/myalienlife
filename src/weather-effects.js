@@ -38,10 +38,18 @@ export function createWeatherEffects(scene,random){
  const splashPositions=[],phases=[];
  for(let i=0;i<60;i++){const a=random()*Math.PI*2,r=5+random()*9,x=Math.cos(a)*r,z=Math.sin(a)*r*.7;if(x>-8.5&&x<4.5&&z>-6.3&&z<1.4)continue;splashPositions.push(x,.09,z);phases.push(random());}
  const splashGeometry=new THREE.BufferGeometry();splashGeometry.setAttribute('position',new THREE.Float32BufferAttribute(splashPositions,3));splashGeometry.setAttribute('phase',new THREE.Float32BufferAttribute(phases,1));
- const splashes=new THREE.Points(splashGeometry,new THREE.ShaderMaterial({uniforms:{time,rainAmount,pixelRatio:{value:Math.min(devicePixelRatio,1.75)}},transparent:true,depthWrite:false,
+ const splashes=new THREE.Points(splashGeometry,new THREE.ShaderMaterial({uniforms:{time,rainAmount,pixelRatio:{value:Math.min(globalThis.devicePixelRatio||1,1.75)}},transparent:true,depthWrite:false,
   vertexShader:`uniform float time,pixelRatio;attribute float phase;varying float age;
    void main(){age=fract(time*.7+phase);gl_PointSize=(3.0+age*11.0)*pixelRatio;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
   fragmentShader:`uniform float rainAmount;varying float age;void main(){vec2 p=(gl_PointCoord-.5)*vec2(1.0,1.8);float d=length(p);float ring=exp(-pow((d-.35)*32.0,2.0));gl_FragColor=vec4(.72,.81,.88,ring*(1.0-age)*rainAmount*.16);}`,
  }));splashes.raycast=()=>{};scene.add(splashes);
- return {update(t,weather){time.value=t;rainAmount.value=weather.weights.rain;fogAmount.value=weather.weights.mist+weather.weights.rain*.28;wind.value=weather.wind;rain.visible=splashes.visible=rainAmount.value>.001;mist.visible=fogAmount.value>.001;}};
+ let weatherDensity=1,fogDensity=1;
+ function setQuality(profile){
+  weatherDensity=profile.weatherDensity;fogDensity=profile.fogDensity;
+  rainGeometry.setDrawRange(0,Math.floor(420*weatherDensity)*2);
+  splashGeometry.setDrawRange(0,Math.floor(splashGeometry.getAttribute('position').count*weatherDensity));
+  const layers=Math.ceil(3*weatherDensity);mist.children.forEach((sheet,index)=>{sheet.userData.qualityLayer=index<layers;});
+ }
+ setQuality({weatherDensity:1,fogDensity:1});
+ return {setQuality,update(t,weather){time.value=t;rainAmount.value=weather.weights.rain;fogAmount.value=(weather.weights.mist+weather.weights.rain*.28)*fogDensity;wind.value=weather.wind;rain.visible=splashes.visible=rainAmount.value>.001;mist.visible=fogAmount.value>.001;mist.children.forEach(sheet=>{sheet.visible=mist.visible&&sheet.userData.qualityLayer;});}};
 }

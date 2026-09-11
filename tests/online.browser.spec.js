@@ -1,9 +1,31 @@
 import {test,expect} from '@playwright/test';
-import {mkdtemp,rm} from 'node:fs/promises';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {createHttpService} from '../server/http-service.js';
 import {createGame,ensureStarIsland} from '../src/simulation.js';
+
+test('VIP lettering retains its gold facets without restoring the guest white stripe',async({page})=>{
+ await page.setContent('<div class="identity-card" data-tier="guest"><span class="identity-art"><strong class="identity-tier">Guest</strong></span></div><div class="identity-card" data-tier="vip"><span class="identity-art"><strong class="identity-tier">VIP</strong></span></div>');
+ await page.addStyleTag({content:await readFile(resolve('src/online.css'),'utf8')});
+ const lettering=tier=>page.locator(`[data-tier=${tier}] .identity-tier`);
+ await expect(lettering('vip')).toHaveCSS('background-image','linear-gradient(125deg, rgb(105, 67, 13) 0%, rgb(105, 67, 13) 34%, rgb(170, 123, 33) 34%, rgb(170, 123, 33) 43%, rgb(255, 241, 176) 43%, rgb(255, 241, 176) 48%, rgb(117, 75, 13) 48%, rgb(117, 75, 13) 78%, rgb(155, 108, 25) 78%)');
+ await expect(lettering('guest')).toHaveCSS('background-image','linear-gradient(125deg, rgb(40, 78, 67) 0%, rgb(82, 126, 105) 45%, rgb(48, 91, 73) 100%)');
+});
+
+test('operating VIP lettering gains a stronger sheen only while control is held',async({page})=>{
+ await page.setContent('<div class="online-controls"><div class="identity-card" data-tier="vip"><span class="identity-tier">VIP</span></div><div class="identity-card" data-tier="guest"><span class="identity-tier">Guest</span></div></div>');
+ await page.addStyleTag({content:await readFile(resolve('src/online.css'),'utf8')});
+ const vip=page.locator('[data-tier=vip] .identity-tier'),guest=page.locator('[data-tier=guest] .identity-tier');
+ const styles=el=>{const s=getComputedStyle(el);return {background:s.backgroundImage,filter:s.filter,width:el.getBoundingClientRect().width};};
+ const original=await vip.evaluate(styles),guestOriginal=await guest.evaluate(styles);
+ await page.locator('.online-controls').evaluate(el=>el.classList.add('is-operating'));
+ const active=await vip.evaluate(styles);
+ expect(active.background).not.toBe(original.background);expect(active.filter).toContain('drop-shadow');expect(active.width).toBe(original.width);
+ expect(await guest.evaluate(styles)).toEqual(guestOriginal);
+ await page.locator('.online-controls').evaluate(el=>el.classList.remove('is-operating'));
+ expect(await vip.evaluate(styles)).toEqual(original);
+});
 
 test('identity card flips for token verification and docks as guest or VIP',async({browser})=>{
  const directory=await mkdtemp(join(tmpdir(),'orbit-identity-')),initial=createGame();initial.speed=0;
@@ -36,6 +58,12 @@ test('identity card flips for token verification and docks as guest or VIP',asyn
      await expect(card).toBeFocused();
     }
     await expect(page.locator('#claim-control')).toBeVisible();
+    await page.locator('#claim-control').click();
+    await expect(page.locator('.online-controls')).toHaveClass(/is-operating/);
+    await expect(card.locator('.identity-tier')).toHaveCSS('filter','drop-shadow(rgb(255, 243, 161) 0px 0px 0.6px)');
+    await page.screenshot({path:`artifacts/identity-operating-${viewport.width}.png`});
+    await card.click();await expect(page.locator('.online-controls')).not.toHaveClass(/is-operating/);
+    await expect(card.locator('.identity-tier')).toHaveCSS('filter','none');
     await page.locator('#visitor-stats').click();await expect(page.locator('#visitor-results')).toBeVisible();
     for(const id of ['visitor-dialog','config-dialog']){
      if(id==='config-dialog')await page.locator('#config').click();

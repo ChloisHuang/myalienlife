@@ -5,7 +5,7 @@ import {isRadiant} from './prayer.js';
 import {createBlinkVisual} from './nether-blink-visuals.js';
 import {shipFoodStatus} from './space-logistics.js';
 import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
-import {islandDefinition} from './civilization.js';
+import {islandDefinition,islandCatalog,discovered} from './civilization.js';
 import {createIslandTerrain} from './island-terrain.js';
 import {createFairytaleKit} from './fairytale.js';
 import {createHousingVisual} from './settlement-visuals.js';
@@ -30,23 +30,26 @@ import {BiolumeMaterial,stylizeAsset,createPostProcessing,createAtmosphere,creat
 import {getWeather} from './weather.js';
 import {createWeatherEffects} from './weather-effects.js';
 import {getLanguage,translateText} from './i18n.js';
+import {getQualityProfile} from './performance-settings.js';
+import {createIslandPreviews} from './island-previews.js';
 
 import {colors,material,mesh,box,sphere,cylinder,ring,createPropFactory} from './props.js';
 const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
 function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 
-export async function createWorld(container,getGame,{onClick,onHover,onPlace,weatherProvider=getWeather}){
+export async function createWorld(container,getGame,{onClick,onHover,onPlace,weatherProvider=getWeather,qualityProfile=getQualityProfile('pc','high')}){
  let sceneOnly=false;
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x10152e);scene.fog=new THREE.FogExp2(0x171c39,.006);
  // The scene is already multisampled in the composer; the canvas receives only its fullscreen output.
- const renderer=new THREE.WebGLRenderer({antialias:false,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
+ const initialQuality={...qualityProfile};
+ const renderer=new THREE.WebGLRenderer({antialias:false,alpha:false,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio||1,initialQuality.maxPixelRatio));renderer.shadowMap.enabled=initialQuality.shadows;renderer.shadowMap.type=initialQuality.shadows?THREE.PCFSoftShadowMap:THREE.BasicShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;container.appendChild(renderer.domElement);
  const createCrystalMesh=createCrystalFactory(renderer);
  const cameraStart=new THREE.Vector3(23,25,30),camera=new THREE.OrthographicCamera(-20,20,15,-15,.1,180);camera.position.copy(cameraStart);
  const controls=new OrbitControls(camera,controlSurface(renderer.domElement));controls.target.set(0,0,0);controls.enableDamping=true;controls.minZoom=.65;controls.maxZoom=2.5;controls.minPolarAngle=.25;controls.maxPolarAngle=1.25;controls.mouseButtons={LEFT:null,MIDDLE:THREE.MOUSE.PAN,RIGHT:THREE.MOUSE.ROTATE};controls.touches={ONE:THREE.TOUCH.ROTATE,TWO:THREE.TOUCH.DOLLY_PAN};
  camera.lookAt(controls.target);camera.updateMatrixWorld();const cameraOffset=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0).multiplyScalar(CAMERA_PAN_RIGHT);
  function resetView(){camera.position.copy(cameraStart).add(cameraOffset);controls.target.copy(cameraOffset);camera.zoom=CAMERA_ZOOM;camera.lookAt(controls.target);camera.updateProjectionMatrix();}
  resetView();
- const ambient=new THREE.HemisphereLight(0xe2eaff,0x70526e,1.3);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffe5d0,2.6);sun.position.set(-10,24,14);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,far:70});sun.shadow.normalBias=.09;sun.shadow.bias=-.00015;scene.add(sun);
+ const ambient=new THREE.HemisphereLight(0xe2eaff,0x70526e,1.3);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffe5d0,2.6);sun.position.set(-10,24,14);sun.castShadow=initialQuality.shadows;sun.shadow.mapSize.set(initialQuality.shadowMapSize,initialQuality.shadowMapSize);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,far:70});sun.shadow.normalBias=.09;sun.shadow.bias=-.00015;scene.add(sun);
  const rim=new THREE.DirectionalLight(0xdacbff,1.2);rim.position.set(12,6,-16);scene.add(rim);
  const composer=createPostProcessing(renderer,scene,camera);
  const loader=new GLTFLoader();const [alienAsset,mushroomAsset]=await Promise.all(['alien','mushroom'].map(n=>loader.loadAsync(`/assets/${n}.glb`)));
@@ -63,7 +66,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const portraitLight=new THREE.DirectionalLight(0xffffff,2.6);portraitLight.position.set(2,3,4);portraitScene.add(portraitLight);
  // Keep portrait glow local so luminous markings do not obscure facial features.
  const portraitComposer=createPostProcessing(portraitRenderer,portraitScene,portraitCamera,{bloomStrength:.28,bloomRadius:0});portraitComposer.setSize(160,160);
- function model(source,parent,x,y,z,s=1){const o=source.scene.clone(true),living=new Map();o.position.set(x,y,z);o.scale.setScalar(s);o.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;if(n.material instanceof BiolumeMaterial){if(!living.has(n.material))living.set(n.material,n.material.clone());n.material=living.get(n.material);}}});parent.add(o);return o;}
+ const textures=new Set(),textureDefaults=new Map();
+ function trackTextures(root){root.traverse(node=>{for(const material of Array.isArray(node.material)?node.material:node.material?[node.material]:[]){for(const key of ['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'])if(material[key])textures.add(material[key]);}});}
+ // High restores loader defaults so the original asset appearance is unchanged.
+ function applyTextureQuality(profile){for(const texture of textures){if(profile.textureQuality==='high'){const original=textureDefaults.get(texture);if(original){texture.anisotropy=original.anisotropy;texture.magFilter=original.magFilter;texture.minFilter=original.minFilter;texture.needsUpdate=true;}continue;}if(!textureDefaults.has(texture))textureDefaults.set(texture,{anisotropy:texture.anisotropy,magFilter:texture.magFilter,minFilter:texture.minFilter});const mipmapped=profile.textureQuality!=='low';texture.anisotropy=profile.textureAnisotropy;texture.magFilter=THREE.LinearFilter;texture.minFilter=mipmapped?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;texture.needsUpdate=true;}}
+ function model(source,parent,x,y,z,s=1){const o=source.scene.clone(true),living=new Map();o.position.set(x,y,z);o.scale.setScalar(s);o.traverse(n=>{if(n.isMesh){n.castShadow=true;n.receiveShadow=true;if(n.material instanceof BiolumeMaterial){if(!living.has(n.material))living.set(n.material,n.material.clone());n.material=living.get(n.material);}}});parent.add(o);trackTextures(o);return o;}
  const island=new THREE.Group();island.position.y=-ISLAND_FACE_OFFSET;scene.add(island);
  const faces={front:new THREE.Group(),back:new THREE.Group()};faces.front.position.y=ISLAND_FACE_OFFSET;faces.back.position.y=-ISLAND_FACE_OFFSET;faces.back.rotation.x=Math.PI;island.add(faces.front,faces.back);
  const terrain=new THREE.Group();faces.front.add(terrain);
@@ -86,7 +93,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  terrain.add(createCreamGround());
  for(const platform of GLASS_PLATFORMS)terrain.add(createGlassPlatform(platform));
  const random=seedRandom(28);
- const atmosphere=createAtmosphere(scene,camera,seedRandom(91)),swaying=[],floating=[],ripples=[],crystalLights=[];
+ const atmosphere=createAtmosphere(scene,camera,seedRandom(91)),swaying=[],floating=[],ripples=[],crystalLights=[],qualityLodTargets=[];
  const weatherEffects=createWeatherEffects(scene,seedRandom(137));
  for(let i=0;i<12;i++){const a=i*Math.PI/6;const shard=createCrystalMesh(new THREE.OctahedronGeometry(.3),0x82e4db);shard.position.set(Math.cos(a)*14,-1.7,Math.sin(a)*10);shard.scale.set(1,2.6,1);terrain.add(shard);floating.push({object:shard,y:shard.position.y,phase:i});}
  for(let i=0;i<65;i++){const a=random()*Math.PI*2,r=14+random()+creamEdgeOffset(a);mesh(terrain,new THREE.DodecahedronGeometry(.45+random()*.65),[0x9a809d,0xb298af,0x6e6d88][i%3],[Math.cos(a)*r,-1.15-random()*.25,Math.sin(a)*r*.71],[.65,.32,.65]);}
@@ -105,7 +112,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const water=cylinder(terrain,0x79cdd0,[7,.15,4.7],2.07,.05);water.scale.z=.65;
  water.material=material(0x79cdd0,.15);
  for(let i=0;i<3;i++){const r=ring(terrain,0xb8eece,[7,.2,4.7],1,.014);r.rotation.x=-Math.PI/2;r.material=new THREE.MeshBasicMaterial({color:0x9affed,transparent:true,opacity:.5,depthWrite:false});ripples.push(r);}
- [[-10,-5,1.55],[-11,-1,1.2],[-10,5,1.1],[4,-8,1.4],[11,1,1.0],[10,7,.85],[-5,-8,.9]].forEach(([x,z,s])=>swaying.push(model(mushroomAsset,terrain,x,0,z,s)));
+ [[-10,-5,1.55],[-11,-1,1.2],[-10,5,1.1],[4,-8,1.4],[11,1,1.0],[10,7,.85],[-5,-8,.9]].forEach(([x,z,s])=>{const plant=model(mushroomAsset,terrain,x,0,z,s);swaying.push(plant);qualityLodTargets.push(plant);});
  function crystal(parent,x,z,s=1){const g=new THREE.Group();g.position.set(x,0,z);parent.add(g);const facets=[];
   for(let i=0;i<5;i++){const h=(.7+random()*.7)*s,color=[0x9ce9d5,0xd2b0e4,0x86c0e2][i%3];
    const profile=[[0,0],[.14,0],[.19,.18],[.19,.72],[0,1]].map(([r,y])=>new THREE.Vector2(r*s,y*h));
@@ -126,15 +133,43 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
   });return {side,root,fragments,materials:prepareSurroundings(root)};
  });
  batchStatic(terrain,{exclude:new Set([...swaying,...floating.map(f=>f.object),...ripples])});batchStatic(darkTerrain);
- let remoteTerrain=null,remoteHousing=null,terrainIsland=null;
+ let remoteTerrain=null,remoteHousing=null,terrainIsland=null,quality={...initialQuality},vegetationFrame=0;
+ const terrainCache=new Map();
+ const lodCameraPosition=new THREE.Vector3(),lodTargetPosition=new THREE.Vector3();
+ function updateModelLod(){
+  camera.getWorldPosition(lodCameraPosition);
+  let hidden=0;
+   for(const target of qualityLodTargets){
+    if(!target.parent)continue;
+    const far=quality.modelLod!=='off'&&lodCameraPosition.distanceTo(target.getWorldPosition(lodTargetPosition))>quality.modelLodDistance;
+    if(target.userData.qualityLodFar===far){if(!target.visible)hidden++;continue;}
+    target.userData.qualityLodFar=far;
+    // LOD only removes shadow work; the source model remains visible at every quality.
+    target.traverse(node=>{if(!node.isMesh)return;if(far){node.userData.qualityShadowFlags??={castShadow:node.castShadow,receiveShadow:node.receiveShadow};node.castShadow=node.receiveShadow=false;}else if(node.userData.qualityShadowFlags){node.castShadow=node.userData.qualityShadowFlags.castShadow;node.receiveShadow=node.userData.qualityShadowFlags.receiveShadow;delete node.userData.qualityShadowFlags;}});
+    if(!target.visible)hidden++;
+   }
+  container.dataset.qualityLodHidden=String(hidden);
+  }
  function syncTerrain(g){
+  const catalog=islandCatalog(g);
+  for(const [id,entry] of terrainCache)if(!Object.hasOwn(catalog,id)){
+   const stale=new Set(Object.values(entry.terrain).flatMap(t=>t.lodTargets));
+   for(let i=qualityLodTargets.length-1;i>=0;i--)if(stale.has(qualityLodTargets[i]))qualityLodTargets.splice(i,1);
+   for(const t of Object.values(entry.terrain))t.dispose();entry.housing?.dispose();terrainCache.delete(id);
+   if(terrainIsland===id){remoteTerrain=null;remoteHousing=null;terrainIsland=null;}
+  }
+  for(const [id,entry] of terrainCache){for(const t of Object.values(entry.terrain))t.root.visible=id===g.viewIsland;if(entry.housing)entry.housing.root.visible=id===g.viewIsland;}
   terrain.visible=darkTerrain.visible=g.viewIsland==='home';
   if(g.viewIsland==='home'){if(remoteTerrain)for(const t of Object.values(remoteTerrain))t.root.visible=false;if(remoteHousing)remoteHousing.root.visible=false;return;}
   if(terrainIsland!==g.viewIsland){
-   if(remoteTerrain)for(const t of Object.values(remoteTerrain))t.dispose();remoteTerrain={};remoteHousing?.dispose();remoteHousing=null;
-   const definition=islandDefinition(g,g.viewIsland);
-   for(const side of ['front','back']){const t=definition.theme==='fairytale'?fairytaleKit.terrain(side):createIslandTerrain(definition,mushroomAsset.scene,side);faces[side].add(t.root);remoteTerrain[side]=t;}terrainIsland=g.viewIsland;
-   const project=g.civilization.projects[g.viewIsland];if(project&&definition.theme!=='fairytale'){remoteHousing=createHousingVisual(project.plan,g.objects.filter(o=>islandOf(o)===g.viewIsland));faces.front.add(remoteHousing.root);}
+   const cached=terrainCache.get(g.viewIsland);remoteTerrain=cached?.terrain??{};remoteHousing=cached?.housing??null;
+   if(!cached){
+    const definition=islandDefinition(g,g.viewIsland);
+    for(const side of ['front','back']){const t=definition.theme==='fairytale'?fairytaleKit.terrain(side):createIslandTerrain(definition,mushroomAsset.scene,side);faces[side].add(t.root);remoteTerrain[side]=t;qualityLodTargets.push(...t.lodTargets);trackTextures(t.root);applyTextureQuality(quality);}
+    const project=g.civilization.projects[g.viewIsland];if(project&&definition.theme!=='fairytale'){remoteHousing=createHousingVisual(project.plan,g.objects.filter(o=>islandOf(o)===g.viewIsland));faces.front.add(remoteHousing.root);}
+    terrainCache.set(g.viewIsland,{terrain:remoteTerrain,housing:remoteHousing});
+   }
+   terrainIsland=g.viewIsland;
   }
   for(const t of Object.values(remoteTerrain))t.root.visible=true;
   if(g.viewIsland==='spore')for(const t of Object.values(remoteTerrain))t.setProgress(g.civilization.projects.spore.construction/600);
@@ -147,7 +182,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
   for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.userData.gardenBond?.dispose();disposeStaticBatches(o);o.removeFromParent();objectMeshes.delete(id);}
   for(const o of g.objects){
    if(!objectMeshes.has(o.id)){
-    const group=prop(o.type,islandOf(o));group.position.set(o.x,o.type==='spiritTree'||islandOf(o)==='spore'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};
+    const group=prop(o.type,islandOf(o));group.position.set(o.x,o.type==='spiritTree'||islandOf(o)==='spore'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};trackTextures(group);applyTextureQuality(quality);
     if(o.plant&&islandOf(o)==='spore')group.userData.gardenBond=createGardenBondVisual(group);
     objectMeshes.set(o.id,group);
    }
@@ -208,19 +243,39 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  renderer.domElement.addEventListener('pointerup',e=>{if(e.button!==0||!pointerDown||Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y)>6)return;const h=hit(e);if(buildType){onPlace(buildType,Math.round(h.point.x),Math.round(h.point.z),buildRotation);return;}if(h.target)onClick(h.target,e.clientX,e.clientY);else if(Math.abs(h.point.x)<=11&&Math.abs(h.point.z)<=7)onClick({kind:'ground',point:{x:h.point.x,z:h.point.z}},e.clientX,e.clientY);});
  renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
  function resize(){const w=container.clientWidth,h=container.clientHeight;if(!w||!h)return;renderer.setSize(w,h);composer.setSize(w,h);const v=14*(sceneOnly||getGame().viewIsland==='spore'?Math.max(1,1.3*h/w):1);camera.left=-v*w/h;camera.right=v*w/h;camera.top=v;camera.bottom=-v;camera.updateProjectionMatrix();}
- new ResizeObserver(resize).observe(container);resize();syncObjects();
- let previousSimTime=null,previousFrame=performance.now();island.rotation.x=getGame().viewSide==='back'?Math.PI:0;
+ function applyQuality(profile){
+  quality={...profile};vegetationFrame=0;renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio||1,quality.maxPixelRatio));renderer.shadowMap.enabled=quality.shadows;renderer.shadowMap.type=quality.shadows?THREE.PCFSoftShadowMap:THREE.BasicShadowMap;sun.castShadow=quality.shadows;sun.shadow.mapSize.set(quality.shadowMapSize,quality.shadowMapSize);weatherEffects.setQuality(quality);atmosphere.setQuality(quality);applyTextureQuality(quality);container.dataset.quality=quality.level;container.dataset.modelLod=quality.modelLod;container.dataset.treeAnimation=quality.treeAnimation;resize();updateModelLod();
+ }
+ new ResizeObserver(resize).observe(container);resize();syncObjects();applyQuality(quality);
+ const islandPreviews=createIslandPreviews(renderer,scene,[selected,ghost,buildGrid]);
+ let previousSimTime=null,previousFrame=performance.now(),previewPreparation=null;island.rotation.x=getGame().viewSide==='back'?Math.PI:0;
  return {
+   islandPreview(id){return islandPreviews.get(id);},
+   prepareIslandPreviews(){
+    if(previewPreparation)return previewPreparation;
+    previewPreparation=(async()=>{
+     for(const id of Object.keys(islandCatalog(getGame()))){
+      if(!discovered(getGame(),id)||islandPreviews.fresh(id,performance.now()))continue;
+      await new Promise(requestAnimationFrame);
+      const g=getGame(),preview={...g,viewIsland:id,viewSide:'front'},rotation=island.rotation.x,simTime=previousSimTime,frameTime=previousFrame;
+      let capture;
+      try{this.render(preview,undefined,true);capture=islandPreviews.update(preview,performance.now());}
+      finally{this.render(g,undefined,true);island.rotation.x=rotation;scene.updateMatrixWorld(true);container.dataset.flipping=String(Math.abs(rotation-(g.viewSide==='back'?Math.PI:0))>.01);previousSimTime=simTime;previousFrame=frameTime;}
+      await capture;
+     }
+    })().finally(()=>{previewPreparation=null;});
+    return previewPreparation;
+   },
    setSceneOnly(value){sceneOnly=value;controls.enabled=!value;renderer.domElement.style.pointerEvents=value?'none':'';hoverTarget=null;pointerDown=null;resize();},
-   render(visualState,visualSeconds){const g=visualState??getGame(),weather=weatherProvider(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
-   if(container.dataset.island!==g.viewIsland)resize();syncTerrain(g);container.dataset.island=g.viewIsland;
+   render(visualState,visualSeconds,offscreen=false){const g=visualState??getGame(),weather=weatherProvider(g),now=performance.now(),frameDt=Math.min((now-previousFrame)/1000,.1);previousFrame=now;
+   if(!offscreen&&container.dataset.island!==g.viewIsland)resize();syncTerrain(g);container.dataset.island=g.viewIsland;
    const fairy=g.viewIsland==='spore';
    planet.visible=orbit.visible=!fairy;
    for(const f of floating)if(f.object.parent===scene)f.object.visible=!fairy;
-   const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
+   const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=offscreen?flipTarget:THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
    for(const entry of themedSurroundings){updateSurroundings(entry,island.rotation.x,fairy);for(const {mesh,source}of entry.fragments){mesh.position.copy(source.position);mesh.quaternion.copy(source.quaternion);}}
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(selected);
-   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects(g);syncActors(g);syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=visualSeconds??((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime);previousSimTime=time;
+   container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects(g);syncActors(g);syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=visualSeconds??((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime),animateVegetation=quality.treeAnimation==='full'||quality.treeAnimation==='reduced'&&vegetationFrame++%2===0;previousSimTime=time;
 
    for(const trail of livingTrails)trail.update(g,time,delta);
    for(const[id,rig]of actors){
@@ -247,10 +302,10 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    }
    atmosphere.update(time,weather,(1+Math.cos(island.rotation.x))/2,g.viewIsland==='spore');weatherEffects.update(time,weather);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
-   if(g.viewIsland!=='home'&&remoteTerrain)for(const t of Object.values(remoteTerrain))t.update(time,weather.wind,1-daylight);
+   if(g.viewIsland!=='home'&&remoteTerrain&&animateVegetation)for(const t of Object.values(remoteTerrain))t.update(time,weather.wind,1-daylight);
    const blessings=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].filter(a=>a?.type==='pray'&&a.phase==='celebrating');
    for(const item of g.objects)if(item.type==='spiritTree'){
-    const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update(time+item.x*.7+item.z,sideOf(item),daylight,weather.wind,livingSite(g,item).vitality/100);
+    const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update((quality.treeAnimation==='off'?0:time)+item.x*.7+item.z,sideOf(item),daylight,animateVegetation?weather.wind:0,livingSite(g,item).vitality/100);
     tree.updateBlessing(blessings.find(a=>a.targetId===item.id),camera);
    }
    storyMoon.update(island.rotation.x,fairy,time,camera);
@@ -262,7 +317,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
     group.userData.cropLight.update(time+item.x,health*(.2+growth*.5)*(1-daylight*.65));
     for(const crop of group.userData.cropVisual)crop.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial){n.material.bio.time.value=time+item.x;n.material.bio.strength.value=bioStrength*health*(.3+growth*.7);}else if(n.isMesh&&n.material.name==='Bioluminescence')n.material.emissiveIntensity=.22*health;});
    }
-   swaying.forEach((o,i)=>{o.rotation.z=Math.sin(time*.42+i*1.7)*.018*(1+weather.wind);o.rotation.x=Math.cos(time*.31+i)*.012*(1+weather.wind);});
+   if(animateVegetation)swaying.forEach((o,i)=>{o.rotation.z=Math.sin(time*.42+i*1.7)*.018*(1+weather.wind);o.rotation.x=Math.cos(time*.31+i)*.012*(1+weather.wind);});
    floating.forEach(({object,y,phase})=>{object.position.y=y+Math.sin(time*.27+phase)*.18;object.rotation.y=Math.sin(time*.1+phase)*.08;});
    ripples.forEach((o,i)=>{const phase=(time*.12+i/3)%1,r=.3+phase*1.7;o.scale.set(r,r*.65,1);o.material.opacity=Math.sin(phase*Math.PI)*.5;});
    const dark=(1-Math.cos(island.rotation.x))/2;
@@ -272,15 +327,18 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    rim.intensity=(1.2+(1-daylight)*.25)*(1+dark*.25);
    sun.color.set(0xffe5d0).lerp(new THREE.Color(0x8895df),dark);ambient.color.set(0xe2eaff).lerp(new THREE.Color(0x8194c8),dark);
    ambient.groundColor.set(0x70526e);rim.color.set(0xdacbff).lerp(new THREE.Color(0x60bfc6),dark);
-   scene.fog.density=.006+weather.weights.mist*.003+weather.weights.rain*.001;
-   scene.background.set(0x10152e).lerp(new THREE.Color(0x080b1b),dark);scene.fog.color.set(0x171c39).lerp(new THREE.Color(0x15182e),dark);scene.fog.density+=dark*.007;
+   scene.fog.density=.006+(weather.weights.mist*.003+weather.weights.rain*.001)*quality.fogDensity;
+   scene.background.set(0x10152e).lerp(new THREE.Color(0x080b1b),dark);scene.fog.color.set(0x171c39).lerp(new THREE.Color(0x15182e),dark);scene.fog.density+=dark*.007*quality.fogDensity;
    if(g.viewIsland==='spore'){
     sun.intensity=THREE.MathUtils.lerp(.55+daylight*2.3,.24,dark);ambient.intensity=THREE.MathUtils.lerp(.40+daylight*.40,.20,dark);rim.intensity=THREE.MathUtils.lerp(.85,.65,dark);
     sun.color.set(0xffeed0).lerp(new THREE.Color(0x8b9bb2),dark);ambient.color.set(0xf0f6e7).lerp(new THREE.Color(0x74818e),dark);ambient.groundColor.set(0x7a8973).lerp(new THREE.Color(0x171d19),dark);rim.color.set(0xd1e6df).lerp(new THREE.Color(0x92acb5),dark);
-    scene.background.set(0xa7c8c6).lerp(new THREE.Color(0x394844),dark);scene.fog.color.copy(scene.background);scene.fog.density=.003+dark*.003;
+    scene.background.set(0xa7c8c6).lerp(new THREE.Color(0x394844),dark);scene.fog.color.copy(scene.background);scene.fog.density=.003+dark*.003*quality.fogDensity;
    }
-   controls.update();composer.render();
+   if(offscreen)scene.updateMatrixWorld(true);
+   else {controls.update();updateModelLod();composer.render();}
   },
+  setQuality(profile){applyQuality(profile);return {...quality};},
+  getQuality(){return {...quality};},
   // Transparent build ghosts retain per-piece sorting rather than opaque batches.
   setBuild(type){buildType=type;buildGrid.visible=!!type;ghost.visible=false;if(ghostProp){ghost.remove(ghostProp);ghostProp.userData.spiritTree?.dispose();ghostProp.traverse(n=>{if(n.isMesh)n.material.dispose();});}if(type){ghostProp=prop(type,undefined,false);ghostProp.traverse(n=>{if(n.isLight||n.isPoints)n.visible=false;if(n.isMesh)n.material=new THREE.MeshBasicMaterial({color:0xafffca,transparent:true,opacity:.45,side:n.material.side});});ghost.add(ghostProp);const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const coverage=ring(ghostProp,lighting.color,[0,.025,0],lighting.radius,.025);coverage.rotation.x=-Math.PI/2;coverage.material=new THREE.MeshBasicMaterial({color:lighting.color,transparent:true,opacity:.45,depthWrite:false});}}return type;},
   rotateBuild(){buildRotation+=Math.PI/2;ghost.rotation.y=buildRotation;},

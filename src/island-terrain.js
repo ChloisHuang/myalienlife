@@ -76,7 +76,7 @@ export function createIslandTerrain(definition,mushroom,side='front'){
   ground.color.set(BIOMES[theme].color);
   disposeSurface=decorateSurface(root,definition,{id:theme,...BIOMES[theme]},housingLayout(definition.seed^definition.index).rooms);
  }
- return {root,clearConstruction(rooms){
+ return {root,lodTargets:plants.map(({group})=>group),clearConstruction(rooms){
   const within=(x,z)=>rooms.some(r=>Math.abs(x-r.x)<r.w/2+.2&&Math.abs(z-r.z)<r.d/2+.2);
   root.updateMatrixWorld(true);
   for(const child of root.children){

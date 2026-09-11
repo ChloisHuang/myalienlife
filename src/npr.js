@@ -78,9 +78,12 @@ export function stylizeAsset(source,{character=false}={}){
  });
 }
 export function createPostProcessing(renderer,scene,camera,{bloomStrength=.28,bloomRadius=.65}={}){
- const target=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4});
+ // Bloom and output only sample color; keep scene depth testing but skip its unused resolve.
+ const target=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4,resolveDepthBuffer:false,resolveStencilBuffer:false});
  const composer=new EffectComposer(renderer,target);composer.addPass(new RenderPass(scene,camera));
- const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),bloomStrength,bloomRadius,1.15);composer.addPass(bloom);composer.addPass(new OutputPass());
+ const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),bloomStrength,bloomRadius,1.15);
+ for(const target of [bloom.renderTargetBright,...bloom.renderTargetsHorizontal,...bloom.renderTargetsVertical])target.depthBuffer=false;
+ composer.addPass(bloom);composer.addPass(new OutputPass());
  return composer;
 }
 
@@ -188,8 +191,10 @@ export function createAtmosphere(scene,camera,random){
      #include <tonemapping_fragment>
      #include <colorspace_fragment>
     }`});
-  const points=new THREE.Points(geometry,material);points.frustumCulled=false;scene.add(points);
+  const points=new THREE.Points(geometry,material);points.frustumCulled=false;scene.add(points);return points;
  }
- particles(850,false);particles(100,true);
- return {update(t,weather,frontAmount,isStorybook=false){storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
+ particles(850,false);const near=particles(100,true);
+ function setQuality(profile){near.geometry.setDrawRange(0,Math.floor(100*profile.weatherDensity));}
+ setQuality({weatherDensity:1});
+ return {setQuality,update(t,weather,frontAmount,isStorybook=false){storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
 }

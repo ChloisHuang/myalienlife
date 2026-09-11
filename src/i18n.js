@@ -71,6 +71,7 @@ PAIRS.push(
 );
 
 PAIRS.push(['进入全屏','Enter fullscreen'],['退出全屏','Exit fullscreen']);
+PAIRS.push(['画质与性能','Graphics and performance'],['当前设备','Current device'],['当前帧率','Current FPS'],['设备评分','Device score'],['基于最近 60 帧','Based on the last 60 frames'],['画质档位','Quality preset'],['阴影','Shadows'],['树木动画','Tree animation'],['雨雾密度','Rain and fog density'],['模型 LOD','Model LOD'],['贴图','Textures'],['低','Low'],['中','Medium'],['高','High'],['新手机','New phone'],['老手机','Older phone'],['完整','Full'],['降频','Reduced'],['激进','Aggressive'],['平衡','Balanced'],['测量中…','Measuring...']);
 
 const RESIDENT_NAME_PAIRS=[['凯伊','Kai'],['诺瓦','Nova'],['吉格','Zig'],['露米','Lumi'],['皮普','Pip']];
 const NAME_FIRST_SYLLABLES={艾:'Ai',阿:'Ar',伊:'Yi',欧:'O',洛:'Lo',维:'Vi',泽:'Ze',希:'Xi',赛:'Sai',塔:'Ta',奈:'Nai',科:'Ko',弥:'Mi',珂:'Ke',芙:'Fu',索:'So',乌:'Wu',莱:'Lai',卡:'Ka',提:'Ti',苏:'Su',尤:'You',帕:'Pa',赫:'He'};
