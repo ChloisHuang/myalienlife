@@ -1,0 +1,39 @@
+[
+  {
+    "name": "desktop",
+    "side": "front",
+    "calls": 459,
+    "triangles": 1532718,
+    "geometries": 193,
+    "colors": 8489
+  },
+  {
+    "name": "desktop",
+    "side": "back",
+    "calls": 474,
+    "triangles": 1523638,
+    "geometries": 197,
+    "colors": 5257
+  },
+  {
+    "name": "mobile",
+    "side": "front",
+    "calls": 459,
+    "triangles": 1532718,
+    "geometries": 193,
+    "colors": 2067
+  },
+  {
+    "name": "mobile",
+    "side": "back",
+    "calls": 475,
+    "triangles": 1554038,
+    "geometries": 197,
+    "colors": 1624
+  },
+  {
+    "name": "live-game-back",
+    "moving": true,
+    "fps": 50.274679540498624
+  }
+]

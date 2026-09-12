@@ -8,6 +8,7 @@ import {shipFoodStatus} from './space-logistics.js';
 import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
 import {islandDefinition,islandCatalog,discovered} from './civilization.js';
 import {createIslandTerrain} from './island-terrain.js';
+import {createOceanKit,createOceanFragments} from './ocean.js';
 import {createFairytaleKit} from './fairytale.js';
 import {createHousingVisual} from './settlement-visuals.js';
 import {createFrontGroundMaterial,createGlassPlatform} from './front-ground.js';
@@ -61,7 +62,8 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const draco=new DRACOLoader();draco.setDecoderPath('/assets/draco/');draco.setDecoderConfig({type:'wasm'});loader.setDRACOLoader(draco);
  const fairytaleAsset=await loader.loadAsync('/assets/fairytale.glb');
  const environmentAsset=await loader.loadAsync('/assets/fairytale-environment.glb');
- const fairytaleKit=createFairytaleKit(fairytaleAsset.scene,environmentAsset.scene);draco.dispose();
+ const fairytaleKit=createFairytaleKit(fairytaleAsset.scene,environmentAsset.scene);
+ const oceanAsset=await loader.loadAsync('/assets/ocean.glb'),oceanGround=await new THREE.TextureLoader().loadAsync('/assets/ocean-ground.webp'),oceanKit=createOceanKit(oceanAsset.scene,oceanGround);draco.dispose();
  const mushroomVariants={normal:mushroomAsset};for(const name of ['giant','cluster','mutant','mutant-cluster']){const asset=await loader.loadAsync(`/assets/mushroom-${name}.glb`);stylizeAsset(asset.scene);mushroomVariants[name]=asset;}
  // Portrait updates share one context for the lifetime of the world.
  const portraitRenderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});portraitRenderer.setSize(160,160);portraitRenderer.toneMapping=renderer.toneMapping;portraitRenderer.toneMappingExposure=renderer.toneMappingExposure;
@@ -130,6 +132,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  for(let i=0;i<48;i++){const x=(random()-.5)*27,z=(random()-.5)*17;if((x>-9&&x<10&&z>-6&&z<6)||x*x/190+z*z/85>1)continue;const stalk=cylinder(terrain,0x789d8d,[x,.18,z],.035,.35);sphere(terrain,[0xe8accd,0xf1d7a0,0xb3e3bd][i%3],[stalk.position.x,.42,z],[.17,.23,.17],.2);}
  for(let i=0;i<20;i++){const a=i/20*Math.PI*2;const r=18+random()*10;const rock=mesh(scene,new THREE.IcosahedronGeometry(1+random()*1.4,0),0x615e7e,[Math.cos(a)*r,-4-random()*4,Math.sin(a)*r*.6],[1.5,1,1]);floating.push({object:rock,y:rock.position.y,phase:i*.73});}
  const planet=sphere(scene,0xb19faf,[-2,-5,-28],[2.5,2.5,2.5]);const orbit=ring(scene,0xd2b5ac,[-2,-5,-28],3.7,.12);orbit.rotation.x=1.1;orbit.rotation.y=.2;
+ const oceanFragments=createOceanFragments(floating.filter(f=>f.object.parent===scene).map(f=>f.object));scene.add(oceanFragments.root);
  const storyMoon=createStoryMoon(fairytaleKit.environment('orbit-front'));scene.add(storyMoon.root,storyMoon.light,storyMoon.light.target);
  const themedSurroundings=['front','back'].map(side=>{
   const root=new THREE.Group();root.name=`storybook-surroundings-${side}`;scene.add(root);
@@ -170,24 +173,24 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    const cached=terrainCache.get(g.viewIsland);remoteTerrain=cached?.terrain??{};remoteHousing=cached?.housing??null;
    if(!cached){
     const definition=islandDefinition(g,g.viewIsland);
-    for(const side of ['front','back']){const t=definition.theme==='fairytale'?fairytaleKit.terrain(side):createIslandTerrain(definition,mushroomAsset.scene,side);faces[side].add(t.root);remoteTerrain[side]=t;qualityLodTargets.push(...t.lodTargets);trackTextures(t.root);applyTextureQuality(quality);}
-    const project=g.civilization.projects[g.viewIsland];if(project&&definition.theme!=='fairytale'){remoteHousing=createHousingVisual(project.plan,g.objects.filter(o=>islandOf(o)===g.viewIsland));faces.front.add(remoteHousing.root);}
+    for(const side of ['front','back']){const t=definition.theme==='fairytale'?fairytaleKit.terrain(side):definition.theme==='ocean'?oceanKit.terrain(side):createIslandTerrain(definition,mushroomAsset.scene,side);faces[side].add(t.root);remoteTerrain[side]=t;qualityLodTargets.push(...t.lodTargets);trackTextures(t.root);applyTextureQuality(quality);}
+    const project=g.civilization.projects[g.viewIsland];if(project&&!['fairytale','ocean'].includes(definition.theme)){remoteHousing=createHousingVisual(project.plan,g.objects.filter(o=>islandOf(o)===g.viewIsland));faces.front.add(remoteHousing.root);}
     terrainCache.set(g.viewIsland,{terrain:remoteTerrain,housing:remoteHousing});
    }
    terrainIsland=g.viewIsland;
   }
   for(const t of Object.values(remoteTerrain))t.root.visible=true;
-  if(g.viewIsland==='spore')for(const t of Object.values(remoteTerrain))t.setProgress(g.civilization.projects.spore.construction/600);
+  if(['spore','ocean'].includes(g.viewIsland))for(const t of Object.values(remoteTerrain))t.setProgress(g.civilization.projects[g.viewIsland].construction/600);
   if(remoteHousing){const project=g.civilization.projects[g.viewIsland];remoteHousing.root.visible=true;remoteHousing.update(project.construction/600);if(project.construction>0&&!remoteHousing.root.userData.cleared){remoteTerrain.front.clearConstruction(project.plan.rooms);remoteHousing.root.userData.cleared=true;}}
  }
  const interactive=new THREE.Group();faces.front.add(interactive);const backInteractive=new THREE.Group();faces.back.add(backInteractive);const surfaceItems={front:interactive,back:backInteractive};const objectMeshes=new Map();
  const livingTrails=['front','back'].map(side=>{const visual=createLivingTrailVisual(side);faces[side].add(visual.root);return visual;});
- const prop=createPropFactory({mushroomAsset,mushroomVariants,model,crystal,fairytaleKit});
+ const prop=createPropFactory({mushroomAsset,mushroomVariants,model,crystal,fairytaleKit,oceanKit});
  function syncObjects(g=getGame()){
   for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.userData.gardenBond?.dispose();disposeStaticBatches(o);o.removeFromParent();objectMeshes.delete(id);}
   for(const o of g.objects){
    if(!objectMeshes.has(o.id)){
-    const group=prop(o.type,islandOf(o));group.position.set(o.x,o.type==='spiritTree'||islandOf(o)==='spore'?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};trackTextures(group);applyTextureQuality(quality);
+    const group=prop(o.type,islandOf(o));group.position.set(o.x,o.type==='spiritTree'||['spore','ocean'].includes(islandOf(o))?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};trackTextures(group);applyTextureQuality(quality);
     if(o.plant&&islandOf(o)==='spore')group.userData.gardenBond=createGardenBondVisual(group);
     objectMeshes.set(o.id,group);
    }
@@ -235,7 +238,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  function hit(event){const cursor=elementPoint(renderer.domElement,event.clientX,event.clientY);pointer.set(cursor.x/renderer.domElement.clientWidth*2-1,-cursor.y/renderer.domElement.clientHeight*2+1);raycaster.setFromCamera(pointer,camera);
   const side=getGame().viewSide,face=faces[side];face.updateWorldMatrix(true,false);
   const plane=ground.clone().applyMatrix4(face.matrixWorld),point=new THREE.Vector3();
-  if(getGame().viewIsland==='spore'){
+  if(['spore','ocean'].includes(getGame().viewIsland)){
    const surface=remoteTerrain&&raycaster.intersectObject(remoteTerrain[side].root,true)[0];
    if(!surface)return {target:null,point:new THREE.Vector3(1000,0,1000)};point.copy(surface.point);
   }else if(!raycaster.ray.intersectPlane(plane,point))return {target:null,point:new THREE.Vector3(1000,0,1000)};
@@ -243,11 +246,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
   if(hits[0]){let o=hits[0].object;while(o&&!o.userData.target)o=o.parent;target=o?.userData.target;}return{target,point};
  }
  renderer.domElement.addEventListener('pointerleave',()=>{hoverTarget=null;onHover(null,0,0);});
- renderer.domElement.addEventListener('pointermove',e=>{if(container.dataset.flipping==='true')return;const h=hit(e);if(buildType){ghost.position.set(Math.round(h.point.x),getGame().viewIsland==='spore'?groundHeight(Math.round(h.point.x),Math.round(h.point.z),getGame().viewSide,'spore')+.01:.3,Math.round(h.point.z));ghost.visible=Math.abs(h.point.x)<12&&Math.abs(h.point.z)<8;const valid=canPlace(getGame(),ghost.position.x,ghost.position.z);ghost.traverse(n=>{if(n.isMesh)n.material.color.set(valid?0xafffca:0xff7e94);});}else{hoverTarget=h.target;renderer.domElement.style.cursor=h.target?'pointer':'default';onHover(h.target,e.clientX,e.clientY);}});
+ renderer.domElement.addEventListener('pointermove',e=>{if(container.dataset.flipping==='true')return;const h=hit(e);if(buildType){ghost.position.set(Math.round(h.point.x),['spore','ocean'].includes(getGame().viewIsland)?groundHeight(Math.round(h.point.x),Math.round(h.point.z),getGame().viewSide,getGame().viewIsland)+.01:.3,Math.round(h.point.z));ghost.visible=Math.abs(h.point.x)<12&&Math.abs(h.point.z)<8;const valid=canPlace(getGame(),ghost.position.x,ghost.position.z);ghost.traverse(n=>{if(n.isMesh)n.material.color.set(valid?0xafffca:0xff7e94);});}else{hoverTarget=h.target;renderer.domElement.style.cursor=h.target?'pointer':'default';onHover(h.target,e.clientX,e.clientY);}});
  renderer.domElement.addEventListener('pointerdown',e=>{pointerDown={x:e.clientX,y:e.clientY};});
  renderer.domElement.addEventListener('pointerup',e=>{if(e.button!==0||!pointerDown||Math.hypot(e.clientX-pointerDown.x,e.clientY-pointerDown.y)>6)return;const h=hit(e);if(buildType){onPlace(buildType,Math.round(h.point.x),Math.round(h.point.z),buildRotation);return;}if(h.target)onClick(h.target,e.clientX,e.clientY);else if(Math.abs(h.point.x)<=11&&Math.abs(h.point.z)<=7)onClick({kind:'ground',point:{x:h.point.x,z:h.point.z}},e.clientX,e.clientY);});
  renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
- function resize(){const w=container.clientWidth,h=container.clientHeight;if(!w||!h)return;renderer.setSize(w,h);composer.syncSize(w,h);const v=14*(sceneOnly||getGame().viewIsland==='spore'?Math.max(1,1.3*h/w):1);camera.left=-v*w/h;camera.right=v*w/h;camera.top=v;camera.bottom=-v;camera.updateProjectionMatrix();}
+ function resize(){const w=container.clientWidth,h=container.clientHeight;if(!w||!h)return;renderer.setSize(w,h);composer.syncSize(w,h);const v=14*(sceneOnly||['spore','ocean'].includes(getGame().viewIsland)?Math.max(1,1.3*h/w):1);camera.left=-v*w/h;camera.right=v*w/h;camera.top=v;camera.bottom=-v;camera.updateProjectionMatrix();}
  function applyQuality(profile){
   quality={...profile};vegetationFrame=0;dynamicResolution=createDynamicResolutionController({devicePixelRatio:globalThis.devicePixelRatio||1,maxPixelRatio:quality.maxPixelRatio});renderer.setPixelRatio(dynamicResolution.pixelRatio);renderer.shadowMap.enabled=quality.shadows;renderer.shadowMap.type=quality.shadows?THREE.PCFSoftShadowMap:THREE.BasicShadowMap;sun.castShadow=quality.shadows;sun.shadow.mapSize.set(quality.shadowMapSize,quality.shadowMapSize);weatherEffects.setQuality(quality);atmosphere.setQuality(quality);applyTextureQuality(quality);container.dataset.quality=quality.level;container.dataset.modelLod=quality.modelLod;container.dataset.treeAnimation=quality.treeAnimation;container.dataset.renderPixelRatio=String(dynamicResolution.pixelRatio);resize();updateModelLod();
  }
@@ -276,8 +279,9 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    if(!offscreen){const nextPixelRatio=dynamicResolution.sample(frameDt*1000,now);if(nextPixelRatio!==null){renderer.setPixelRatio(nextPixelRatio);container.dataset.renderPixelRatio=String(nextPixelRatio);resize();}}
    if(!offscreen&&container.dataset.island!==g.viewIsland)resize();syncTerrain(g);container.dataset.island=g.viewIsland;
    const fairy=g.viewIsland==='spore';
-   planet.visible=orbit.visible=!fairy;
-   for(const f of floating)if(f.object.parent===scene)f.object.visible=!fairy;
+   planet.visible=orbit.visible=!fairy&&g.viewIsland!=='ocean';
+   for(const f of floating)if(f.object.parent===scene)f.object.visible=!fairy&&g.viewIsland!=='ocean';
+   oceanFragments.update(g.viewIsland==='ocean');
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=offscreen?flipTarget:THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
    for(const entry of themedSurroundings){updateSurroundings(entry,island.rotation.x,fairy);for(const {mesh,source}of entry.fragments){mesh.position.copy(source.position);mesh.quaternion.copy(source.quaternion);}}
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(selected);
@@ -311,15 +315,16 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
     if(group.userData.materialBars)group.userData.materialBars.forEach((m,i)=>{m.visible=(g.space.materials[islandOf(item)]??0)>i*10;});
     if(group.userData.extractionRotor&&[g.queue[0],...Object.values(g.npcs).map(p=>p.queue[0])].some(q=>q?.type==='extractMaterials'&&q.targetId===item.id&&q.phase==='acting'))group.userData.extractionRotor.rotation.y=time*2;
    }
-   atmosphere.update(ambientTime,weather,(1+Math.cos(island.rotation.x))/2,g.viewIsland==='spore');weatherEffects.update(ambientTime,weather);
+   const frontAmount=(1+Math.cos(island.rotation.x))/2;
+   atmosphere.update(ambientTime,weather,frontAmount,g.viewIsland==='spore',g.viewIsland==='ocean');weatherEffects.update(ambientTime,weather,g.viewIsland==='ocean'?frontAmount:1);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
-   if(g.viewIsland!=='home'&&remoteTerrain&&animateVegetation)for(const t of Object.values(remoteTerrain))t.update(ambientTime,weather.wind,1-daylight);
+   if(g.viewIsland!=='home'&&remoteTerrain&&animateVegetation)for(const [side,t]of Object.entries(remoteTerrain))t.update(ambientTime,weather.wind,1-daylight,side==='back'?1-frontAmount:frontAmount);
    const blessings=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].filter(a=>a?.type==='pray'&&a.phase==='celebrating');
    for(const item of g.objects)if(item.type==='spiritTree'){
     const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update((quality.treeAnimation==='off'?0:ambientTime)+item.x*.7+item.z,sideOf(item),daylight,animateVegetation?weather.wind:0,livingSite(g,item).vitality/100);
     tree.updateBlessing(blessings.find(a=>a.targetId===item.id),camera);
    }
-   storyMoon.update(island.rotation.x,fairy,ambientTime,camera);
+   storyMoon.update(island.rotation.x,fairy||g.viewIsland==='ocean',ambientTime,camera,g.viewIsland==='ocean');
    for(const {facets,phase}of [...crystalLights,...[...objectMeshes.values()].filter(o=>o.userData.crystalLight).map(o=>o.userData.crystalLight)])for(const m of facets){m.bio.time.value=ambientTime+phase;m.bio.strength.value=bioStrength*.7;}
    for(const item of g.objects){const group=objectMeshes.get(item.id);if(group.userData.wonderVisual){const action=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].find(a=>a?.targetId===item.id&&a.phase==='acting'&&!a.hostId);group.userData.wonderVisual.update(item.wonder,{seconds:time,minutes:(g.day-1)*1440+g.minute},action);}}
    for(const [i,plant]of swaying.entries())plant.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial){n.material.bio.time.value=ambientTime+i*.67+(n.material.name==='Pearl stem'?.7:0);n.material.bio.strength.value=bioStrength;}});
@@ -344,6 +349,11 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
     sun.intensity=THREE.MathUtils.lerp(.55+daylight*2.3,.24,dark);ambient.intensity=THREE.MathUtils.lerp(.40+daylight*.40,.20,dark);rim.intensity=THREE.MathUtils.lerp(.85,.65,dark);
     sun.color.set(0xffeed0).lerp(new THREE.Color(0x8b9bb2),dark);ambient.color.set(0xf0f6e7).lerp(new THREE.Color(0x74818e),dark);ambient.groundColor.set(0x7a8973).lerp(new THREE.Color(0x171d19),dark);rim.color.set(0xd1e6df).lerp(new THREE.Color(0x92acb5),dark);
     scene.background.set(0xa7c8c6).lerp(new THREE.Color(0x394844),dark);scene.fog.color.copy(scene.background);scene.fog.density=.003+dark*.003*quality.fogDensity;
+   }
+   if(g.viewIsland==='ocean'){
+    sun.intensity=THREE.MathUtils.lerp(1.5+daylight,.5,dark);ambient.intensity=THREE.MathUtils.lerp(.85,.48,dark);rim.intensity=THREE.MathUtils.lerp(1.2,.7,dark);
+    sun.color.set(0xfff0d9).lerp(new THREE.Color(0x9ddfdf),dark);ambient.color.set(0xfff0d7).lerp(new THREE.Color(0x91d5dc),dark);ambient.groundColor.set(0xbdad96).lerp(new THREE.Color(0x5d8e88),dark);rim.color.set(0xcae7eb);
+    scene.background.set(0xaccfce).lerp(new THREE.Color(0x092535),dark);scene.fog.color.copy(scene.background);scene.fog.density=.004+dark*.005;
    }
    if(offscreen)scene.updateMatrixWorld(true);
    else {controls.update();updateModelLod();composer.render();}

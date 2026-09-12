@@ -37,7 +37,7 @@ test('racial attributes use thirty-percent parent-value baselines with normal va
 test('v6 saves gain head shape once while retaining existing appearance and progress',()=>{
  const g=sim.createGame();g.version=6;g.objects=g.objects.filter(o=>o.type!=='gate');g.money=1999;g.player.genome.stature=1.12;
  for(const p of [g.player,...Object.values(g.npcs)])for(const key of Object.keys(HEAD_SHAPE))delete p.genome[key];
- const loaded=sim.restore(sim.serialize(g));assert.equal(loaded.version,24);assert.equal(loaded.money,1999);assert.equal(loaded.player.genome.stature,1.12);
+ const loaded=sim.restore(sim.serialize(g));assert.equal(loaded.version,25);assert.equal(loaded.money,1999);assert.equal(loaded.player.genome.stature,1.12);
  for(const [key,value]of Object.entries(residentHeadShape(g.player.uid)))assert.equal(loaded.player.genome[key],value);
  delete loaded.player.genome.jaw;assert.throws(()=>sim.restore(sim.serialize(loaded)));
 });
@@ -96,7 +96,7 @@ test('romantic interactions are restricted to adult residents',()=>{
 test('version 2 saves gain demographics and new skills without losing experience',()=>{
  const g=sim.createGame();g.version=2;g.objects=g.objects.filter(o=>o.type!=='gate');delete g.player.age;delete g.player.gender;delete g.skills.social;delete g.skills.music;g.skills.science=17;
  for(const n of Object.values(g.npcs)){delete n.age;delete n.gender;delete n.skills.social;delete n.skills.music;}
- const loaded=sim.restore(JSON.stringify(g));assert.equal(loaded.version,24);assert.equal(loaded.skills.science,17);assert.equal(loaded.skills.music,0);assert.equal(loaded.player.age,28);
+ const loaded=sim.restore(JSON.stringify(g));assert.equal(loaded.version,25);assert.equal(loaded.skills.science,17);assert.equal(loaded.skills.music,0);assert.equal(loaded.player.age,28);
 });
 test('legacy saves gain NPC money and personal harvest inventory',()=>{
  const g=sim.createGame();for(const n of Object.values(g.npcs)){delete n.money;delete n.inventory;}

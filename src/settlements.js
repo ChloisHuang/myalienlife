@@ -39,7 +39,7 @@ export function contributeProject(g,type,p,seconds){
  }else project[key]=Math.min(PROJECT_WORK[key],project[key]+seconds);
 }
 export function validProjects(c){
- const ids=['spore',...Object.keys(c.islands)].filter(id=>!c.destroyedIslands.includes(id));
+ const ids=['spore','ocean',...Object.keys(c.islands)].filter(id=>!c.destroyedIslands.includes(id));
  const rect=r=>r&&['x','z','w','d'].every(k=>Number.isFinite(r[k]))&&Math.abs(r.x)<=13&&Math.abs(r.z)<=10&&r.w>0&&r.w<=22&&r.d>0&&r.d<=10;
  return c.projects&&Object.keys(c.projects).length===ids.length&&ids.every(id=>{const p=c.projects[id];return p&&p.plan&&Number.isInteger(p.plan.kind)&&p.plan.kind>=0&&p.plan.kind<4&&typeof p.plan.name==='string'&&p.plan.name.length<=30&&Array.isArray(p.plan.rooms)&&p.plan.rooms.length===6&&p.plan.rooms.every(r=>rect(r)&&['卧室','客厅','厨房','卫浴','育生室','研究室'].includes(r.type))&&Array.isArray(p.plan.corridors)&&p.plan.corridors.length<=3&&p.plan.corridors.every(rect)&&Number.isFinite(p.blueprint)&&p.blueprint>=0&&p.blueprint<=PROJECT_WORK.blueprint&&Number.isFinite(p.construction)&&p.construction>=0&&p.construction<=PROJECT_WORK.construction&&(p.construction===0||p.blueprint===PROJECT_WORK.blueprint);});
 }

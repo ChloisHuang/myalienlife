@@ -37,7 +37,7 @@ test('research is shared across residents and remains after switching control an
 });
 test('v12 migration preserves existing lore and does not invent technology or island visits',()=>{
  const g=setup();g.version=12;delete g.civilization;delete g.viewIsland;g.wonders.archive=3;
- const loaded=restore(serialize(g));assert.equal(loaded.version,24);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.civilization.technology,0);assert.equal(loaded.civilization.visits.city,undefined);
+ const loaded=restore(serialize(g));assert.equal(loaded.version,25);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.civilization.technology,0);assert.equal(loaded.civilization.visits.city,undefined);
 });
 test('a multiplayer activity has exactly one candidate regardless of eligible partner count',()=>{
  const g=setup();g.objects=[];const o=buyItem(g,'lamp',0,0).object;

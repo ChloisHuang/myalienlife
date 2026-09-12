@@ -15,19 +15,20 @@ function run(g,seconds){for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.99);}
 test('living state is versioned, compact, and migrates v22 without changing residents',()=>{
  const g=quiet();assert.equal(g.living?.version,2);
  const old=structuredClone(g);old.version=22;delete old.living;
- const loaded=restore(JSON.stringify(old));assert.equal(loaded.version,24);
+ const loaded=restore(JSON.stringify(old));assert.equal(loaded.version,25);
  assert.deepEqual(loaded.living,g.living);assert.equal(loaded.player.uid,g.player.uid);
  assert.ok(JSON.stringify(loaded.living).length<100);
 });
 
-test('v22 retires unused ocean metadata without losing built island progress',()=>{
+test('v22 unused ocean metadata becomes an empty authored ocean project without losing built progress',()=>{
  const g=quiet();g.version=22;delete g.living;
  const c=g.civilization;c.projects.ocean=structuredClone(c.projects.spore);
  for(const key of ['visits','surveys','surveyDays'])c[key].ocean=0;
  c.projects.spore.blueprint=300;c.projects.spore.construction=600;
  const loaded=restore(serialize(g));
  assert.equal(loaded.civilization.projects.spore.construction,600);
- for(const key of ['projects','visits','surveys','surveyDays'])assert.equal(Object.hasOwn(loaded.civilization[key],'ocean'),false);
+ assert.equal(loaded.civilization.projects.ocean.construction,0);
+ for(const key of ['visits','surveys','surveyDays'])assert.equal(loaded.civilization[key].ocean,0);
  c.visits.ocean=1;assert.throws(()=>restore(serialize(g)),/不兼容/);
 });
 

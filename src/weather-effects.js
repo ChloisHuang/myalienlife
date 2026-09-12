@@ -51,5 +51,5 @@ export function createWeatherEffects(scene,random){
   const layers=Math.ceil(3*weatherDensity);mist.children.forEach((sheet,index)=>{sheet.userData.qualityLayer=index<layers;});
  }
  setQuality({weatherDensity:1,fogDensity:1});
- return {setQuality,update(t,weather){time.value=t;rainAmount.value=weather.weights.rain;fogAmount.value=(weather.weights.mist+weather.weights.rain*.28)*fogDensity;wind.value=weather.wind;rain.visible=splashes.visible=rainAmount.value>.001;mist.visible=fogAmount.value>.001;mist.children.forEach(sheet=>{sheet.visible=mist.visible&&sheet.userData.qualityLayer;});}};
+ return {setQuality,update(t,weather,exposure=1){time.value=t;rainAmount.value=weather.weights.rain*exposure;fogAmount.value=(weather.weights.mist+weather.weights.rain*.28)*fogDensity*exposure;wind.value=weather.wind;rain.visible=splashes.visible=rainAmount.value>.001;mist.visible=fogAmount.value>.001;mist.children.forEach(sheet=>{sheet.visible=mist.visible&&sheet.userData.qualityLayer;});}};
 }

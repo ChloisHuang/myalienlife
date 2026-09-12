@@ -2,6 +2,11 @@ export const LANGUAGE_STORAGE_KEY='orbit-life-language';
 export const SUPPORTED_LANGUAGES=['zh','en'];
 
 const PAIRS=[
+ ['珊瑚浅湾','Coral Lagoon'],['深海遗宫','Submerged Palace'],
+ ['潮汐珍珠灯','Tidal Pearl Lamp'],['珊瑚贝壳盆景','Coral Shell Planter'],['海流风铃','Ocean Chime'],
+ ['贝壳托起冷白珍珠 · 可移动照明','A shell cradles a cool pearl light'],
+ ['粉珊瑚与海草 · 可自由布置','Pink coral and seagrass in a movable planter'],
+ ['悬挂珍珠与贝片的海流摆饰','Pearls and shells suspended in an ocean chime'],
  ['退出操作模式','Exit control mode'],
  ['点击卡片退出操作模式','Click card to exit control mode'],
  ['点击验证','Tap to verify'],['身份已验证','Identity verified'],['星际通行证','Interstellar pass'],['金卡 VIP','Gold VIP'],['身份验证','Identity verification'],['验证身份卡','Verify identity card'],['查看身份卡','View identity card'],['关闭身份卡','Close identity card'],['验证成功','Verified'],['访客','Guest'],

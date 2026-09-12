@@ -6,6 +6,7 @@ import {spatialTarget,spatialCandidates,waitForCompany,refuses,resourceTurn} fro
 import {LIVING_ACTIONS,LIVING_SOCIAL,livingConversation,livingOptions,livingError,livingBonus,finishLiving,advanceLiving,bondWeight,validLivingQueue} from './living-world.js';
 import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
+import {oceanBlocked,OCEAN_ITEMS} from './ocean-definition.js';
 import {FAIRYTALE_ITEMS,FAIRYTALE_CONSTRUCTION_ITEMS,fairytaleBlocked} from './fairytale-definition.js';
 import {groupId,advanceCooperation,AUTONOMOUS_COOPERATION_WEIGHT,autonomousCooperationReady,restFromCooperation} from './cooperation.js';
 import {discovered,populationCapacity,islandCatalog,islandDefinition,createCivilization,validCivilization,civilizationError,contributeCivilization} from './civilization.js';
@@ -66,7 +67,7 @@ export function careerEntryMessage(g,id,skills=g.skills){
 export function recordMajorEvent(g,text,type='event'){
  g.majorEvents=[{type,text,at:g.minute,day:g.day},...(g.majorEvents||[])].slice(0,3);
 }
-export const ITEMS=[...FAIRYTALE_ITEMS,
+export const ITEMS=[...OCEAN_ITEMS,...FAIRYTALE_ITEMS,
  {id:'blueprintTable',name:'星图蓝图绘制台',pack:'星穹营造',price:420,icon:'NotebookPen',action:'developBlueprint',desc:'星穹营造专用 · 设计本岛建设蓝图'},
  {id:'constructionTerminal',name:'筑星施工终端',pack:'星穹营造',price:360,icon:'Hammer',action:'constructIsland',desc:'星穹营造专用 · 消耗本岛复材推进建设 · 完工后办理移居'},
  {id:'cultivator',name:'植生循环培育槽',pack:'植生工坊',price:300,icon:'Sprout',action:'garden',desc:'培育发光孢子 · 4 小时成熟 · 基础产量 4 份'},
@@ -191,14 +192,14 @@ const controlledResidentId=g=>g.controlledId??'player';
 export const neighbors=g=>Object.entries(g.npcs).filter(([id])=>id!==controlledResidentId(g)).map(([id,n])=>({id,...n}));
 const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),career:createCareer(n.id),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
 export function createGame(config){return {
- version:24,living:createLiving({day:1,minute:510}),space:createSpaceLogistics(),civilization:createCivilization(),viewIsland:'home',wonders:createWonders(),viewSide:'front',controlledId:'player',config:normalizeConfig(config),harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(true),
+ version:25,living:createLiving({day:1,minute:510}),space:createSpaceLogistics(),civilization:createCivilization(),viewIsland:'home',wonders:createWonders(),viewSide:'front',controlledId:'player',config:normalizeConfig(config),harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(true),
  npcs:Object.fromEntries(NPCS.map(n=>[n.id,createNeighbor(n)])),
  needs:{hunger:76,energy:88,social:62,fun:72,hygiene:85,comfort:79},relationships:{nova:15,zig:12,lumi:20,pip:8},
  career:{id:'scientist',level:1,shifts:0},skills:{...createSkills(),science:CAREERS.scientist.levels[0].skills.science},queue:[],nextId:1,
  objects:[{id:'pod',type:'pod',x:-5,z:-4,rotation:0},{id:'food',type:'food',x:1,z:-4,rotation:0},{id:'shower',type:'shower',x:-2,z:-4,rotation:0},{id:'sofa',type:'sofa',x:-5,z:0,rotation:0},{id:'lab',type:'lab',x:5,z:-4,rotation:0},{id:'music',type:'music',x:-2,z:0,rotation:0},{id:'garden',type:'garden',x:7,z:3,rotation:0,plant:createPlant()},{id:'portal',type:'portal',x:9,z:-4,rotation:0}].map(o=>({...o,side:'front'})).concat(createGates()),
  log:[{text:'欢迎回家，凯伊。你的异星日常，从这里开始。',at:510}],completed:0
 };}
-export function canPlace(g,x,z,side=g.viewSide,island=g.viewIsland){return Number.isFinite(x)&&Number.isFinite(z)&&Math.abs(x)<=10&&Math.abs(z)<=6&&(island!=='spore'||!fairytaleBlocked(x,z,.8,side))&&Object.hasOwn(SIDES,side)&&(side!=='back'||backDiscovered(g,island))&&!g.objects.some(o=>islandOf(o)===island&&sideOf(o)===side&&(Math.hypot(o.x-x,o.z-z)<1.8||o.type==='gate'&&Math.hypot(approachPosition(o).x-x,approachPosition(o).z-z)<1.8))&&!allActors(g).some(n=>islandOf(n.position)===island&&sideOf(n.position)===side&&isInfant(g,n.position)&&Math.hypot(n.position.x-x,n.position.z-z)<1.1);}
+export function canPlace(g,x,z,side=g.viewSide,island=g.viewIsland){return Number.isFinite(x)&&Number.isFinite(z)&&Math.abs(x)<=10&&Math.abs(z)<=6&&(island!=='spore'||!fairytaleBlocked(x,z,.8,side))&&(island!=='ocean'||!oceanBlocked(x,z,.8,side))&&Object.hasOwn(SIDES,side)&&(side!=='back'||backDiscovered(g,island))&&!g.objects.some(o=>islandOf(o)===island&&sideOf(o)===side&&(Math.hypot(o.x-x,o.z-z)<1.8||o.type==='gate'&&Math.hypot(approachPosition(o).x-x,approachPosition(o).z-z)<1.8))&&!allActors(g).some(n=>islandOf(n.position)===island&&sideOf(n.position)===side&&isInfant(g,n.position)&&Math.hypot(n.position.x-x,n.position.z-z)<1.1);}
 export function buyItem(g,type,x,z,rotation=0,{side=g.viewSide,island=g.viewIsland,residentId='player'}={}){if(type==='mushroom')return residentId==='player'&&side===g.viewSide&&island===g.viewIsland?enqueue(g,'plantMushroom',null,{x,z}):{ok:false,message:'请由居民自主选择种植地点。'};const item=ITEMS.find(i=>i.id===type),payer=residentId==='player'?g:g.npcs[residentId];if(!item||item.fixed)return{ok:false,message:'该物品不可购买'};if(payer.money<item.price)return{ok:false,message:'星币不足，完成工作可赚取星币。'};if(!canPlace(g,x,z,side,island))return{ok:false,message:'这里没有足够的摆放空间。'};payer.money-=item.price;const o={id:`${type}-${g.nextId++}`,type,x,z,rotation,island,side};if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);return{ok:true,object:o};}
 export const isSellableItem=o=>!!o&&!o.sceneFixed&&ITEMS.some(item=>item.id===o.type);
 export function sellItem(g,id){const item=g.objects.find(o=>o.id===id);if(!isSellableItem(item)||g.incubations.some(b=>b.podId===id))return false;if(allActors(g).some(a=>a.queue.some(q=>q.targetId===id||q.destinationId===id||q.path?.some(p=>p.gateId===id||p.destinationId===id))))return false;const i=g.objects.indexOf(item);g.money+=Math.floor(ITEMS.find(x=>x.id===item.type).price*.7);g.objects.splice(i,1);delete g.living.sites[id];return true;}
@@ -412,7 +413,7 @@ function surfacePath(g,start,end){
  if(!sameSide(start,end))return null;
  const key=(x,z)=>`${x},${z}`,sx=Math.round(start.x),sz=Math.round(start.z),ex=Math.round(end.x),ez=Math.round(end.z);
  const nodes=[{x:sx,z:sz}],seen=new Map([[key(sx,sz),null]]);let found=false;
- for(let i=0;i<nodes.length;i++){const p=nodes[i];if(p.x===ex&&p.z===ez){found=true;break;}for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz,k=key(x,z),trail=trailAt({x,z,island:islandOf(start),side:sideOf(start)});if(Math.abs(x)>11||Math.abs(z)>7||seen.has(k)||trail&&!trailGuide(g,start,trail.kind)||(islandOf(start)==='spore'&&fairytaleBlocked(x,z,.25,sideOf(start)))||g.objects.some(o=>sameSide(o,start)&&Math.hypot(o.x-x,o.z-z)<.8))continue;seen.set(k,p);nodes.push({x,z});}}
+ for(let i=0;i<nodes.length;i++){const p=nodes[i];if(p.x===ex&&p.z===ez){found=true;break;}for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz,k=key(x,z),trail=trailAt({x,z,island:islandOf(start),side:sideOf(start)});if(Math.abs(x)>11||Math.abs(z)>7||seen.has(k)||trail&&!trailGuide(g,start,trail.kind)||(islandOf(start)==='spore'&&fairytaleBlocked(x,z,.25,sideOf(start)))||(islandOf(start)==='ocean'&&oceanBlocked(x,z,.25,sideOf(start)))||g.objects.some(o=>sameSide(o,start)&&Math.hypot(o.x-x,o.z-z)<.8))continue;seen.set(k,p);nodes.push({x,z});}}
  if(!found)return null;const path=[{x:ex,z:ez,island:islandOf(start),side:sideOf(start)}];let prev=seen.get(key(ex,ez));while(prev){path.unshift({...prev,island:islandOf(start),side:sideOf(start)});prev=seen.get(key(prev.x,prev.z));}path.shift();path.push(end);for(const p of path){const trail=trailAt(p);if(trail)p.livingTrail=trail.kind;}return path;
 }
 // Dijkstra connects walkable surface paths with deliberate, timed gate crossings.
@@ -582,9 +583,15 @@ function ensureSettlementStations(g,id){
 }
 export function ensureStarIsland(g,id){
  if(id==='home')return;
+ const definition=islandDefinition(g,id);
+ if(definition.theme==='ocean')for(const o of g.objects){
+  if(islandOf(o)!==id||!o.sceneFixed)continue;
+  const spot=definition.layout.find(p=>p.type===o.type);
+  if(spot)Object.assign(o,spot);
+ }
  if(!g.objects.some(o=>islandOf(o)===id)){
   const blueprint=islandDefinition(g,id),layout=blueprint.layout??[['portal',0,0],['pod',-5,-3],['food',-2,-3],['shower',2,-3],['lab',5,-3],[id==='spore'?'garden':'relic',5,2]].map(([type,x,z])=>({type,x,z,rotation:0}));
-  for(const {type,x,z,rotation} of layout){const o={id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation,fixed:true};if(blueprint.theme==='fairytale')o.sceneFixed=true;if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);}
+  for(const {type,x,z,rotation} of layout){const o={id:`${id}-${type}`,island:id,side:'front',type,x,z,rotation,fixed:true};if(['fairytale','ocean'].includes(blueprint.theme))o.sceneFixed=true;if(CROPS[type])o.plant=createPlant();if(WONDER_OPTIONS[type])o.wonder=createWonder(type);g.objects.push(o);}
  }
  ensureSettlementStations(g,id);
  for(const [type,spots] of [['sofa',[[-8,-3],[-8,3],[-7,4],[7,4],[-7,0]]],['music',[[8,5],[-8,5],[7,5],[-7,5],[8,-5]]]]){
@@ -596,7 +603,7 @@ export function ensureStarIsland(g,id){
 
 function syncConstruction(g,id){
  const p=g.civilization.projects[id];if(!p||p.construction===0)return;
- const base=g.objects.filter(o=>islandOf(o)===id&&!o.id.startsWith(`${id}-housing-`)),items=islandDefinition(g,id).theme==='fairytale'?FAIRYTALE_CONSTRUCTION_ITEMS:housingFurniture(p.plan,base);
+ const base=g.objects.filter(o=>islandOf(o)===id&&!o.id.startsWith(`${id}-housing-`)),items=islandDefinition(g,id).theme==='fairytale'?FAIRYTALE_CONSTRUCTION_ITEMS:islandDefinition(g,id).theme==='ocean'?[]:housingFurniture(p.plan,base);
  for(const [i,item]of items.entries()){
   if(p.construction/600<.65+.35*(i+1)/items.length||g.objects.some(o=>islandOf(o)===id&&o.type===item.type))continue;
   if(id==='spore'&&!canPlace(g,item.x,item.z,'front',id))continue;
@@ -1025,15 +1032,22 @@ export function restore(raw){
   delete g.config?.actionDurations?.memoryExpedition;delete g.config?.actionCosts?.memoryExpedition;
   delete g.wonders.expeditions;delete g.wonders.cityRecords;delete g.wonders.lastExpeditionDay;g.version=24;
  }
+ if(g?.version===24){
+  const c=g.civilization;
+  if(c.discoveryPath.includes('ocean')||c.projects.ocean?.blueprint>0||c.projects.ocean?.construction>0||['visits','surveys','surveyDays'].some(key=>c[key].ocean>0))throw new Error('存档格式不兼容：旧版包含未发布海洋岛进度');
+  c.projects.ocean=createProject();
+  for(const key of ['visits','surveys','surveyDays'])c[key].ocean=0;
+  g.version=25;
+ }
  migrateLiving(g);
  // Old workbench lessons cannot continue at unrelated facilities; retain all earned progress.
  for(const queue of new Set([g.queue,...Object.values(g.npcs).map(n=>n.queue)]))if(Array.isArray(queue))for(let i=queue.length-1;i>=0;i--){const a=queue[i];if(a.type==='study'&&a.studyVersion===undefined&&Object.hasOwn(SKILLS,a.studySkill)){if(studyFacilitySkill(studyTarget(g,a.targetId))!==a.studySkill)queue.splice(i,1);else a.studyVersion=2;}}
  const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&validLivingQueue(g,a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type)))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&isSeating(o)))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(['walk','plantMushroom'].includes(a.type)||LIVING_SOCIAL.has(a.type)&&a.targetId==="player"&&g.player.alive||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
  const residentNpcCount=Object.keys(g.npcs||{}).length-Number(g.controlledId!=='player');
  // Capacity limits new births; it must not invalidate an existing save after an island is removed or a legacy migration changes the capacity.
- const valid=g?.version===24&&validLiving(g)&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
+ const valid=g?.version===25&&validLiving(g)&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
   &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&(id===g.controlledId||range(g.relationships?.[id],0,100))&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validCareerState(n.career)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))
-  &&Array.isArray(g.incubations)&&g.incubations.length<=(2+Object.keys(g.civilization.islands).length)*8&&g.incubations.every(b=>typeof b.id==='string'&&range(b.due,0,1e12)&&validParents(b.parents)&&b.parents.length>=1&&b.parents.every(validIncubationParent)&&g.objects.some(o=>o.id===b.podId&&o.type==='nursery'))&&new Set(g.incubations.map(b=>b.podId)).size===g.incubations.length
+  &&Array.isArray(g.incubations)&&g.incubations.length<=Object.keys(islandCatalog(g)).length*8&&g.incubations.every(b=>typeof b.id==='string'&&range(b.due,0,1e12)&&validParents(b.parents)&&b.parents.length>=1&&b.parents.every(validIncubationParent)&&g.objects.some(o=>o.id===b.podId&&o.type==='nursery'))&&new Set(g.incubations.map(b=>b.podId)).size===g.incubations.length
   &&Array.isArray(g.memorials)&&g.memorials.every(m=>typeof m.uid==='string'&&typeof m.name==='string'&&range(m.age,0,120)&&validParents(m.parents)&&['old_age','starvation'].includes(m.cause)&&range(m.day,1,1e12))
   &&new Set([g.player.uid,...Object.entries(g.npcs).filter(([id])=>id!==g.controlledId).map(([,n])=>n.uid)]).size===residentNpcCount+1
   &&(g.player.alive||g.queue.length===0)

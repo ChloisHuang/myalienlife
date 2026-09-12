@@ -20,8 +20,8 @@ const ring=(p,c,xyz,r,t=.07)=>mesh(p,new THREE.TorusGeometry(r,t,10,60),c,xyz,nu
 
 export {material,mesh,box,sphere,cylinder,ring};
 
-export function createPropFactory({mushroomAsset,mushroomVariants,model,crystal,fairytaleKit}){
- function prop(type,island,batching=true){const themed=fairytaleKit?.prop(type,island,batching);if(themed)return themed;if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
+export function createPropFactory({mushroomAsset,mushroomVariants,model,crystal,fairytaleKit,oceanKit}){
+ function prop(type,island,batching=true){const themed=oceanKit?.prop(type,island,batching)??fairytaleKit?.prop(type,island,batching);if(themed)return themed;if(type==='spiritTree')return createSpiritTree();const g=new THREE.Group();
   if(type==='blueprintTable'){
    for(const x of [-.6,.6])box(g,0x96aaa1,[x,.5,0],[.15,1,.85]);
    const desk=new THREE.Group();desk.position.y=1.02;desk.rotation.x=.22;g.add(desk);

@@ -6,6 +6,19 @@ import {prepareSurroundings,updateSurroundings} from '../src/storybook-surroundi
 import {createStoryMoon} from '../src/story-moon.js';
 import {createLunarGeometry,MOON_LIGHT_DIRECTION} from '../src/lunar-surface.js';
 
+test('ocean uses the storybook front moon and rotates it out without changing its phase',()=>{
+ const surface=new THREE.Mesh(new THREE.SphereGeometry(),new THREE.MeshToonMaterial({name:'ivory'}));
+ const ornament=new THREE.Mesh(new THREE.TorusGeometry(),new THREE.MeshToonMaterial({name:'gold'}));surface.add(ornament);
+ const moon=createStoryMoon(surface),camera=new THREE.PerspectiveCamera();
+ moon.update(0,true,0,camera,true);const start=moon.root.position.clone();
+ assert.equal(ornament.visible,false);
+ moon.update(Math.PI,true,1,camera,true);
+ assert.equal(surface.morphTargetInfluences[0],0);assert.equal(moon.light.intensity,0);
+ assert.equal(moon.root.visible,true);assert.ok(moon.root.position.y>20);
+ moon.update(0,true,2,camera,true);assert.deepEqual(moon.root.position.toArray(),start.toArray());
+ moon.update(0,true,3,camera);assert.equal(ornament.visible,true);
+});
+
 test('craters deform geometry and normals; orbiting the camera preserves world-space lighting',()=>{
  const geometry=createLunarGeometry(2.4),p=geometry.morphAttributes.position[0],n=geometry.morphAttributes.normal[0];
  let low=Infinity,high=0,changed=0;const v=new THREE.Vector3(),normal=new THREE.Vector3();

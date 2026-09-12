@@ -136,14 +136,26 @@ export function createBioluminescence(parent,{radius,height,color,count=7}){
 }
 
 export function createAtmosphere(scene,camera,random){
- const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1},storybook={value:0};
+ const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1},storybook={value:0},ocean={value:0};
+ let enteringWater=false;
  // Fill the viewport directly so zooming cannot crop away the nebula's detail.
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
-  uniforms:{time,cloudCover,front,aspect,storybook},depthWrite:false,depthTest:false,
+  uniforms:{time,cloudCover,front,aspect,storybook,ocean},depthWrite:false,depthTest:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
-  fragmentShader:`uniform float time,cloudCover,front,aspect,storybook;varying vec2 vUv;${noiseGLSL}
+  fragmentShader:`uniform float time,cloudCover,front,aspect,storybook,ocean;varying vec2 vUv;${noiseGLSL}
    void main(){
     vec2 p=(vUv-.5)*vec2(aspect,1.0);
+    if(ocean>.5){
+     vec3 deep=mix(vec3(.004,.014,.025),vec3(.015,.055,.085),vUv.y);
+     vec3 shallow=mix(vec3(.065,.26,.34),vec3(.045,.095,.14),vUv.y);
+     shallow+=vec3(.055,.075,.085)*mist(p*4.+vec2(time*.006,0.));
+     float shafts=pow(.5+.5*sin(p.x*13.+p.y*3.+sin(p.x*5.+time*.02)),12.);
+     vec3 color=mix(deep,shallow,front)+vec3(.04,.12,.16)*shafts*pow(vUv.y,1.3)*(1.-front);
+     gl_FragColor=vec4(color,1.0);
+     #include <tonemapping_fragment>
+     #include <colorspace_fragment>
+     return;
+    }
     if(storybook>.5){
      vec3 upper=mix(vec3(.020,.032,.040),vec3(.23,.43,.49),front);
      vec3 lower=mix(vec3(.075,.105,.083),vec3(.64,.73,.62),front);
@@ -177,6 +189,26 @@ export function createAtmosphere(scene,camera,random){
     #include <colorspace_fragment>
    }`}));
  sky.frustumCulled=false;sky.renderOrder=-100;camera.add(sky);scene.add(camera);
+ const immersion=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
+  uniforms:{time,front,aspect,ocean},transparent:true,depthTest:false,depthWrite:false,
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`uniform float time,front,aspect,ocean;varying vec2 vUv;${noiseGLSL}
+   void main(){
+    float strength=ocean*pow(4.*front*(1.-front),.7);vec2 p=vec2(vUv.x*aspect,vUv.y);float foam=0.;
+    for(int i=0;i<28;i++){
+     float id=float(i);float r=.009+.018*hash(vec2(id,8.));
+     vec2 center=vec2(hash(vec2(id,3.))*aspect,fract(hash(vec2(id,5.))+time*(.13+r))*(1.+4.*r)-2.*r);
+     vec2 q=(p-center)/r;float d=length(q);
+     float aa=max(fwidth(d),.015);
+     float ring=(1.-smoothstep(.89-aa,.89+aa,d))*smoothstep(.76-aa,.76+aa,d);
+     float highlight=ring*step(.15,q.y)*step(q.x,-.1);
+     foam+=ring*.25+highlight*.55;
+    }
+    gl_FragColor=vec4(.64,.92,.96,min(.8,foam)*strength);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+   }`}));
+ immersion.name='ocean-immersion-bubbles';immersion.frustumCulled=false;immersion.renderOrder=100;immersion.raycast=()=>{};camera.add(immersion);
  function particles(count,local){
   const positions=[],phases=[],sizes=[];
   for(let i=0;i<count;i++){
@@ -184,10 +216,10 @@ export function createAtmosphere(scene,camera,random){
    phases.push(random()*Math.PI*2);sizes.push(local?2+random()*3:1+Math.pow(random(),5)*9);
   }
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute('phase',new THREE.Float32BufferAttribute(phases,1));geometry.setAttribute('starSize',new THREE.Float32BufferAttribute(sizes,1));
-  const material=new THREE.ShaderMaterial({uniforms:{time,cloudCover,spores,wind,local:{value:local?1:0},pixelRatio:{value:Math.min(devicePixelRatio,1.75)}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
-   vertexShader:`uniform float time,local,pixelRatio,cloudCover,spores,wind;attribute float phase,starSize;varying float brightness;varying float tint;varying float nearField;
+  const material=new THREE.ShaderMaterial({uniforms:{time,cloudCover,spores,wind,front,ocean,local:{value:local?1:0},pixelRatio:{value:Math.min(devicePixelRatio,1.75)}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+   vertexShader:`uniform float time,local,pixelRatio,cloudCover,spores,wind,front,ocean;attribute float phase,starSize;varying float brightness;varying float tint;varying float nearField;
     void main(){vec3 p=position;p.x+=local*sin(time*.22+phase)*(.27+wind*.8);p.y+=local*sin(time*.38+phase)*.3;p.z+=local*cos(time*.18+phase)*.22;
-     brightness=(.45+.55*pow(.5+.5*sin(time*(.45+phase*.07)+phase),2.0))*mix(1.0-cloudCover*.8,.25+spores*1.5,local);tint=phase/6.283;nearField=local;
+     brightness=(.45+.55*pow(.5+.5*sin(time*(.45+phase*.07)+phase),2.0))*mix(1.0-cloudCover*.8,.25+spores*1.5,local);brightness*=1.-ocean*(1.-front)*.9;tint=phase/6.283;nearField=local;
      gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);gl_PointSize=starSize*pixelRatio*(1.0+local*(.2+spores*.8));}`,
    fragmentShader:`varying float brightness;varying float tint;varying float nearField;
     void main(){vec2 p=gl_PointCoord-.5;float d=length(p);float core=exp(-d*d*38.0);
@@ -202,5 +234,5 @@ export function createAtmosphere(scene,camera,random){
  particles(850,false);const near=particles(100,true);
  function setQuality(profile){near.geometry.setDrawRange(0,Math.floor(100*profile.weatherDensity));}
  setQuality({weatherDensity:1});
- return {setQuality,update(t,weather,frontAmount,isStorybook=false){storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
+ return {setQuality,update(t,weather,frontAmount,isStorybook=false,isOcean=false){ocean.value=isOcean?1:0;if(Math.abs(frontAmount-front.value)>.00001)enteringWater=frontAmount<front.value;immersion.visible=isOcean&&enteringWater&&frontAmount>.001&&frontAmount<.999;storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
 }

@@ -3,10 +3,11 @@ import {createMoonBats} from './blood-moon.js';
 import {createLunarGeometry,MOON_LIGHT_DIRECTION} from './lunar-surface.js';
 
 export function createStoryMoon(surface){
- const root=new THREE.Group(),phase={value:0},keyDirection={value:new THREE.Vector3()},ornaments=[],bodies=[];
+ const root=new THREE.Group(),phase={value:0},keyDirection={value:new THREE.Vector3()},ornaments=[],decorations=[],bodies=[];
  root.name='storybook-moon';root.add(surface);
  surface.traverse(o=>{if(!o.isMesh)return;
   const materials=Array.isArray(o.material)?o.material:[o.material];
+  if(materials.every(m=>m.name!=='ivory'))decorations.push(o);
   if(materials.some(m=>m.name==='ivory')){
    o.geometry.computeBoundingSphere();o.geometry=createLunarGeometry(o.geometry.boundingSphere.radius);o.updateMorphTargets();bodies.push(o);
   }
@@ -33,15 +34,17 @@ export function createStoryMoon(surface){
   }
  });
  const bats=createMoonBats();root.add(bats.root);const batMaterial=bats.root.children[0].material;batMaterial.transparent=true;batMaterial.depthWrite=false;
- const front=new THREE.Vector3(-2,-5,-28),back=new THREE.Vector3(-8,-5.5,-26);
+ const front=new THREE.Vector3(-2,-5,-28),back=new THREE.Vector3(-8,-5.5,-26),orbitAxis=new THREE.Vector3(1,0,0);
  const light=new THREE.SpotLight(0xff6357,95,55,.72,.85,2);light.position.set(-8,10,-16);light.target.position.set(-2,0,0);
- return {root,surface,light,keyDirection,update(angle,visible,time,camera){
-  const t=THREE.MathUtils.clamp(angle/Math.PI,0,1),blend=THREE.MathUtils.smoothstep(t,0,1);
+ return {root,surface,light,keyDirection,update(angle,visible,time,camera,underwater=false){
+  const t=underwater?0:THREE.MathUtils.clamp(angle/Math.PI,0,1),blend=THREE.MathUtils.smoothstep(t,0,1);
   root.visible=visible;root.position.lerpVectors(front,back,blend);root.position.y+=Math.sin(t*Math.PI)*2;
+  if(underwater)root.position.applyAxisAngle(orbitAxis,angle*.5);
   surface.rotation.y=angle*.35;phase.value=blend;
   camera.updateMatrixWorld();keyDirection.value.copy(MOON_LIGHT_DIRECTION).transformDirection(camera.matrixWorldInverse);
   for(const body of bodies)body.morphTargetInfluences[0]=blend;
-  for(const {material,opacity}of ornaments)material.opacity=opacity*(1-blend);
+  for(const decoration of decorations)decoration.visible=!underwater;
+  for(const {material,opacity}of ornaments)material.opacity=underwater?0:opacity*(1-blend);
   batMaterial.opacity=blend;bats.root.visible=t>0;bats.update(time,camera);
   light.visible=visible;light.intensity=95*blend;
  }};

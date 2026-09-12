@@ -1,4 +1,5 @@
 import {glassPlatformHeight} from './glass-platforms.js';
+import {oceanHeight} from './ocean-definition.js';
 import {fairytaleHeight} from './fairytale-definition.js';
 export const GENDERS={male:'男性',female:'女性',nonbinary:'非二元'};
 export const RESIDENTS={player:{gender:'male',age:28},nova:{gender:'female',age:32},zig:{gender:'male',age:68},lumi:{gender:'female',age:24},pip:{gender:'nonbinary',age:10}};
@@ -19,6 +20,7 @@ export function appearance(person,stages=DEFAULT_LIFE_STAGES){
 // Coordinates are local to each item; simulation and animation use the same rotation.
 export const APPROACHES={fairyBench:[1.4,0,0],blueprintTable:[0,0,1.4],constructionTerminal:[0,0,1.4],cultivator:[0,0,1.5],extractor:[0,0,1.5],materialCabinet:[0,0,1.2],loadingPlatform:[0,0,1.5],spiritTree:[0,0,1.6],polelight:[0,0,1.1],glowlight:[0,0,1.1],stove:[0,0,1.4],tea:[0,0,1.4],banquet:[0,0,1.4],relic:[0,0,1.4],beacon:[0,0,1.4],gate:[0,0,1.7],nursery:[0,0,1.4],pod:[1.1,0,.45],sofa:[1.4,0,0],food:[0,0,1.4],shower:[0,0,1.4],lab:[0,0,1.4],music:[0,0,1.4],garden:[0,0,1.4],portal:[0,0,1.7],telescope:[0,0,1.3],crystal:[0,0,1.4],mushroom:[0,0,1.4],lamp:[0,0,1.4]};
 export function groundHeight(x,z,side='front',island='home'){
+ if(island==='ocean')return oceanHeight(x,z,side);
  if(island==='spore')return fairytaleHeight(x,z);
  if(island!=='home')return .29;
  if(side==='back')return .29;
@@ -27,5 +29,5 @@ export function groundHeight(x,z,side='front',island='home'){
  if(x>=-7.8&&x<=3.8&&z>=1.55&&z<=2.45)return .15;
  return -.08;
 }
-export function localToWorld(object,[x,y,z]){const c=Math.cos(object.rotation),s=Math.sin(object.rotation);return{x:object.x+x*c+z*s,y:.29+y,z:object.z-x*s+z*c};}
+export function localToWorld(object,[x,y,z]){const c=Math.cos(object.rotation),s=Math.sin(object.rotation),floor=object.island==='ocean'?groundHeight(object.x,object.z,object.side,object.island):.29;return{x:object.x+x*c+z*s,y:floor+y,z:object.z-x*s+z*c};}
 export function approachPosition(object){const p=localToWorld(object,APPROACHES[object.type]);return{x:p.x,z:p.z};}

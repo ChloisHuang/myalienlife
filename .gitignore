@@ -16,4 +16,7 @@ id_rsa
 id_ed25519
 artifacts/performance
 artifacts/*.png
+artifacts/ocean/preview-save/
+artifacts/ocean/project-config.json
+artifacts/ocean/*.blend1
 docs/*.md

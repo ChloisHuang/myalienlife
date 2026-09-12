@@ -50,7 +50,7 @@ test('v23 legacy city is evacuated like a destroyed island while global progress
  g.wonders.archive=3;g.wonders.dust=9;g.wonders.coauthored=true;g.wonders.expeditions=5;g.wonders.cityRecords=[0,2];g.wonders.lastExpeditionDay=6;
 
  const loaded=restore(serialize(g));
- assert.equal(loaded.version,24);
+ assert.equal(loaded.version,25);
  assert.equal(islandCatalog(loaded).city,undefined);
  assert.equal(loaded.civilization.discoveryPath.includes('city'),false);
  assert.equal(loaded.civilization.destroyedIslands.includes('city'),false);

@@ -67,7 +67,7 @@ test('paired orb action requires a partner and cancellation cannot leave a guest
 test('v10 migration removes legacy admire from queues, preferences and config without losing furniture',()=>{
  const {g,o}=setup('lamp');g.version=10;delete g.wonders;delete o.wonder;g.player.preferences.admire=10;g.autonomy.lastAction='admire';g.config.actionDurations.admire=8;
  g.queue=[{id:g.nextId++,type:'admire',targetId:o.id,target:{x:0,z:1,side:'front'},phase:'acting',source:'manual',elapsed:3,path:null}];
- const loaded=restore(serialize(g));assert.equal(loaded.version,24);assert.equal(loaded.objects[0].id,o.id);assert.equal(loaded.queue.length,0);assert.equal(loaded.autonomy.lastAction,null);assert.equal(loaded.player.preferences.admire,undefined);assert.equal(loaded.config.actionDurations.admire,undefined);assert.deepEqual(restore(serialize(loaded)),loaded);
+ const loaded=restore(serialize(g));assert.equal(loaded.version,25);assert.equal(loaded.objects[0].id,o.id);assert.equal(loaded.queue.length,0);assert.equal(loaded.autonomy.lastAction,null);assert.equal(loaded.player.preferences.admire,undefined);assert.equal(loaded.config.actionDurations.admire,undefined);assert.deepEqual(restore(serialize(loaded)),loaded);
  loaded.objects[0].wonder.cooldown=-1;assert.throws(()=>restore(serialize(loaded)));
 });
 test('insect release benefits only nearby same-face residents and consumes the captured swarm',()=>{
