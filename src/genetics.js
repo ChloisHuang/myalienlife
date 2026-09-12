@@ -1,4 +1,5 @@
 import {DEFAULT_PRAYER_CHANCES,PRAYER_RULES} from './prayer.js';
+import {ENVIRONMENT_KEYS,DEFAULT_ENVIRONMENT_PREFERENCES} from './island-preferences.js';
 
 export const HEAD_SHAPE={headWidth:'头部宽度',headHeight:'头部长度',headDepth:'前后厚度',jaw:'下颌收窄'};
 export const defaultHeadShape=()=>Object.fromEntries(Object.keys(HEAD_SHAPE).map(key=>[key,1]));
@@ -45,6 +46,7 @@ export function inheritTraits(parents,random=Math.random,rates=DEFAULT_MUTATION_
  const genome=Object.fromEntries(Object.keys(defaultGenome()).map(key=>[key,randomExtended(parents.map(p=>p.genome[key]),random,.8,1.2,1)]));
  const channels=[1,3,5].map(offset=>Math.round(randomExtended(parents.map(p=>parseInt(p.color.slice(offset,offset+2),16)),random,0,255,255)));
  const preferences=Object.fromEntries([...new Set(parents.flatMap(p=>Object.keys(p.preferences)))].map(key=>[key,randomExtended(parents.map(p=>p.preferences[key]||0),random,0,100,100)]));
+ const environmentPreferences=Object.fromEntries(ENVIRONMENT_KEYS.map(key=>[key,randomExtended(parents.map(p=>p.environmentPreferences?.[key]??DEFAULT_ENVIRONMENT_PREFERENCES[key]),random,0,100,100)]));
  const familyDesire=randomExtended(parents.map(p=>p.familyDesire),random,0,1,1),prayer=inheritRacialTraits(parents,random,prayerConfig),mutations=[];
  // Each configured body-part rate contributes to one bounded mutation roll.
  const parts=Object.keys(DEFAULT_MUTATION_RATES),total=Math.min(100,parts.reduce((sum,key)=>sum+(rates[key]??DEFAULT_MUTATION_RATES[key]),0));
@@ -56,5 +58,5 @@ export function inheritTraits(parents,random=Math.random,rates=DEFAULT_MUTATION_
  const color='#'+channels.map(n=>n.toString(16).padStart(2,'0')).join('');
  const favorite=Object.entries(preferences).sort((a,b)=>b[1]-a[1])[0]?.[0];
  const trait={research:'好奇心旺盛',observe:'爱观星',garden:'热爱自然',chat:'喜欢陪伴',dance:'热爱音乐'}[favorite]||'随和';
- return{genome,color,preferences,familyDesire,prayer,mutations,trait:`${trait} · ${mutations.length?'独特星芽':'家族传承'}`};
+ return{genome,color,preferences,environmentPreferences,familyDesire,prayer,mutations,trait:`${trait} · ${mutations.length?'独特星芽':'家族传承'}`};
 }

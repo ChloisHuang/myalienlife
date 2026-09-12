@@ -572,6 +572,12 @@ test('settlement workbench gates construction behind blueprints and persists con
  await page.locator('[data-action="developBlueprint"]').click();await page.locator('[data-speed="3"]').click();await page.waitForTimeout(1800);await page.locator('[data-speed="0"]').click();await page.locator('#save').click();expect((await savedState(page)).civilization.projects.spore.blueprint).toBe(300);
  await clickTerminal();await expect(page.locator('[data-action="developBlueprint"]')).toHaveCount(0);await expect(page.locator('[data-action="constructIsland"]')).toBeEnabled();await page.locator('[data-action="constructIsland"]').click();await page.locator('[data-speed="3"]').click();await page.waitForTimeout(2200);await page.locator('[data-speed="0"]').click();await page.locator('#save').click();expect((await savedState(page)).civilization.projects.spore.construction).toBeGreaterThan(0);expect(errors).toEqual([]);await page.screenshot({path:'artifacts/settlement-workbench.png'});
 });
+test('home construction terminal exposes the same migration action',async({page})=>{
+ const state=createGame();state.civilization.discoveryPath=['home','spore'];state.civilization.visits.spore=1;state.player.homeIsland='spore';state.player.x=0;state.player.z=2;state.speed=0;state.autonomy.enabled=false;for(const n of Object.values(state.npcs))n.ai.enabled=false;state.objects.push({id:'home-settlement-terminal',type:'constructionTerminal',x:3,z:0,island:'home',side:'front',rotation:0});fixtures.set(page,state);
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ const bounds=await page.locator('#world').boundingBox(),point=new Vector3(3,1.42,0).project(sceneCamera(bounds));await page.mouse.click(bounds.x+(point.x+1)*bounds.width/2,bounds.y+(1-point.y)*bounds.height/2);
+ await expect(page.locator('[data-action="settleIsland"]')).toBeVisible();await expect(page.locator('[data-action="settleIsland"]')).toBeEnabled();expect(errors).toEqual([]);
+});
 test.beforeEach(async({context,page})=>{
  const directory=await mkdtemp(join(tmpdir(),'orbit-browser-')),store=createSaveStore(directory);stores.set(page,{store,directory});
  const handler=async route=>{
