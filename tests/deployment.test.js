@@ -5,6 +5,12 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {deploymentConfig} from '../scripts/deploy-config.js';
 import {deploymentTransport,uploadRelease} from '../scripts/deploy-transport.js';
+test('local and deployment test runs serialize files so the capacity timing gate has no competing test workers',async()=>{
+ const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
+ const deploy=await readFile(new URL('../scripts/deploy.js',import.meta.url),'utf8');
+ assert.ok(manifest.scripts.test.split(' ').includes('--test-concurrency=1'));
+ assert.match(deploy,/run\(process\.execPath,\['--test','--test-concurrency=1',\.\.\.tests\]\)/);
+});
 test('deployment uses one explicit SSH route for commands and resumable file transfers',()=>{
  const c=deploymentConfig({host:'192.0.2.10',sshPort:22,user:'root',domain:'game.example',sshProxy:{host:'127.0.0.1',port:7890}}),t=deploymentTransport(c);
  assert.ok(t.ssh.includes('ProxyCommand=nc -X 5 -x 127.0.0.1:7890 %h %p'));

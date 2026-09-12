@@ -16,7 +16,8 @@ const transport=deploymentTransport(c),{target,ssh}=transport;
 run('rsync',['--version']);
 run('ssh',[...ssh,target,'command -v rsync >/dev/null']);
 const tests=(await readdir(resolve(root,'tests'))).filter(n=>n.endsWith('.test.js')).map(n=>`tests/${n}`);
-run(process.execPath,['--test',...tests]);
+// Keep the wall-clock capacity gate isolated from other test workers.
+run(process.execPath,['--test','--test-concurrency=1',...tests]);
 const directory=await buildRelease({analyticsSnippet}),id=new Date().toISOString().replace(/[^0-9]/g,''),archive=resolve(root,'.deploy',`${id}.tgz`);
 run('tar',[...(process.platform==='darwin'?['--no-xattrs']:[]),'-czf',archive,'-C',directory,'.'],{env:{...process.env,COPYFILE_DISABLE:'1'}});
 const hash=createHash('sha256').update(await readFile(archive)).digest('hex');

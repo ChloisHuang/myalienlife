@@ -7,30 +7,50 @@ import {OCEAN_ITEMS,OCEAN_WATER,oceanHeight} from './ocean-definition.js';
 const skins=new Set(['pod','food','shower','lab','portal','sofa','music','blueprintTable','constructionTerminal']);
 const vertexShader=`varying vec2 p;void main(){p=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
 const causticsGLSL=`
- vec2 oceanHash(vec2 p){return fract(sin(vec2(dot(p,vec2(127.1,311.7)),dot(p,vec2(269.5,183.3))))*43758.5453);}
- float oceanCaustic(vec2 q,float t){
-  q+=vec2(sin(q.y*.9+t*.26)+sin(q.y*1.9-t*.18)*.3,cos(q.x*.7-t*.21))*.8;
-  vec2 cell=floor(q),f=fract(q);float first=10.,second=10.;
-  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++){
-   vec2 g=vec2(float(x),float(y)),h=oceanHash(cell+g);
-   float d=length(g+.5+.32*sin(t*.38+6.283*h)-f);
-   if(d<first){second=first;first=d;}else second=min(second,d);
-  }
-  return (1.-smoothstep(.015,.075,second-first))*(.25+.75*smoothstep(-.2,.75,sin(q.x*.8+t*.5)*cos(q.y*.9-t*.4)));
+ float oceanCaustic(sampler2D causticsMap,vec2 q){return texture2D(causticsMap,q/vec2(36.,26.)+.5).r;}`;
+const causticsPassVertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
+const causticsPassFragment=`precision highp float;varying vec2 vUv;uniform float time;
+ #define MOD3 vec3(443.8975,397.2973,491.1871)
+ vec3 hash33(vec3 p3){p3=fract(p3*MOD3);p3+=dot(p3,p3.yxz+19.19);return -1.+2.*fract(vec3((p3.x+p3.y)*p3.z,(p3.x+p3.z)*p3.y,(p3.y+p3.z)*p3.x));}
+ float perlinNoise(vec3 p){
+  vec3 pi=floor(p),pf=p-pi,w=pf*pf*(3.-2.*pf);
+  return mix(mix(mix(dot(pf,hash33(pi)),dot(pf-vec3(1,0,0),hash33(pi+vec3(1,0,0))),w.x),mix(dot(pf-vec3(0,0,1),hash33(pi+vec3(0,0,1))),dot(pf-vec3(1,0,1),hash33(pi+vec3(1,0,1))),w.x),w.z),mix(mix(dot(pf-vec3(0,1,0),hash33(pi+vec3(0,1,0))),dot(pf-vec3(1,1,0),hash33(pi+vec3(1,1,0))),w.x),mix(dot(pf-vec3(0,1,1),hash33(pi+vec3(0,1,1))),dot(pf-vec3(1,1,1),hash33(pi+vec3(1,1,1))),w.x),w.z),w.y);
+ }
+ float waterNoise(vec3 p){return perlinNoise(p*2.);}
+ void main(){
+  vec2 world=(vUv-.5)*vec2(36.,26.);float bottomY=-5.5;vec3 bottomPoint=vec3(world.x,bottomY,world.y),light=vec3(10.,10.,10.);
+  vec3 ray=normalize(bottomPoint-light);float waterHit=(1.-light.y)/min(ray.y,-.03);vec3 waterSurface=light+ray*waterHit;
+  vec3 noisePos=waterSurface+vec3(0.,time*1.3,0.);float e=.5;
+  float h1=waterNoise(noisePos+vec3(e,0,0)),h2=waterNoise(noisePos-vec3(e,0,0)),h3=waterNoise(noisePos+vec3(0,0,e)),h4=waterNoise(noisePos-vec3(0,0,e));
+  float height=waterNoise(noisePos);vec3 waterNormal=normalize(vec3(h2-h1,2.*e,h4-h3));
+  vec3 flatRay=refract(ray,vec3(0,1,0),1./1.333),refracted=refract(ray,waterNormal,1./1.333);vec3 deformedSurface=waterSurface+vec3(0,height,0);
+  float beforeHit=(bottomY-waterSurface.y)/min(flatRay.y,-.03),afterHit=(bottomY-deformedSurface.y)/min(refracted.y,-.03);
+  vec3 beforePos=waterSurface+flatRay*beforeHit,afterPos=deformedSurface+refracted*afterHit;
+  float beforeArea=length(dFdx(beforePos.xz))*length(dFdy(beforePos.xz));float afterArea=max(length(dFdx(afterPos.xz))*length(dFdy(afterPos.xz)),1e-5);
+  float caustic=clamp(beforeArea/afterArea,.001,6.);gl_FragColor=vec4(vec3(caustic),1.);
  }`;
 
-export function createOceanWater(side){
+export function createOceanCaustics(renderer,{size=384,hz=30}={}){
+ const target=new THREE.WebGLRenderTarget(size,size,{type:THREE.HalfFloatType,minFilter:THREE.LinearFilter,magFilter:THREE.LinearFilter,depthBuffer:false,stencilBuffer:false});
+ target.texture.name='ocean-caustics-dynamic';target.texture.colorSpace=THREE.NoColorSpace;target.texture.generateMipmaps=false;
+ const material=new THREE.ShaderMaterial({uniforms:{time:{value:0}},vertexShader:causticsPassVertex,fragmentShader:causticsPassFragment,depthTest:false,depthWrite:false});
+ const scene=new THREE.Scene(),camera=new THREE.OrthographicCamera(-1,1,1,-1,0,1),geometry=new THREE.PlaneGeometry(2,2),quad=new THREE.Mesh(geometry,material);scene.add(quad);
+ let last=-Infinity;const interval=1/hz;
+ return {target,texture:target.texture,material,update(seconds,enabled=true){if(!enabled)return false;if(seconds>=last&&seconds-last<interval)return false;last=seconds;material.uniforms.time.value=seconds;const previous=renderer.getRenderTarget();renderer.setRenderTarget(target);renderer.render(scene,camera);renderer.setRenderTarget(previous);return true;},dispose(){geometry.dispose();material.dispose();target.dispose();}};
+}
+
+export function createOceanWater(side,causticsTexture=null){
  const dark=side==='back',spec=OCEAN_WATER[side],root=new THREE.Group();
- const uniforms={time:{value:0},deep:{value:dark?1:0},outline:{value:1},extent:{value:new THREE.Vector2(spec.rx,spec.rz)}};
+ const uniforms={time:{value:0},deep:{value:dark?1:0},outline:{value:1},extent:{value:new THREE.Vector2(spec.rx,spec.rz)},causticsMap:{value:causticsTexture}};
  const material=new THREE.ShaderMaterial({uniforms,transparent:true,depthWrite:false,side:THREE.FrontSide,vertexShader,
-  fragmentShader:`uniform float time;uniform float deep;uniform float outline;uniform vec2 extent;varying vec2 p;
+  fragmentShader:`uniform float time;uniform float deep;uniform float outline;uniform vec2 extent;uniform sampler2D causticsMap;varying vec2 p;
   ${causticsGLSL}
   void main(){
    vec2 local=(p*2.-1.)*extent*vec2(1.,-1.);vec2 shape=local/vec2(14.6,10.4);
    float radius=length(shape),angle=atan(shape.y,shape.x);
    float bend=.055*sin(radius*21.)+.028*sin(radius*43.);
    if(outline>.5&&deep<.5&&radius>.60&&!(angle>.78+bend&&angle<1.38+bend))discard;
-   float caustic=oceanCaustic(local*vec2(.9,1.05),time);
+   float caustic=oceanCaustic(causticsMap,local*vec2(.9,1.05));float energy=min(pow(max(caustic-.12,0.),.8)*.38,1.6);float hot=smoothstep(.16,.95,energy);vec3 causticTint=mix(vec3(.12,.55,.50),vec3(.98,1.,.92),hot);
    vec2 basinPoint=local+vec2(sin(local.y*.42)*.8,cos(local.x*.36)*.55);
    float basin=length(basinPoint/mix(vec2(8.65,6.16),vec2(14.6,10.4),deep));
    float radialDepth=1.-smoothstep(.08,1.02,basin);
@@ -42,10 +62,10 @@ export function createOceanWater(side){
    vec3 base=mix(shallows,depths,smoothstep(.0,1.15,depth));
    float clearChannel=exp(-pow((local.x-1.)/5.,2.)-pow((local.y-2.)/5.5,2.))*(1.-deep);
    base=mix(base,vec3(.24,.78,.72),clearChannel*.75);
-   vec3 color=base+caustic*mix(vec3(.045,.09,.08),vec3(.035,.10,.11),deep)*(1.-depth*.7);
+   vec3 color=base+causticTint*energy*mix(.48,.30,deep)*(1.-depth*.55);
    float ripple=pow(.5+.5*sin(basin*70.-time*.7+sin(angle*7.)*.5),24.)*smoothstep(.7,1.,basin)*(1.-smoothstep(1.,1.06,basin));
    color+=ripple*vec3(.055,.12,.10);
-   gl_FragColor=vec4(color,mix(.12,.42,deep)+depth*mix(.17,.28,deep)+caustic*.035);
+   gl_FragColor=vec4(color,mix(.12,.42,deep)+depth*mix(.17,.28,deep)+min(energy,.8)*.025);
    #include <tonemapping_fragment>
    #include <colorspace_fragment>
   }`});
@@ -125,7 +145,7 @@ function createSeaLife(){
  },dispose(){geometry.dispose();fish.material.dispose();fish.dispose();particles.dispose();mist.dispose();jellyBell.dispose();jellyStrands.dispose();jellyMaterial.dispose();strandMaterial.dispose();}};
 }
 
-export function createOceanKit(asset,groundTexture){
+export function createOceanKit(asset,groundTexture,causticsTexture=null){
  if(!groundTexture?.isTexture)throw new Error('Ocean ground texture is required');
  groundTexture.colorSpace=THREE.SRGBColorSpace;groundTexture.wrapS=groundTexture.wrapT=THREE.RepeatWrapping;groundTexture.anisotropy=4;
  function model(name){
@@ -173,7 +193,7 @@ export function createOceanKit(asset,groundTexture){
     const light=new THREE.PointLight(0xffa45b,8,5,2);light.name='ocean-lighthouse-beacon';
     light.position.set(7,oceanHeight(7,-7)-.29+6.05,-6.08);light.userData.revealAt=1;root.add(light);stages.push(light);
    }
-   const water=createOceanWater(side),life=side==='back'?createSeaLife():null,submerged=new Set();
+   const water=createOceanWater(side,causticsTexture),life=side==='back'?createSeaLife():null,submerged=new Set();
    const stone=new Set(),plants=new Set();root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){
     if(m.name==='sand'){
      const p=o.geometry.getAttribute('position'),uv=new Float32Array(p.count*2);
@@ -184,7 +204,7 @@ export function createOceanKit(asset,groundTexture){
     else if(['ivory','stone','slate','reef'].includes(m.name))stone.add(m);
    }});
    for(const m of stone)weatheredSurface(m);
-   for(const m of submerged)submergedSurface(m,water.time);
+   for(const m of submerged)submergedSurface(m,water.time,causticsTexture);
    for(const m of plants){
     const base=m.onBeforeCompile.bind(m),amplitude=m.name==='deepKelp'?.11:.035;
     m.onBeforeCompile=shader=>{base(shader);shader.uniforms.currentTime=water.time;shader.vertexShader='uniform float currentTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>\ntransformed.x+=sin(currentTime*.6+position.y*1.6+position.x*.7)*${amplitude}*max(0.,position.y-.25);`);};
@@ -199,13 +219,13 @@ export function createOceanKit(asset,groundTexture){
  };
 }
 
-function submergedSurface(material,time){
+function submergedSurface(material,time,causticsTexture){
  const base=material.onBeforeCompile.bind(material),bed=material.name==='lagoonBed',abyss=material.name==='floor';
  material.onBeforeCompile=shader=>{
-  base(shader);shader.uniforms.oceanTime=time;
+  base(shader);shader.uniforms.causticsMap={value:causticsTexture};
   shader.vertexShader='varying vec3 seabedPoint;\n'+shader.vertexShader;
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nseabedPoint=position;');
-  shader.fragmentShader=`varying vec3 seabedPoint;uniform float oceanTime;${causticsGLSL}\n`+shader.fragmentShader;
+  shader.fragmentShader=`varying vec3 seabedPoint;uniform sampler2D causticsMap;${causticsGLSL}\n`+shader.fragmentShader;
   shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
    vec2 q=seabedPoint.xz;
    ${abyss?`float wreckShade=exp(-pow((q.x+8.)/3.8,2.)-pow((q.y+7.)/3.,2.));
@@ -215,9 +235,9 @@ function submergedSurface(material,time){
    float channel=exp(-pow((q.x-.5)/5.,2.)-pow((q.y-2.)/5.,2.));
    vec3 bedColor=mix(vec3(.035,.21,.23),vec3(.14,.41,.35),sandbar);
    diffuseColor.rgb=mix(bedColor,vec3(.12,.65,.57),smoothstep(.12,.85,channel)*(.85+.15*sandbar));`:''}
-   diffuseColor.rgb+=oceanCaustic(q*vec2(.9,1.05),oceanTime)*vec3(.16,.26,.19)*${abyss?'.45':'1.'};
+   float oceanFocus=oceanCaustic(causticsMap,q*vec2(.9,1.05));float oceanEnergy=min(pow(max(oceanFocus-.12,0.),.8)*.38,1.6);float oceanHot=smoothstep(.16,.95,oceanEnergy);vec3 oceanTint=mix(vec3(.10,.52,.48),vec3(.98,1.,.90),oceanHot);diffuseColor.rgb+=oceanTint*oceanEnergy*${abyss?'.32':'.52'};
   `);
- };material.customProgramCacheKey=()=>`ocean-submerged-${bed}-${abyss}`;
+ };material.customProgramCacheKey=()=>`ocean-submerged-caustics-v2-${bed}-${abyss}`;
 }
 
 function weatheredSurface(material){

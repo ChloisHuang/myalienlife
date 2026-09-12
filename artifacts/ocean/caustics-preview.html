@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Ocean caustics preview</title>
+<style>html,body,#world{margin:0;width:100%;height:100%;overflow:hidden}canvas{display:block}.ufo-flight-board{display:none}</style>
+<div id="world"></div><script type="module">
+import {createWorld} from '/src/world.js';
+import {CAPTURE_WEATHER,prepareIslandCapture} from '/tools/island-capture-fixture.js';
+const source=await (await fetch('./preview-save/orbit-life.json')).json();
+const fixture=prepareIslandCapture(source.state,{islandNumber:3,side:'front',seed:42});
+const container=document.querySelector('#world');
+const world=await createWorld(container,()=>fixture.state,{onClick(){},onHover(){},onPlace(){},weatherProvider:()=>CAPTURE_WEATHER});
+world.setSceneOnly(true);
+function frame(now){world.render(fixture.state,now/1000);container.dataset.ready='true';requestAnimationFrame(frame);}
+requestAnimationFrame(frame);
+</script></html>

@@ -4,7 +4,7 @@ import {readFileSync,existsSync} from 'node:fs';
 import {Group,Mesh,BoxGeometry,MeshStandardMaterial,Scene,OrthographicCamera,Texture,Matrix4} from 'three';
 import {createWeatherEffects} from '../src/weather-effects.js';
 import {createAtmosphere} from '../src/npr.js';
-import {createOceanKit,createOceanWater,createOceanFragments} from '../src/ocean.js';
+import {createOceanKit,createOceanWater,createOceanFragments,createOceanCaustics} from '../src/ocean.js';
 import {OCEAN_WATER,oceanHeight,oceanFrontLand} from '../src/ocean-definition.js';
 
 test('underwater face has no surface disk or waterfall curtain',()=>{
@@ -18,6 +18,43 @@ test('underwater face has no surface disk or waterfall curtain',()=>{
 test('front outlet has no isolated waterfall panel',()=>{
  const water=createOceanWater('front');
  assert.ok(!water.root.children.some(o=>o.geometry?.parameters.height===1.6));water.dispose();
+});
+test('dynamic ocean caustics keep the refractive area-ratio core and update at 30 Hz',()=>{
+ let renders=0,current=null;const renderer={getRenderTarget:()=>current,setRenderTarget:value=>{current=value;},render:()=>{renders++;}};
+ const caustics=createOceanCaustics(renderer,{size:384,hz:30});
+ assert.equal(caustics.target.width,384);assert.equal(caustics.target.height,384);assert.equal(caustics.texture.isTexture,true);
+ const shader=caustics.material.fragmentShader;
+ assert.match(shader,/refract\(/);assert.match(shader,/dFdx/);assert.match(shader,/dFdy/);assert.doesNotMatch(shader,/for\s*\(/);
+ assert.match(shader,/time\*1\.3/);assert.match(shader,/float e=\.5/);assert.match(shader,/light=vec3\(10\.,10\.,10\.\)/);
+ caustics.update(0,true);assert.equal(renders,1);caustics.update(.01,true);assert.equal(renders,1);caustics.update(.04,true);assert.equal(renders,2);caustics.update(.08,false);assert.equal(renders,2);
+ caustics.dispose();
+});
+test('ocean caustics sample one shared texture instead of procedural hash loops',()=>{
+ const caustics=new Texture(),water=createOceanWater('front',caustics),shader=water.surface.material.fragmentShader;
+ assert.equal(water.surface.material.uniforms.causticsMap.value,caustics);
+ assert.match(shader,/texture2D\(causticsMap/);assert.doesNotMatch(shader,/oceanHash|for\(int y=-1/);
+ water.dispose();caustics.dispose();
+});
+
+test('ocean kit preserves the dynamic render target sampler without requiring missing mip levels',()=>{
+ const caustics=createOceanCaustics({}),ground=new Texture();
+ const {minFilter,magFilter,generateMipmaps,version}=caustics.texture;
+ createOceanKit(new Group(),ground,caustics.texture);
+ assert.equal(caustics.texture.minFilter,minFilter);
+ assert.equal(caustics.texture.magFilter,magFilter);
+ assert.equal(caustics.texture.generateMipmaps,generateMipmaps);
+ assert.equal(caustics.texture.version,version);
+ caustics.dispose();ground.dispose();
+});
+
+test('submerged PBR materials share the same caustics texture',()=>{
+ const asset=new Group(),node=new Group();node.name='ocean-back';
+ node.add(new Mesh(new BoxGeometry(),new MeshStandardMaterial({name:'lagoonBed'})));asset.add(node);
+ const ground=new Texture(),caustics=new Texture(),terrain=createOceanKit(asset,ground,caustics).terrain('back');
+ let material;terrain.root.traverse(o=>{if(o.isMesh&&o.material.name==='lagoonBed')material=o.material;});
+ const shader={uniforms:{},vertexShader:'#include <begin_vertex>',fragmentShader:'#include <color_fragment>'};material.onBeforeCompile(shader);
+ assert.equal(shader.uniforms.causticsMap.value,caustics);assert.match(shader.fragmentShader,/texture2D\(causticsMap/);assert.doesNotMatch(shader.fragmentShader,/oceanHash|for\(int y=-1/);
+ terrain.dispose();ground.dispose();caustics.dispose();
 });
 test('submerged weather suppresses rain and ground mist but restores them above water',()=>{
  const scene=new Scene(),weather=createWeatherEffects(scene,()=>.5),rain={weights:{rain:1,mist:1},wind:1};
@@ -65,6 +102,10 @@ test('ground material ships as one small shared WebP, not the source PNG',()=>{
  const bytes=readFileSync(new URL('../public/assets/ocean-ground.webp',import.meta.url));
  assert.equal(bytes.toString('ascii',8,12),'WEBP');assert.ok(bytes.length<48*1024);
  assert.equal(existsSync(new URL('../public/assets/ocean-ground.png',import.meta.url)),false);
+});
+
+test('dynamic caustics do not ship the rejected static texture',()=>{
+ assert.equal(existsSync(new URL('../public/assets/ocean-caustics.png',import.meta.url)),false);
 });
 
 test('lighthouse flame emits light without brightening the cottage glass material',()=>{

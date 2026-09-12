@@ -8,7 +8,7 @@ import {shipFoodStatus} from './space-logistics.js';
 import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
 import {islandDefinition,islandCatalog,discovered} from './civilization.js';
 import {createIslandTerrain} from './island-terrain.js';
-import {createOceanKit,createOceanFragments} from './ocean.js';
+import {createOceanKit,createOceanFragments,createOceanCaustics} from './ocean.js';
 import {createFairytaleKit} from './fairytale.js';
 import {createHousingVisual} from './settlement-visuals.js';
 import {createFrontGroundMaterial,createGlassPlatform} from './front-ground.js';
@@ -63,7 +63,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const fairytaleAsset=await loader.loadAsync('/assets/fairytale.glb');
  const environmentAsset=await loader.loadAsync('/assets/fairytale-environment.glb');
  const fairytaleKit=createFairytaleKit(fairytaleAsset.scene,environmentAsset.scene);
- const oceanAsset=await loader.loadAsync('/assets/ocean.glb'),oceanGround=await new THREE.TextureLoader().loadAsync('/assets/ocean-ground.webp'),oceanKit=createOceanKit(oceanAsset.scene,oceanGround);draco.dispose();
+ const oceanAsset=await loader.loadAsync('/assets/ocean.glb'),oceanGround=await new THREE.TextureLoader().loadAsync('/assets/ocean-ground.webp'),oceanCaustics=createOceanCaustics(renderer),oceanKit=createOceanKit(oceanAsset.scene,oceanGround,oceanCaustics.texture);draco.dispose();
  const mushroomVariants={normal:mushroomAsset};for(const name of ['giant','cluster','mutant','mutant-cluster']){const asset=await loader.loadAsync(`/assets/mushroom-${name}.glb`);stylizeAsset(asset.scene);mushroomVariants[name]=asset;}
  // Portrait updates share one context for the lifetime of the world.
  const portraitRenderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});portraitRenderer.setSize(160,160);portraitRenderer.toneMapping=renderer.toneMapping;portraitRenderer.toneMappingExposure=renderer.toneMappingExposure;
@@ -73,7 +73,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  // Keep portrait glow local so luminous markings do not obscure facial features.
  const portraitComposer=createPostProcessing(portraitRenderer,portraitScene,portraitCamera,{bloomStrength:.28,bloomRadius:0});portraitComposer.setSize(160,160);
  let portraitRig,portraitLiving;
- const textures=new Set(),textureDefaults=new Map();
+ const textures=new Set([oceanGround]),textureDefaults=new Map();
  function trackTextures(root){root.traverse(node=>{for(const material of Array.isArray(node.material)?node.material:node.material?[node.material]:[]){for(const key of ['map','normalMap','roughnessMap','metalnessMap','emissiveMap','aoMap'])if(material[key])textures.add(material[key]);}});}
  // High restores loader defaults so the original asset appearance is unchanged.
  function applyTextureQuality(profile){for(const texture of textures){if(profile.textureQuality==='high'){const original=textureDefaults.get(texture);if(original){texture.anisotropy=original.anisotropy;texture.magFilter=original.magFilter;texture.minFilter=original.minFilter;texture.needsUpdate=true;}continue;}if(!textureDefaults.has(texture))textureDefaults.set(texture,{anisotropy:texture.anisotropy,magFilter:texture.magFilter,minFilter:texture.minFilter});const mipmapped=profile.textureQuality!=='low';texture.anisotropy=profile.textureAnisotropy;texture.magFilter=THREE.LinearFilter;texture.minFilter=mipmapped?THREE.LinearMipmapLinearFilter:THREE.LinearFilter;texture.needsUpdate=true;}}
@@ -289,6 +289,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
 
    // Decorative motion must not freeze or fast-forward with network snapshots.
    const ambientTime=independentAmbient&&visualSeconds===undefined&&!offscreen?ambientClock.sample(time,g.speed,now):time;
+   oceanCaustics.update(now/1000,g.viewIsland==='ocean');
    for(const trail of livingTrails)trail.update(g,time,delta);
    for(const[id,rig]of actors){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];
