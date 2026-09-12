@@ -699,7 +699,7 @@ try{
   onClick:showContext,
   onHover(target,x,y){lastHover={target,x,y};showHoverTooltip(target,x,y);},
   async onPlace(type,x,z,rotation){const result=await buyItem(game,type,x,z,rotation);if(result.ok){toast(type==='mushroom'?'已安排人物前往种植。':`${ITEMS.find(i=>i.id===type).name}已放入家园。`);cancelPlacement();refresh();}else toast(result.message);},
-  qualityProfile
+  qualityProfile,independentAmbient:hosted
  });
  await world.prepareIslandPreviews();
  refreshPortraits();

@@ -10,6 +10,39 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {OrthographicCamera,Vector3} from 'three';
 const stores=new WeakMap(),fixtures=new WeakMap(),handlers=new WeakMap();
+test('network-independent ambience keeps moving through a frozen simulation',async({page})=>{
+ await page.route('**/ambient-check',route=>route.fulfill({contentType:'text/html',body:'<body style="margin:0"><div id="world" style="width:100vw;height:100vh"></div></body>'}));
+ await page.goto('http://127.0.0.1:5173/ambient-check');
+ const result=await page.evaluate(async()=>{
+  const THREE=await import('/tests/helpers/three-runtime.js');
+  const {createWorld}=await import('/src/world.js'),{createGame}=await import('/src/simulation.js');
+  const game=createGame(),originalAdd=THREE.Scene.prototype.add;let scene;
+  THREE.Scene.prototype.add=function(...objects){if(this.fog)scene=this;return originalAdd.apply(this,objects);};
+  const world=await createWorld(document.querySelector('#world'),()=>game,{onClick(){},onHover(){},onPlace(){},independentAmbient:true});
+  const originalNow=performance.now.bind(performance);let now=0;performance.now=()=>now;
+  try{
+   const state=JSON.stringify(game);world.render(game);
+   let rain,tree;scene.traverse(o=>{if(o.isLineSegments&&o.material.uniforms?.rainAmount)rain=o;if(o.position.x===-10&&o.position.z===-5)tree=o;});
+   const first=rain.material.uniforms.time.value,treeBefore=tree.rotation.z;
+   for(let i=1;i<=20;i++){now=i*50;world.render(game);}
+   const stalled=rain.material.uniforms.time.value,unchanged=JSON.stringify(game)===state,treeAfter=tree.rotation.z;
+   game.minute+=120;now+=50;world.render(game);const recovered=rain.material.uniforms.time.value;
+   game.speed=0;now+=50;world.render(game);const paused=rain.material.uniforms.time.value;
+   world.render(game,42,true);const fixed=rain.material.uniforms.time.value;
+   now+=50;world.render(game);const resumed=rain.material.uniforms.time.value;
+   window.renderAmbientCheck=()=>world.render(game,42);
+   return {first,stalled,recovered,paused,fixed,resumed,unchanged,treeBefore,treeAfter};
+  }finally{performance.now=originalNow;THREE.Scene.prototype.add=originalAdd;}
+ });
+ expect(result.stalled-result.first).toBeCloseTo(1,6);expect(result.recovered-result.stalled).toBeCloseTo(.05,6);
+ expect(result.treeAfter).not.toBe(result.treeBefore);
+ expect(result.paused).toBe(result.recovered);expect(result.fixed).toBe(42);expect(result.resumed).toBe(result.paused);expect(result.unchanged).toBe(true);
+ for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
+  await page.setViewportSize(viewport);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>{window.renderAmbientCheck();resolve();})));
+  await page.locator('#world canvas').screenshot({path:`artifacts/ambient-clock-${viewport.width}.png`});
+ }
+});
+
 test('island switching frame trace',async({page},testInfo)=>{
  const g=createGame();g.speed=0;g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;fixtures.set(page,g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#world canvas')).toBeVisible({timeout:45000});await expect(page.locator('#loading')).toBeHidden({timeout:45000});

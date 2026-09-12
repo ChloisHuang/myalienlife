@@ -1,4 +1,5 @@
 import {elementPoint,controlSurface} from './viewport.js';
+import {createAmbientClock} from './ambient-clock.js';
 import {batchStatic,disposeStaticBatches} from './static-batching.js';
 import {BLINK_SECONDS} from './nether-blink.js';
 import {isRadiant} from './prayer.js';
@@ -37,7 +38,8 @@ import {colors,material,mesh,box,sphere,cylinder,ring,createPropFactory} from '.
 const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
 function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 
-export async function createWorld(container,getGame,{onClick,onHover,onPlace,weatherProvider=getWeather,qualityProfile=getQualityProfile('pc','high')}){
+export async function createWorld(container,getGame,{onClick,onHover,onPlace,weatherProvider=getWeather,qualityProfile=getQualityProfile('pc','high'),independentAmbient=false}){
+ const ambientClock=createAmbientClock();
  let sceneOnly=false;
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x10152e);scene.fog=new THREE.FogExp2(0x171c39,.006);
  // The scene is already multisampled in the composer; the canvas receives only its fullscreen output.
@@ -277,6 +279,8 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(selected);
    container.dataset.side=g.viewSide;container.dataset.flipping=String(Math.abs(island.rotation.x-flipTarget)>.01);syncObjects(g);syncActors(g);syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=visualSeconds??((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime),animateVegetation=quality.treeAnimation==='full'||quality.treeAnimation==='reduced'&&vegetationFrame++%2===0;previousSimTime=time;
 
+   // Decorative motion must not freeze or fast-forward with network snapshots.
+   const ambientTime=independentAmbient&&visualSeconds===undefined&&!offscreen?ambientClock.sample(time,g.speed,now):time;
    for(const trail of livingTrails)trail.update(g,time,delta);
    for(const[id,rig]of actors){
     const person=id==='player'?g.player:g.npcs[id],action=(id==='player'?g.queue:person.queue)[0];
@@ -300,26 +304,26 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
     if(group.userData.materialBars)group.userData.materialBars.forEach((m,i)=>{m.visible=(g.space.materials[islandOf(item)]??0)>i*10;});
     if(group.userData.extractionRotor&&[g.queue[0],...Object.values(g.npcs).map(p=>p.queue[0])].some(q=>q?.type==='extractMaterials'&&q.targetId===item.id&&q.phase==='acting'))group.userData.extractionRotor.rotation.y=time*2;
    }
-   atmosphere.update(time,weather,(1+Math.cos(island.rotation.x))/2,g.viewIsland==='spore');weatherEffects.update(time,weather);
+   atmosphere.update(ambientTime,weather,(1+Math.cos(island.rotation.x))/2,g.viewIsland==='spore');weatherEffects.update(ambientTime,weather);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
-   if(g.viewIsland!=='home'&&remoteTerrain&&animateVegetation)for(const t of Object.values(remoteTerrain))t.update(time,weather.wind,1-daylight);
+   if(g.viewIsland!=='home'&&remoteTerrain&&animateVegetation)for(const t of Object.values(remoteTerrain))t.update(ambientTime,weather.wind,1-daylight);
    const blessings=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].filter(a=>a?.type==='pray'&&a.phase==='celebrating');
    for(const item of g.objects)if(item.type==='spiritTree'){
-    const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update((quality.treeAnimation==='off'?0:time)+item.x*.7+item.z,sideOf(item),daylight,animateVegetation?weather.wind:0,livingSite(g,item).vitality/100);
+    const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update((quality.treeAnimation==='off'?0:ambientTime)+item.x*.7+item.z,sideOf(item),daylight,animateVegetation?weather.wind:0,livingSite(g,item).vitality/100);
     tree.updateBlessing(blessings.find(a=>a.targetId===item.id),camera);
    }
-   storyMoon.update(island.rotation.x,fairy,time,camera);
-   for(const {facets,phase}of [...crystalLights,...[...objectMeshes.values()].filter(o=>o.userData.crystalLight).map(o=>o.userData.crystalLight)])for(const m of facets){m.bio.time.value=time+phase;m.bio.strength.value=bioStrength*.7;}
+   storyMoon.update(island.rotation.x,fairy,ambientTime,camera);
+   for(const {facets,phase}of [...crystalLights,...[...objectMeshes.values()].filter(o=>o.userData.crystalLight).map(o=>o.userData.crystalLight)])for(const m of facets){m.bio.time.value=ambientTime+phase;m.bio.strength.value=bioStrength*.7;}
    for(const item of g.objects){const group=objectMeshes.get(item.id);if(group.userData.wonderVisual){const action=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].find(a=>a?.targetId===item.id&&a.phase==='acting'&&!a.hostId);group.userData.wonderVisual.update(item.wonder,{seconds:time,minutes:(g.day-1)*1440+g.minute},action);}}
-   for(const [i,plant]of swaying.entries())plant.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial){n.material.bio.time.value=time+i*.67+(n.material.name==='Pearl stem'?.7:0);n.material.bio.strength.value=bioStrength;}});
+   for(const [i,plant]of swaying.entries())plant.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial){n.material.bio.time.value=ambientTime+i*.67+(n.material.name==='Pearl stem'?.7:0);n.material.bio.strength.value=bioStrength;}});
    for(const item of g.objects){if(!CROPS[item.type])continue;const group=objectMeshes.get(item.id),health=item.plant.health/100,growth=item.plant.growth;
     group.userData.gardenBond?.update(g,item,time);
     group.userData.cropLight.update(time+item.x,health*(.2+growth*.5)*(1-daylight*.65));
     for(const crop of group.userData.cropVisual)crop.traverse(n=>{if(n.isMesh&&n.material instanceof BiolumeMaterial){n.material.bio.time.value=time+item.x;n.material.bio.strength.value=bioStrength*health*(.3+growth*.7);}else if(n.isMesh&&n.material.name==='Bioluminescence')n.material.emissiveIntensity=.22*health;});
    }
-   if(animateVegetation)swaying.forEach((o,i)=>{o.rotation.z=Math.sin(time*.42+i*1.7)*.018*(1+weather.wind);o.rotation.x=Math.cos(time*.31+i)*.012*(1+weather.wind);});
-   floating.forEach(({object,y,phase})=>{object.position.y=y+Math.sin(time*.27+phase)*.18;object.rotation.y=Math.sin(time*.1+phase)*.08;});
-   ripples.forEach((o,i)=>{const phase=(time*.12+i/3)%1,r=.3+phase*1.7;o.scale.set(r,r*.65,1);o.material.opacity=Math.sin(phase*Math.PI)*.5;});
+   if(animateVegetation)swaying.forEach((o,i)=>{o.rotation.z=Math.sin(ambientTime*.42+i*1.7)*.018*(1+weather.wind);o.rotation.x=Math.cos(ambientTime*.31+i)*.012*(1+weather.wind);});
+   floating.forEach(({object,y,phase})=>{object.position.y=y+Math.sin(ambientTime*.27+phase)*.18;object.rotation.y=Math.sin(ambientTime*.1+phase)*.08;});
+   ripples.forEach((o,i)=>{const phase=(ambientTime*.12+i/3)%1,r=.3+phase*1.7;o.scale.set(r,r*.65,1);o.material.opacity=Math.sin(phase*Math.PI)*.5;});
    const dark=(1-Math.cos(island.rotation.x))/2;
    createCrystalMesh.updateLight(daylight,dark);
    sun.intensity=(.65+daylight*1.95)*(1-dark*.75)*(1-weather.weights.rain*.22-weather.weights.mist*.12);
