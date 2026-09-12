@@ -1,7 +1,7 @@
 export const OCEAN_LAYOUT=[
- ['portal',-5.5,7],['pod',-11,3],['food',-5,-7.6],['shower',11.5,-1.4],
- ['lab',2.4,-7.7],['sofa',-1.5,-8.2],['music',11,5.5]
-].map(([type,x,z])=>({type,x,z,rotation:0}));
+ ['portal',-5.5,7,Math.PI],['pod',-11,3,0],['food',-5,-7.6,0],['shower',11.5,-1.4,-Math.PI/2],
+ ['lab',2.4,-7.7,0],['sofa',-1.5,-8.2,-Math.PI/2],['music',11,5.5,0]
+].map(([type,x,z,rotation])=>({type,x,z,rotation}));
 export const OCEAN_ITEMS=[
  {id:'oceanPearlLamp',name:'潮汐珍珠灯',pack:'珊瑚浅湾',price:120,icon:'Lamp',action:null,desc:'贝壳托起冷白珍珠 · 可移动照明'},
  {id:'oceanShellPlanter',name:'珊瑚贝壳盆景',pack:'珊瑚浅湾',price:90,icon:'Flower2',action:null,desc:'粉珊瑚与海草 · 可自由布置'},
