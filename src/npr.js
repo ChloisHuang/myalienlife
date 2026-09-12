@@ -78,12 +78,18 @@ export function stylizeAsset(source,{character=false}={}){
  });
 }
 export function createPostProcessing(renderer,scene,camera,{bloomStrength=.28,bloomRadius=.65}={}){
- // Bloom and output only sample color; keep scene depth testing but skip its unused resolve.
+ // Keep the original 4x MSAA scene quality. Depth is required while rendering geometry but is not sampled later.
  const target=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4,resolveDepthBuffer:false,resolveStencilBuffer:false});
  const composer=new EffectComposer(renderer,target);composer.addPass(new RenderPass(scene,camera));
  const bloom=new UnrealBloomPass(new THREE.Vector2(1,1),bloomStrength,bloomRadius,1.15);
  for(const target of [bloom.renderTargetBright,...bloom.renderTargetsHorizontal,...bloom.renderTargetsVertical])target.depthBuffer=false;
  composer.addPass(bloom);composer.addPass(new OutputPass());
+ let pixelRatio=renderer.getPixelRatio();
+ composer.syncSize=(width,height)=>{
+  const nextRatio=renderer.getPixelRatio();
+  if(nextRatio!==pixelRatio){pixelRatio=nextRatio;composer.setPixelRatio(pixelRatio);}
+  composer.setSize(width,height);
+ };
  return composer;
 }
 

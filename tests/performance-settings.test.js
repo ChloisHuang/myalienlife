@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
  DEVICE_CLASSES,
  QUALITY_LEVELS,
+ createDynamicResolutionController,
  detectDeviceClass,
  getQualityProfile,
  scoreDevice,
@@ -50,4 +51,40 @@ test('device score rewards CPU, memory, and a modern GPU without exceeding 100',
  assert.ok(high>low);
  assert.ok(high<=100);
  assert.ok(low>=0);
+});
+
+test('dynamic resolution lowers pixel ratio only after sustained slow frames',()=>{
+ const controller=createDynamicResolutionController({devicePixelRatio:2,maxPixelRatio:1.75,warmupMs:0,sampleCount:10,downCooldownMs:0,upCooldownMs:0});
+ for(let i=0;i<9;i++)assert.equal(controller.sample(34,i*34),null);
+ assert.equal(controller.sample(34,9*34),1.6);
+ assert.equal(controller.pixelRatio,1.6);
+});
+
+test('dynamic resolution ignores isolated long frames and uses hysteresis before recovering quality',()=>{
+ const controller=createDynamicResolutionController({devicePixelRatio:2,maxPixelRatio:1.75,warmupMs:0,sampleCount:10,downCooldownMs:0,upCooldownMs:0});
+ for(const [i,frameMs] of [16,16,16,16,120,16,16,16,16,16].entries())controller.sample(frameMs,i*16);
+ assert.equal(controller.pixelRatio,1.75);
+ for(let i=0;i<10;i++)controller.sample(34,1000+i*34);
+ assert.equal(controller.pixelRatio,1.6);
+ for(let i=0;i<10;i++)controller.sample(20,2000+i*20);
+ assert.equal(controller.pixelRatio,1.6);
+ for(let i=0;i<10;i++)controller.sample(16,3000+i*16);
+ assert.equal(controller.pixelRatio,1.7);
+});
+
+test('dynamic resolution never exceeds the quality/device ceiling or drops below 1x',()=>{
+ const controller=createDynamicResolutionController({devicePixelRatio:2,maxPixelRatio:1.75,warmupMs:0,sampleCount:4,downCooldownMs:0,upCooldownMs:0});
+ for(let batch=0;batch<10;batch++)for(let i=0;i<4;i++)controller.sample(40,batch*100+i*40);
+ assert.equal(controller.pixelRatio,1);
+ for(let batch=0;batch<20;batch++)for(let i=0;i<4;i++)controller.sample(10,5000+batch*100+i*10);
+ assert.equal(controller.pixelRatio,1.75);
+ const standardDpr=createDynamicResolutionController({devicePixelRatio:1,maxPixelRatio:1.75,warmupMs:0,sampleCount:4,downCooldownMs:0,upCooldownMs:0});
+ for(let i=0;i<20;i++)standardDpr.sample(40,i*40);
+ assert.equal(standardDpr.pixelRatio,1);
+});
+
+test('default dynamic resolution converges quickly when high-DPI rendering is persistently slow',()=>{
+ const controller=createDynamicResolutionController({devicePixelRatio:2,maxPixelRatio:1.75});
+ for(let i=0;i<125;i++)controller.sample(40,i*40);
+ assert.ok(controller.pixelRatio<=1.15,`expected <= 1.15 after 5s of sustained 25 FPS, got ${controller.pixelRatio}`);
 });

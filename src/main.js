@@ -1,7 +1,9 @@
 import {layoutPoint,layoutSize} from './viewport.js';
 import {applyCommand} from './game-commands.js';
 import {livingResident,livingSite,supportedIsland} from './living-state.js';
-import {livingAppearance,livingSummary} from './living-adaptation.js';
+import {livingSummary} from './living-adaptation.js';
+import {createPortraitCache} from './portrait-cache.js';
+import {portraitAppearanceKey} from './portrait-appearance.js';
 import {LIVING_ACTIONS,LIVING_SOCIAL,livingOptions,livingError,relationLabel} from './living-world.js';
 import {Handshake,MessageCircleWarning} from 'lucide';
 import {createPresentation} from './presentation.js';
@@ -41,6 +43,7 @@ import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,CAREERS,missi
 import {GENDERS,SKILLS,STAGES,isSeating,lifeStage,skillProgress} from './characters.js';
 import {getLanguage,localizePage,toggleLanguage,translateText,translateHtml} from './i18n.js';
 import {detectDeviceInfo,detectDeviceClass,scoreDevice,getQualityProfile,QUALITY_LEVELS,QUALITY_LABELS,DEVICE_LABELS} from './performance-settings.js';
+import {afterPaint,deferAfterPaint} from './startup-scheduling.js';
 
 const $=s=>document.querySelector(s);
 const UFO_BUILD_ACTIONS=new Set(['buildUfo1','buildUfo2','buildUfo3']);
@@ -91,7 +94,7 @@ const fmt=n=>Math.floor(n).toLocaleString('zh-CN');
 const buttons=(items)=>items.map(([label,i,attr])=>`<button ${attr} title="${label}" aria-label="${label}">${icon(i)}</button>`).join('');
 const languageButtonLabel=getLanguage()==='zh'?'EN':'中';
 
-$('#app').innerHTML=translateHtml(`
+$('#app').innerHTML=`
  <div id="world" aria-label="可交互的外星家园 3D 场景"></div>
  <header class="topbar">
   <a class="brand" href="/" aria-label="星外日常">${icon('Orbit')}<div><b>星外日常<span>ORBIT LIFE</span></b><small>在宇宙的一角，好好生活。</small></div></a>
@@ -118,8 +121,11 @@ $('#app').innerHTML=translateHtml(`
  <div id="loading"><div class="loading-orbit">${icon('Orbit')}</div><h2>正在降落露米纳星湾</h2><p>唤醒居民，点亮蘑菇，准备新的日常…</p></div>
   <dialog id="help-dialog"><button class="dialog-close" aria-label="关闭指南">${icon('X')}</button><span class="eyebrow">欢迎来到露米纳</span><h2>你的生活，由你安排。</h2><p>你是凯伊，一位刚刚搬来星湾的外星居民。照顾自己、认识邻居、布置家园，再找到一份喜欢的工作。</p><div class="help-grid"><div>${icon('MousePointer2')}<b>点一点，开始生活</b><p>点击人物或物品选择互动；点击空地行走。可以连续安排 6 个行动。</p></div><div>${icon('HeartPulse')}<b>照顾六种需求</b><p>吃饭、星眠、净化、休息、跳舞与社交，会影响你的心情。</p></div><div>${icon('Hammer')}<b>打造异星小家</b><p>B 打开建造，选择家具后点击空地摆放。R 旋转，Esc 取消。建造中点击家具可出售。</p></div><div>${icon('BriefcaseBusiness')}<b>找到银河里的工作</b><p>职业页选择方向，在研究台完成班次赚取星币。入职和晋升都需要达到对应技能门槛。</p></div></div><div class="shortcut-row"><span><kbd>空格</kbd> 暂停</span><span><kbd>1 / 3</kbd> 时间速度</span><span>右键拖动旋转 · 中键平移 · 滚轮缩放</span></div><p class="save-note">每 60 秒保存到服务器文件，离开页面或刷新前也会保存。不同浏览器共享同一份进度；右上角显示保存状态。</p><button class="primary dialog-close">开始我的异星日常 ${icon('ArrowRight')}</button></dialog>
  <dialog id="config-dialog" aria-labelledby="config-title"><button class="dialog-close" aria-label="关闭参数配置">${icon('X')}</button><span class="eyebrow">星湾运行规则</span><h2 id="config-title">参数配置</h2><p>这里展示当前运行中的时间、生命、需求、动作、职业、经济与作物参数。</p><div id="config-content"></div><div class="config-dialog-actions"><button id="restart-epoch" class="island-destroy" type="button">重启纪元（删档）</button><button id="config-project-default" type="button">永久覆盖项目配置</button><button class="primary dialog-close" type="button">关闭参数配置</button></div></dialog>
-`);
+`;
+const loading=$('#loading');for(const element of loading.querySelectorAll('h2,p'))element.textContent=translateText(element.textContent);
+await afterPaint();
 localizePage();
+await afterPaint();
 
 function toast(message){$('#toast').innerHTML=`${icon('Sparkles')} ${translateText(message)}`;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,3500);}
 async function save(manual=false,leaving=false){
@@ -235,7 +241,7 @@ function clearIslandSelectorTimers(){
 function syncIslandSelectorState(){
  const locations=$('.locations'),open=islandSelectorState==='open',expanding=['undocking','opening','open'].includes(islandSelectorState);document.body.classList.toggle('mobile-island-selector-open',expanding);
  if(!locations)return;locations.dataset.selectorState=islandSelectorState;locations.dataset.announceContinuous=String(islandAnnouncementContinuous);locations.classList.toggle('is-expanded',open);
- if(open&&world)void world.prepareIslandPreviews();
+ if(open&&world)void deferAfterPaint(()=>world.prepareIslandPreviews()).catch(error=>console.error('星岛预览生成失败',error));
  const toggle=locations.querySelector('[data-island-toggle]'),sheet=locations.querySelector('.island-card-sheet'),launcher=locations.querySelector('[data-island-mobile-launcher]');
  if(toggle){toggle.setAttribute('aria-expanded',String(expanding));toggle.setAttribute('aria-label',expanding?'收起星岛列表':'展开星岛列表');}
  if(sheet)sheet.hidden=!open;
@@ -332,14 +338,20 @@ async function applyConfig(event){
 async function resetConfig(){if(!(await command('config',normalizeConfig())).ok)return;lastPanel='';refresh();renderConfig();renderQualityControls();localizePage();toast('已恢复默认参数，点击应用并保存配置后持久化。');}
 async function persistProjectConfig(){if(!confirm('将当前参数永久覆盖为项目默认配置，之后新建的星湾会使用这些参数。确定继续吗？'))return;try{hosted?await online.mutate('/api/project-config'):await persistence.saveProjectConfig(game.config);toast('当前配置已固化为项目默认配置。');}catch(error){console.error('项目配置保存失败',error);toast('项目配置保存失败，请检查游戏服务。');}}
 async function startNewLife(){
- if(epochRestarting||hosted&&!online.canOperate)return;epochRestarting=true;const speed=game.speed;if(!hosted)game.speed=0;
+ if(epochRestarting||hosted&&!online.canOperate)return;epochRestarting=true;portraitCache.clear();const speed=game.speed;if(!hosted)game.speed=0;
  try{game=hosted?(await online.mutate('/api/new-game')).state:await persistence.createNewGame();saveBlocked=false;$('#save-status').dataset.state='saved';$('#save-status').textContent='新纪元已保存 · 从第 1 天开始';selectedResident='player';portraitKey='';lastPanel='';lastMajorEvents='';selectedItem=null;build=false;world.setBuild(null);$('#build-button').classList.remove('active');$('#build-hint').hidden=true;document.querySelectorAll('dialog[open]').forEach(d=>d.close());closeContext();closeCharacterSwitcher();world.resetCamera();changeTab('needs');refresh();toast('纪元已重启，从第 1 天重新开始。');}
  catch(error){game.speed=speed;console.error('重启纪元失败',error);toast('重启失败，当前进度未替换；请检查存档服务。');}
  finally{epochRestarting=false;}
 }
+const portraitCache=createPortraitCache(id=>world.portrait(id));
 function refreshPortraits(){
- if(!world)return;const activeId=activeResidentId(),others=neighbors(game),switchable=[...others].sort((a,b)=>b.age-a.age),entries=[{id:activeId,person:game.player},...others.map(n=>({id:n.id,person:game.npcs[n.id]}))],key=`${activeId}|${JSON.stringify(game.config.lifeStages)}|${entries.map(({id,person})=>`${id}-${person.uid}-${person.name}-${person.alive}-${person.gender}-${Math.floor(person.age)}-${lifeStage(person.age,game.config.lifeStages)}-${JSON.stringify(person.genome)}-${JSON.stringify(person.prayer)}-${person.devotion}-${JSON.stringify(livingAppearance(livingResident(game,person)))}`).join('|')}`;if(key===portraitKey)return;portraitKey=key;
- portraits=Object.fromEntries(entries.map(({id})=>[id,world.portrait(id===activeId?'player':id)]));portraits.player=portraits[activeId];$('.neighbors .card-label span').textContent=`${others.length} 位居民`;
+ if(!world)return;
+ const activeId=activeResidentId(),others=neighbors(game),switchable=[...others].sort((a,b)=>b.age-a.age);
+ const entries=[{id:activeId,person:game.player},...others.map(n=>({id:n.id,person:game.npcs[n.id]}))].map(entry=>({...entry,appearance:portraitAppearanceKey(game,entry.person,entry.id===activeId)}));
+ const key=JSON.stringify([activeId,game.config.lifeStages,entries.map(({id,person,appearance})=>[id,person.uid,person.name,person.alive,person.gender,Math.floor(person.age),person.prayer,person.devotion,appearance])]);
+ if(key===portraitKey)return;
+ portraitCache.retain(new Set(entries.map(({person})=>person.uid)));
+ portraits=Object.fromEntries(entries.map(({id,person,appearance})=>[id,portraitCache.get(person.uid,appearance,id===activeId?'player':id)]));portraitKey=key;portraits.player=portraits[activeId];$('.neighbors .card-label span').textContent=`${others.length} 位居民`;
   $('#character-switcher').innerHTML=switchable.map(n=>`<button type="button" class="character-option" data-character="${n.id}" role="menuitem" aria-label="切换到${n.name}"><img src="${portraits[n.id]}" alt="${n.name}"/><span><strong>${n.name}</strong><small>${Math.floor(n.age)} 星岁</small></span></button>`).join('');$('#active-character').setAttribute('aria-label',`切换主控居民，当前是${game.player.name}`);
   $('#neighbor-portraits').innerHTML=others.map(n=>`<button data-dossier="${game.npcs[n.id].uid}" title="${n.name} · ${GENDERS[game.npcs[n.id].gender]} · ${STAGES[lifeStage(game.npcs[n.id].age,game.config.lifeStages)]}" aria-label="查看${n.name}的档案"><img src="${portraits[n.id]}" alt="${n.name}"/><span>${n.name}</span><i></i></button>`).join('');lastPanel='';
 }
@@ -702,7 +714,6 @@ try{
   async onPlace(type,x,z,rotation){const result=await buyItem(game,type,x,z,rotation);if(result.ok){toast(type==='mushroom'?'已安排人物前往种植。':`${ITEMS.find(i=>i.id===type).name}已放入家园。`);cancelPlacement();refresh();}else toast(result.message);},
   qualityProfile,independentAmbient:hosted
  });
- await world.prepareIslandPreviews();
  refreshPortraits();
  $('#loading').hidden=true;refresh();announceIslandSelector();
  let previous=performance.now(),uiElapsed=0,frameWindow=window,frameId;

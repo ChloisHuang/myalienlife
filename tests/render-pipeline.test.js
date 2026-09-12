@@ -14,19 +14,14 @@ test('scene keeps four-sample antialiasing and the original bloom settings',()=>
  for(const pass of composer.passes)pass.dispose();composer.dispose();
 });
 
-test('multisampling keeps scene depth testing without copying unused depth into postprocessing',()=>{
- const renderer={getPixelRatio:()=>1.75,getSize:size=>size.set(1440,1000)};
+test('composer syncSize follows renderer DPR changes instead of keeping the startup ratio',()=>{
+ let ratio=1.75;const renderer={getPixelRatio:()=>ratio,getSize:size=>size.set(1440,1000)};
  const composer=createPostProcessing(renderer,new Scene(),new OrthographicCamera());
- for(let frame=0;frame<3;frame++){
-  assert.equal(composer.readBuffer.samples,4,'every scene frame retains MSAA');
-  assert.equal(composer.readBuffer.depthBuffer,true,'geometry retains depth testing');
-  assert.equal(composer.readBuffer.resolveDepthBuffer,false,'postprocessing does not sample depth');
-  assert.equal(composer.readBuffer.resolveStencilBuffer,false);
-  for(const pass of composer.passes){
-   if(pass.needsSwap)composer.swapBuffers();
-  }
- }
- composer.setSize(390,844);
- assert.equal(composer.readBuffer.samples,4);
+ composer.syncSize(400,300);
+ assert.deepEqual([composer.readBuffer.width,composer.readBuffer.height],[700,525]);
+ ratio=1;
+ composer.syncSize(400,300);
+ assert.deepEqual([composer.readBuffer.width,composer.readBuffer.height],[400,300]);
+ assert.equal(composer.readBuffer.samples,4,'DPR sync does not lower MSAA quality');
  for(const pass of composer.passes)pass.dispose();composer.dispose();
 });

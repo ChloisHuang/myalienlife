@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {appearance,localToWorld,groundHeight,SOFA_SEATS} from './characters.js';
 import {StarToonMaterial} from './npr.js';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
+import {skinCurveArcDivisions,updateSkinBoneMatrix} from './skin-curve-quality.js';
 
 const SIDES=['Left','Right'];
 const NODES=['Core','Head','TorsoBone','HeadBone',...SIDES.flatMap(s=>['Antenna','TendrilBase','TendrilGuide','TendrilBend','TendrilWrist','TendrilTip','LegBase','LegGuide','LegBend','LegAnkle','LegTip'].map(n=>s+n))];
@@ -13,9 +14,9 @@ function poseSkin(rig,limb){
  for(let i=0;i<limb.anchors.length;i++)rig.body.worldToLocal(limb.anchors[i].getWorldPosition(limb.curve.points[i]));
  limb.curve.updateArcLengths();const bodyRotation=rig.body.getWorldQuaternion(new THREE.Quaternion());
  for(let i=0;i<limb.bones.length;i++){
-  const t=i/(limb.bones.length-1),bone=limb.bones[i],worldPoint=rig.body.localToWorld(limb.curve.getPointAt(t));
-  const orientation=new THREE.Quaternion().setFromUnitVectors(limb.restTangents[i],limb.curve.getTangentAt(t)).multiply(limb.restRotations[i]).premultiply(bodyRotation);
-  bone.position.copy(bone.parent.worldToLocal(worldPoint));bone.quaternion.copy(bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(orientation));bone.updateMatrixWorld(true);
+  const u=i/(limb.bones.length-1),t=limb.curve.getUtoTmapping(u),bone=limb.bones[i],worldPoint=rig.body.localToWorld(limb.curve.getPoint(t));
+  const orientation=new THREE.Quaternion().setFromUnitVectors(limb.restTangents[i],limb.curve.getTangent(t)).multiply(limb.restRotations[i]).premultiply(bodyRotation);
+  bone.position.copy(bone.parent.worldToLocal(worldPoint));bone.quaternion.copy(bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(orientation));updateSkinBoneMatrix(bone);
  }
 }
 
@@ -25,8 +26,7 @@ export function createCharacter(source,spec){
  const limbs={};root.updateMatrixWorld(true);const inverseBodyRotation=body.getWorldQuaternion(new THREE.Quaternion()).invert();
  for(const side of SIDES)for(const kind of ['Tendril','Leg']){
   const name=side+kind,mesh=body.getObjectByName('BodySkin'),anchors=(kind==='Leg'?['Base','Guide','Bend','Ankle','Tip']:['Base','Guide','Bend','Wrist','Tip']).map(n=>joints[name+n]);
-  const curve=new THREE.CatmullRomCurve3(anchors.map(a=>body.worldToLocal(a.getWorldPosition(new THREE.Vector3()))));
-  const bones=Array.from({length:9},(_,i)=>body.getObjectByName(name+'Bone'+i));
+  const bones=Array.from({length:9},(_,i)=>body.getObjectByName(name+'Bone'+i)),curve=new THREE.CatmullRomCurve3(anchors.map(a=>body.worldToLocal(a.getWorldPosition(new THREE.Vector3()))));curve.arcLengthDivisions=skinCurveArcDivisions(bones.length);
   limbs[name]={mesh,curve,anchors,bones,restTangents:bones.map((_,i)=>curve.getTangentAt(i/8)),restRotations:bones.map(b=>b.getWorldQuaternion(new THREE.Quaternion()).premultiply(inverseBodyRotation))};
  }
  const rest=new Map();body.traverse(n=>{rest.set(n,{position:n.position.clone(),quaternion:n.quaternion.clone(),scale:n.scale.clone()});if(n.isMesh){n.castShadow=true;n.receiveShadow=true;n.material=n.material.clone();if(n.material.name==='Alien skin')n.material.color.set(spec.color);}});

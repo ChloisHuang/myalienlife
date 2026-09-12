@@ -16,3 +16,4 @@ id_rsa
 id_ed25519
 artifacts/performance
 artifacts/*.png
+docs/*.md

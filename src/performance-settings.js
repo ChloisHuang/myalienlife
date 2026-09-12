@@ -22,6 +22,43 @@ const PROFILES={
 };
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const roundRatio=value=>Math.round(value*100)/100;
+
+export function createDynamicResolutionController({
+ devicePixelRatio=1,
+ maxPixelRatio=1,
+ minPixelRatio=1,
+ warmupMs=1000,
+ sampleCount=24,
+ downThresholdMs=22,
+ upThresholdMs=17.5,
+ downRatio=.7,
+ upRatio=.85,
+ downStep=.15,
+ upStep=.1,
+ downCooldownMs=500,
+ upCooldownMs=6000,
+}={}){
+ const ceiling=roundRatio(Math.max(.5,Math.min(Number(devicePixelRatio)||1,Number(maxPixelRatio)||1)));
+ const floor=roundRatio(Math.min(ceiling,Math.max(.5,Number(minPixelRatio)||1)));
+ let pixelRatio=ceiling,startedAt=null,lastChangedAt=-Infinity,samples=[];
+ return {
+  get pixelRatio(){return pixelRatio;},
+  sample(frameMs,now=globalThis.performance?.now?.()??Date.now()){
+   if(!Number.isFinite(frameMs)||frameMs<=0)return null;
+   if(startedAt===null)startedAt=now;
+   samples.push(frameMs);if(samples.length>sampleCount)samples.shift();
+   if(now-startedAt<warmupMs||samples.length<sampleCount)return null;
+   const slow=samples.filter(value=>value>=downThresholdMs).length/sampleCount;
+   const fast=samples.filter(value=>value<=upThresholdMs).length/sampleCount;
+   let next=pixelRatio;
+   if(slow>=downRatio&&pixelRatio>floor&&now-lastChangedAt>=downCooldownMs)next=Math.max(floor,roundRatio(pixelRatio-downStep));
+   else if(fast>=upRatio&&pixelRatio<ceiling&&now-lastChangedAt>=upCooldownMs)next=Math.min(ceiling,roundRatio(pixelRatio+upStep));
+   if(next===pixelRatio)return null;
+   pixelRatio=next;lastChangedAt=now;samples=[];return pixelRatio;
+  },
+ };
+}
 
 function mobileOsVersion(userAgent){
  const ios=String(userAgent).match(/OS (\d+)[._]/i),android=String(userAgent).match(/Android\s+(\d+)/i);

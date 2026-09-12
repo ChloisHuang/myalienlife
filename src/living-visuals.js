@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {instanceTrailGrowth} from './trail-batching.js';
 import {StarToonMaterial} from './npr.js';
 import {groundHeight} from './characters.js';
 import {islandOf,sideOf,sameSide} from './island.js';
@@ -101,11 +102,13 @@ export function createLivingTrailVisual(side){
   growth.add(stem);
  }
  for(let i=0;i<9;i++){const step=new THREE.Mesh(stone,glow),x=trail.x-1.25+i*.31;step.position.set(x,groundHeight(x,trail.z,side,'spore')+.04,trail.z+(i%2?.13:-.13));steps.add(step);}
+ const instances=instanceTrailGrowth(growth);root.add(instances.root);
  let openness=null;
  return {root,growth,steps,update(g,time,delta){
   root.visible=g.viewIsland==='spore';if(!root.visible)return;
   const open=visibleTrail(g,trail)?1:0;openness=openness===null?open:openness+(open-openness)*Math.min(1,delta*4);
   for(const stem of growth.children){const {x,sign,offset}=stem.userData;stem.position.set(x,groundHeight(x,trail.z,side,'spore'),trail.z+sign*offset);stem.rotation.x=sign*openness*1.05;stem.rotation.z=Math.sin(time*1.2+x*3+offset*9)*.06;}
+  instances.update();
   steps.visible=side==='back';glow.opacity=side==='back'?openness*.6:0;
- },dispose(){dispose(root);}};
+ },dispose(){instances.dispose();dispose(root);}};
 }
