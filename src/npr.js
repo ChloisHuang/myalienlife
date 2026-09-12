@@ -137,7 +137,8 @@ export function createBioluminescence(parent,{radius,height,color,count=7}){
 
 export function createAtmosphere(scene,camera,random){
  const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1},storybook={value:0},ocean={value:0};
- let enteringWater=false;
+ let enteringWater=false,immersionStart=null,immersionEnd=null;
+ const bubbleAge={value:0},bubbleStopAge={value:0};
  // Fill the viewport directly so zooming cannot crop away the nebula's detail.
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
   uniforms:{time,cloudCover,front,aspect,storybook,ocean},depthWrite:false,depthTest:false,
@@ -190,21 +191,25 @@ export function createAtmosphere(scene,camera,random){
    }`}));
  sky.frustumCulled=false;sky.renderOrder=-100;camera.add(sky);scene.add(camera);
  const immersion=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
-  uniforms:{time,front,aspect,ocean},transparent:true,depthTest:false,depthWrite:false,
+  uniforms:{bubbleAge,bubbleStopAge,aspect},transparent:true,depthTest:false,depthWrite:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`uniform float time,front,aspect,ocean;varying vec2 vUv;${noiseGLSL}
+  fragmentShader:`uniform float bubbleAge,bubbleStopAge,aspect;varying vec2 vUv;${noiseGLSL}
    void main(){
-    float strength=ocean*pow(4.*front*(1.-front),.7);vec2 p=vec2(vUv.x*aspect,vUv.y);float foam=0.;
+    vec2 p=vec2(vUv.x*aspect,vUv.y);float foam=0.;
     for(int i=0;i<28;i++){
      float id=float(i);float r=.009+.018*hash(vec2(id,8.));
-     vec2 center=vec2(hash(vec2(id,3.))*aspect,fract(hash(vec2(id,5.))+time*(.13+r))*(1.+4.*r)-2.*r);
+     float seed=hash(vec2(id,5.)),speed=.13+r;
+     // Freeze each spawn cycle at the cutoff, while existing bubbles keep rising.
+     float cycle=floor(seed+min(bubbleAge,bubbleStopAge)*speed);
+     float height=seed+bubbleAge*speed-cycle;
+     vec2 center=vec2(hash(vec2(id,3.))*aspect,height*(1.+4.*r)-2.*r);
      vec2 q=(p-center)/r;float d=length(q);
      float aa=max(fwidth(d),.015);
      float ring=(1.-smoothstep(.89-aa,.89+aa,d))*smoothstep(.76-aa,.76+aa,d);
      float highlight=ring*step(.15,q.y)*step(q.x,-.1);
      foam+=ring*.25+highlight*.55;
     }
-    gl_FragColor=vec4(.64,.92,.96,min(.8,foam)*strength);
+    gl_FragColor=vec4(.64,.92,.96,min(.8,foam));
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
    }`}));
@@ -234,5 +239,17 @@ export function createAtmosphere(scene,camera,random){
  particles(850,false);const near=particles(100,true);
  function setQuality(profile){near.geometry.setDrawRange(0,Math.floor(100*profile.weatherDensity));}
  setQuality({weatherDensity:1});
- return {setQuality,update(t,weather,frontAmount,isStorybook=false,isOcean=false){ocean.value=isOcean?1:0;if(Math.abs(frontAmount-front.value)>.00001)enteringWater=frontAmount<front.value;immersion.visible=isOcean&&enteringWater&&frontAmount>.001&&frontAmount<.999;storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;}};
+ return {setQuality,update(t,weather,frontAmount,isStorybook=false,isOcean=false){
+  if(!isOcean||ocean.value===0)enteringWater=false;
+  else if(Math.abs(frontAmount-front.value)>.00001)enteringWater=frontAmount<front.value;
+  if(!isOcean||!enteringWater||frontAmount>=.999){immersionStart=null;immersionEnd=null;}
+  else{
+   if(immersionStart===null&&frontAmount>.001)immersionStart=t;
+   if(immersionStart!==null&&frontAmount<=.001&&front.value>.001)immersionEnd=t;
+  }
+  bubbleAge.value=immersionStart===null?0:t-immersionStart;
+  bubbleStopAge.value=immersionEnd===null?bubbleAge.value:immersionEnd-immersionStart;
+  immersion.visible=immersionStart!==null&&(immersionEnd===null||t<immersionEnd+1/.139);
+  ocean.value=isOcean?1:0;storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;
+ }};
 }

@@ -44,6 +44,7 @@ M['mermaidSkin'] = material('mermaid skin', 'F2D6C6')
 M['mermaidTail'] = material('mermaid turquoise scales', '51AFB1')
 M['mermaidHair'] = material('mermaid flowing hair', 'DF6678')
 M['mermaidShell'] = material('mermaid blue shells', '59B9ED')
+M['wreckShadow'] = material('sunken ship silhouette', '163A42')
 SHORE_PATCHES=[(-10,4,1.3,.7),(-6,-7,1.7,.6),(3,-8,1.3,.65),(11,1,1.1,.8),(-11,-4,1.2,.7),(1,8.5,1,.5)]
 
 def xyz(p):
@@ -604,8 +605,17 @@ def wreck():
     for i in range(8):ball((chest_x+.28*math.sin(i*3),.79,chest_z+.2*math.cos(i*2)),(.095,.05,.08),'treasure')
     treasure=set(bpy.context.scene.objects)-treasure_before
     mesh('fallen pirate pennant',[(x+.4,.48,z+.6),(x+1.2,.48,z+.9),(x+1,.48,z+1.15),(x+1.1,.48,z+1.4),(x+.3,.48,z+1.1)],[(0,1,2,3,4)],'dark')
-    sail=[(x-1.35,2.86,z-.2),(x-.45,2.86,z-.2),(x-.62,2.37,z+.04),(x-.9,2.48,z+.12),(x-1.1,1.95,z+.12)]
-    mesh('tattered sail',sail,[tuple(range(len(sail)))],'stone')
+    for dz,height,width in [(-.85,4.9,1.35),(1.1,4.1,1.05)]:
+        rod((x,1.1,z+dz),(x-.25,height+.25,z+dz),.075,'wreckShadow')
+        for top,span in [(height,width),(height-.95,width*.85)]:
+            rod((x-span*.7,top,z+dz-span*.7),(x+span*.7,top,z+dz+span*.7),.055,'wreckShadow')
+            sail=[(x-span*.7,top,z+dz-span*.7),(x+span*.7,top,z+dz+span*.7)]
+            for i in range(9):
+                u=1-i/4
+                sail.append((x+span*u*.7,top-.62+(.20 if i%2 else 0),z+dz+span*u*.7+.16*(1-u*u)))
+            mesh('ragged silhouette sail',sail,[tuple(range(len(sail)))],'wreckShadow')
+        for sign in [-1,1]:
+            curve([(x+sign*.85,1.5,z+dz+sign*.55),(x-.25,height+.2,z+dz)],.016,'wreckShadow')
     for dx,dz in [(-1.25,1.3),(1.1,-1.8)]:coral(x+dx,.3,z+dz,.55,'teal')
     for j in range(9):
         t=(j-4)/4;w=1.15*math.sqrt(max(.04,1-t*t))
@@ -613,15 +623,14 @@ def wreck():
     for sign in [-1,1]:
         for y in [.9,1.2,1.55]:
             curve([(x+sign*1.12*math.sqrt(max(.03,1-t*t)),y,z+t*2.5) for t in [i/8 for i in range(-8,9)]],.08,'wood')
-    rod((x,.4,z),(x-.25,2.2,z-.3),.1,'wood')
-    rod((x-.25,2.2,z-.3),(x-1.5,3.2,z+.3),.085,'wood')
-    rod((x-1.5,2.9,z-.2),(x-.4,2.9,z-.2),.07,'wood')
-    rod((x+.3,.34,z+.4),(x+2.4,.45,z+1.9),.09,'wood')
+    rod((x,1.3,z+2),(x,2.35,z+3.5),.08,'wreckShadow')
     for sign in [-1,1]:
         curve([(x+sign,1.4,z+1.5),(x-.7,1.8,z-.3),(x+sign,1.4,z-1.5)],.02,'stone')
     pivot=Vector(xyz((x,.4,z)))
-    transform=Matrix.Translation(pivot+Vector((0,0,-.22))) @ Matrix.Rotation(math.radians(14),4,'Y') @ Matrix.Translation(-pivot)
-    for o in set(bpy.context.scene.objects)-before-treasure:o.matrix_world=transform @ o.matrix_world
+    transform=Matrix.Translation(pivot+Vector((0,0,-.22))) @ Matrix.Rotation(math.radians(-45),4,'Z') @ Matrix.Rotation(math.radians(14),4,'Y') @ Matrix.Scale(1.3,4) @ Matrix.Translation(-pivot)
+    for o in set(bpy.context.scene.objects)-before-treasure:
+        o.data.materials.clear();o.data.materials.append(M['wreckShadow'])
+        o.matrix_world=transform @ o.matrix_world
 
 def fountain(dark):
     x,z=10,4

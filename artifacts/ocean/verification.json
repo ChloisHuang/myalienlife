@@ -2,38 +2,38 @@
   {
     "name": "desktop",
     "side": "front",
-    "calls": 459,
-    "triangles": 1532718,
-    "geometries": 193,
-    "colors": 8489
+    "calls": 454,
+    "triangles": 1533196,
+    "geometries": 191,
+    "colors": 8545
   },
   {
     "name": "desktop",
     "side": "back",
-    "calls": 474,
-    "triangles": 1523638,
-    "geometries": 197,
-    "colors": 5257
+    "calls": 469,
+    "triangles": 1524116,
+    "geometries": 195,
+    "colors": 5126
   },
   {
     "name": "mobile",
     "side": "front",
-    "calls": 459,
-    "triangles": 1532718,
-    "geometries": 193,
-    "colors": 2067
+    "calls": 454,
+    "triangles": 1533196,
+    "geometries": 191,
+    "colors": 2085
   },
   {
     "name": "mobile",
     "side": "back",
-    "calls": 475,
-    "triangles": 1554038,
-    "geometries": 197,
-    "colors": 1624
+    "calls": 470,
+    "triangles": 1554516,
+    "geometries": 195,
+    "colors": 1615
   },
   {
     "name": "live-game-back",
     "moving": true,
-    "fps": 50.274679540498624
+    "fps": 46.24277456647399
   }
 ]

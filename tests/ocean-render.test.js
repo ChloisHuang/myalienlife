@@ -92,6 +92,24 @@ test('ocean atmosphere selects its own underwater sky instead of the default sta
  assert.equal(sky.material.uniforms.ocean.value,0);
 });
 
+test('entry bubbles stop spawning when the flip ends and drain offscreen',()=>{
+ globalThis.devicePixelRatio=1;
+ const scene=new Scene(),camera=new OrthographicCamera(-20,20,15,-15),a=createAtmosphere(scene,camera,()=>.5);
+ const weather={weights:{rain:0,mist:0,spores:0},wind:0};
+ a.update(0,weather,1,false,true);a.update(.5,weather,.5,false,true);a.update(1,weather,0,false,true);
+ const bubbles=camera.getObjectByName('ocean-immersion-bubbles');assert.equal(bubbles.visible,true);
+ a.update(1.25,weather,0,false,true);assert.equal(bubbles.visible,true);
+ const uniforms=bubbles.material.uniforms;
+ assert.equal(uniforms.bubbleStopAge.value,.5);
+ a.update(1.5,weather,0,false,true);assert.equal(bubbles.visible,true);
+ a.update(2.5,weather,0,false,true);assert.equal(bubbles.visible,true);
+ assert.equal(uniforms.bubbleAge.value,2);assert.equal(uniforms.bubbleStopAge.value,.5);
+ a.update(9,weather,0,false,true);assert.equal(bubbles.visible,false);
+ a.update(10,weather,.5,false,true);assert.equal(bubbles.visible,false);
+ a.update(11,weather,1,false,true);a.update(12,weather,.5,false,true);
+ a.update(12.1,weather,0,false,false);assert.equal(bubbles.visible,false);
+});
+
 test('front silhouette is an open horseshoe with a sea-level outlet, not a closed plate',()=>{
  assert.equal(oceanFrontLand(0,0),false);
  assert.equal(oceanFrontLand(8,9),false);

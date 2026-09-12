@@ -12,7 +12,7 @@
   "weather": "spores",
   "seed": 20260910,
   "savePath": "/Users/jiaying/Local/Projects/myalienlife/artifacts/ocean/preview-save/orbit-life.json",
-  "saveSha256": "9364d28ff415fd1e18f4935beeec6c25aa89985a5960686b3e7c3ba4f7345608",
+  "saveSha256": "8e867eba4ec077fa24f29af8c823109f843f2a19ba327e29631a3cbfc9544552",
   "construction": 600,
   "captures": [
     {
@@ -21,7 +21,7 @@
       "pixels": {
         "width": 1920,
         "height": 1080,
-        "colors": 5710
+        "colors": 5708
       },
       "residents": [
         {
