@@ -12,6 +12,11 @@
   <img src="docs/images/island-02-back.png" alt="Storybook Atoll shadow side with a blood moon and glowing castle" width="49%">
 </p>
 
+<p align="center">
+  <img src="docs/images/island-03-front.png" alt="Coral Shallows front with shell houses, a lighthouse, and a central mermaid" width="49%">
+  <img src="docs/images/island-03-back.png" alt="Coral Shallows back with an underwater palace, a shipwreck, and glowing jellyfish" width="49%">
+</p>
+
 [中文](README.md) · **English**
 
 **A small alien world that lives on its own.**

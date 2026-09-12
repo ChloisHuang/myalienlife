@@ -12,6 +12,11 @@
   <img src="docs/images/island-02-back.png" alt="童梦星屿背面：血月与蝙蝠剪影、卷曲枯树和幽光城堡" width="49%">
 </p>
 
+<p align="center">
+  <img src="docs/images/island-03-front.png" alt="珊瑚浅湾正面：贝壳屋、灯塔与中央美人鱼" width="49%">
+  <img src="docs/images/island-03-back.png" alt="珊瑚浅湾背面：海底宫殿、沉船与发光水母" width="49%">
+</p>
+
 **中文** · [English](README.en.md)
 
 **一个会自己生活的外星小世界。**
