@@ -3,7 +3,33 @@ import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {createHttpService} from '../server/http-service.js';
-import {createGame,ensureStarIsland} from '../src/simulation.js';
+import {createGame,ensureStarIsland,ITEMS} from '../src/simulation.js';
+
+test('items tab renders every catalog icon and switches themed packs',async({browser})=>{
+ const directory=await mkdtemp(join(tmpdir(),'orbit-items-')),initial=createGame();initial.speed=0;
+ const service=await createHttpService({directory,dist:resolve('.deploy/release/dist'),token:'items-test-'.repeat(5),origin:'http://127.0.0.1:18196',initial});
+ await new Promise(r=>service.server.listen(18196,'127.0.0.1',r));
+ try{
+  for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
+   const page=await browser.newPage({viewport,locale:'zh-CN'}),errors=[];
+   page.on('pageerror',error=>errors.push(error.message));
+   try{
+    await page.goto('http://127.0.0.1:18196');await expect(page.locator('#loading')).toBeHidden({timeout:60000});
+    if(await page.locator('.dashboard').getAttribute('data-collapsed')==='true')await page.locator('#dossier-toggle').click();
+    await page.locator('[data-tab="items"]').click();
+    await expect(page.locator('.item-card')).toHaveCount(ITEMS.length);
+    await expect(page.locator('.item-card .item-art svg')).toHaveCount(ITEMS.length);
+    const mobile=ITEMS.find(item=>item.id==='oceanBubbleMobile');
+    await page.locator('[data-pack]').filter({hasText:mobile.pack}).click();
+    await expect(page.locator('.item-card')).toHaveCount(ITEMS.filter(item=>item.pack===mobile.pack).length);
+    await expect(page.locator('[data-item="oceanBubbleMobile"] svg')).toBeVisible();
+    await page.locator('[data-tab="needs"]').click();await page.locator('[data-tab="items"]').click();
+    await expect(page.locator('[data-item="oceanBubbleMobile"]')).toBeVisible();
+    expect(errors).toEqual([]);
+   }finally{await page.close();}
+  }
+ }finally{await service.close();await rm(directory,{recursive:true,force:true});}
+});
 
 test('VIP lettering retains its gold facets without restoring the guest white stripe',async({page})=>{
  await page.setContent('<div class="identity-card" data-tier="guest"><span class="identity-art"><strong class="identity-tier">Guest</strong></span></div><div class="identity-card" data-tier="vip"><span class="identity-art"><strong class="identity-tier">VIP</strong></span></div>');
