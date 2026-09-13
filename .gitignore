@@ -17,6 +17,11 @@ id_ed25519
 artifacts/performance
 artifacts/*.png
 artifacts/ocean/preview-save/
+artifacts/ocean/shader-preview-save/
+artifacts/ocean/desktop-*.png
+artifacts/ocean/mobile-*.png
+artifacts/ocean/game-*.png
+artifacts/ocean/verification.json
 artifacts/ocean/project-config.json
 artifacts/ocean/*.blend1
 docs/*.md

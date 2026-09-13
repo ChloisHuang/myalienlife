@@ -19,13 +19,13 @@ test('front outlet has no isolated waterfall panel',()=>{
  const water=createOceanWater('front');
  assert.ok(!water.root.children.some(o=>o.geometry?.parameters.height===1.6));water.dispose();
 });
-test('dynamic ocean caustics keep the refractive area-ratio core and update at 30 Hz',()=>{
+test('dynamic ocean caustics use bounded turbulence in the shared 30 Hz pass',()=>{
  let renders=0,current=null;const renderer={getRenderTarget:()=>current,setRenderTarget:value=>{current=value;},render:()=>{renders++;}};
  const caustics=createOceanCaustics(renderer,{size:384,hz:30});
  assert.equal(caustics.target.width,384);assert.equal(caustics.target.height,384);assert.equal(caustics.texture.isTexture,true);
  const shader=caustics.material.fragmentShader;
- assert.match(shader,/refract\(/);assert.match(shader,/dFdx/);assert.match(shader,/dFdy/);assert.doesNotMatch(shader,/for\s*\(/);
- assert.match(shader,/time\*1\.3/);assert.match(shader,/float e=\.5/);assert.match(shader,/light=vec3\(10\.,10\.,10\.\)/);
+ assert.match(shader,/n<5/);assert.match(shader,/sin\(/);assert.match(shader,/cos\(/);
+ assert.doesNotMatch(shader,/perlinNoise|refract\(|dFdx|dFdy/);
  caustics.update(0,true);assert.equal(renders,1);caustics.update(.01,true);assert.equal(renders,1);caustics.update(.04,true);assert.equal(renders,2);caustics.update(.08,false);assert.equal(renders,2);
  caustics.dispose();
 });

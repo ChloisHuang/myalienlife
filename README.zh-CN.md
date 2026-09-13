@@ -13,8 +13,8 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/island-03-front.png" alt="珊瑚浅湾正面：贝壳屋、灯塔与中央美人鱼" width="49%">
-  <img src="docs/images/island-03-back.png" alt="珊瑚浅湾背面：海底宫殿、沉船与发光水母" width="49%">
+  <img src="docs/images/island-03-front.png" alt="珊瑚浅湾正面：贝壳屋、灯塔、中央美人鱼与流动水光" width="49%">
+  <img src="docs/images/island-03-back.png" alt="珊瑚浅湾背面：海底宫殿、沉船、发光水母与海床焦散" width="49%">
 </p>
 
 **中文** · [English](README.md)

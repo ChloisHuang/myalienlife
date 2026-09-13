@@ -9,25 +9,23 @@ const vertexShader=`varying vec2 p;void main(){p=uv;gl_Position=projectionMatrix
 const causticsGLSL=`
  float oceanCaustic(sampler2D causticsMap,vec2 q){return texture2D(causticsMap,q/vec2(36.,26.)+.5).r;}`;
 const causticsPassVertex=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
+// Adapted from Dave Hoskins / joltz0r, Tileable Water Caustic.
+// https://www.shadertoy.com/view/MdlXz8 - CC BY-NC-SA 3.0.
 const causticsPassFragment=`precision highp float;varying vec2 vUv;uniform float time;
- #define MOD3 vec3(443.8975,397.2973,491.1871)
- vec3 hash33(vec3 p3){p3=fract(p3*MOD3);p3+=dot(p3,p3.yxz+19.19);return -1.+2.*fract(vec3((p3.x+p3.y)*p3.z,(p3.x+p3.z)*p3.y,(p3.y+p3.z)*p3.x));}
- float perlinNoise(vec3 p){
-  vec3 pi=floor(p),pf=p-pi,w=pf*pf*(3.-2.*pf);
-  return mix(mix(mix(dot(pf,hash33(pi)),dot(pf-vec3(1,0,0),hash33(pi+vec3(1,0,0))),w.x),mix(dot(pf-vec3(0,0,1),hash33(pi+vec3(0,0,1))),dot(pf-vec3(1,0,1),hash33(pi+vec3(1,0,1))),w.x),w.z),mix(mix(dot(pf-vec3(0,1,0),hash33(pi+vec3(0,1,0))),dot(pf-vec3(1,1,0),hash33(pi+vec3(1,1,0))),w.x),mix(dot(pf-vec3(0,1,1),hash33(pi+vec3(0,1,1))),dot(pf-vec3(1,1,1),hash33(pi+vec3(1,1,1))),w.x),w.z),w.y);
- }
- float waterNoise(vec3 p){return perlinNoise(p*2.);}
  void main(){
-  vec2 world=(vUv-.5)*vec2(36.,26.);float bottomY=-5.5;vec3 bottomPoint=vec3(world.x,bottomY,world.y),light=vec3(10.,10.,10.);
-  vec3 ray=normalize(bottomPoint-light);float waterHit=(1.-light.y)/min(ray.y,-.03);vec3 waterSurface=light+ray*waterHit;
-  vec3 noisePos=waterSurface+vec3(0.,time*1.3,0.);float e=.5;
-  float h1=waterNoise(noisePos+vec3(e,0,0)),h2=waterNoise(noisePos-vec3(e,0,0)),h3=waterNoise(noisePos+vec3(0,0,e)),h4=waterNoise(noisePos-vec3(0,0,e));
-  float height=waterNoise(noisePos);vec3 waterNormal=normalize(vec3(h2-h1,2.*e,h4-h3));
-  vec3 flatRay=refract(ray,vec3(0,1,0),1./1.333),refracted=refract(ray,waterNormal,1./1.333);vec3 deformedSurface=waterSurface+vec3(0,height,0);
-  float beforeHit=(bottomY-waterSurface.y)/min(flatRay.y,-.03),afterHit=(bottomY-deformedSurface.y)/min(refracted.y,-.03);
-  vec3 beforePos=waterSurface+flatRay*beforeHit,afterPos=deformedSurface+refracted*afterHit;
-  float beforeArea=length(dFdx(beforePos.xz))*length(dFdy(beforePos.xz));float afterArea=max(length(dFdx(afterPos.xz))*length(dFdy(afterPos.xz)),1e-5);
-  float caustic=clamp(beforeArea/afterArea,.001,6.);gl_FragColor=vec4(vec3(caustic),1.);
+  vec2 p=(vUv-.5)*vec2(1.384615,1.)*18.84955592154-250.;
+  vec2 i=p;float c=1.;float clock=time*.35+23.;
+  for(int n=0;n<5;n++){
+   float t=clock*(1.-3.5/float(n+1));
+   i=p+vec2(cos(t-i.x)+sin(t+i.y),sin(t-i.y)+cos(t+i.x));
+   vec2 wave=vec2(sin(i.x+t),cos(i.y+t));
+   // Algebraic reciprocal length avoids division by zero at sine crossings.
+   vec2 crossed=p*wave.yx;
+   c+=abs(wave.x*wave.y)/(.005*max(length(crossed),.00001));
+  }
+  c=1.2-pow(c/5.,1.2);
+  float focus=clamp(pow(abs(c),6.),0.,1.);
+  gl_FragColor=vec4(vec3(focus),1.);
  }`;
 
 export function createOceanCaustics(renderer,{size=384,hz=30}={}){
@@ -50,7 +48,7 @@ export function createOceanWater(side,causticsTexture=null){
    float radius=length(shape),angle=atan(shape.y,shape.x);
    float bend=.055*sin(radius*21.)+.028*sin(radius*43.);
    if(outline>.5&&deep<.5&&radius>.60&&!(angle>.78+bend&&angle<1.38+bend))discard;
-   float caustic=oceanCaustic(causticsMap,local*vec2(.9,1.05));float energy=min(pow(max(caustic-.12,0.),.8)*.38,1.6);float hot=smoothstep(.16,.95,energy);vec3 causticTint=mix(vec3(.12,.55,.50),vec3(.98,1.,.92),hot);
+   float caustic=oceanCaustic(causticsMap,local*vec2(.9,1.05));float energy=smoothstep(.06,.85,caustic);float hot=smoothstep(.16,.95,energy);vec3 causticTint=mix(vec3(.12,.55,.50),vec3(.98,1.,.92),hot);
    vec2 basinPoint=local+vec2(sin(local.y*.42)*.8,cos(local.x*.36)*.55);
    float basin=length(basinPoint/mix(vec2(8.65,6.16),vec2(14.6,10.4),deep));
    float radialDepth=1.-smoothstep(.08,1.02,basin);
@@ -62,7 +60,7 @@ export function createOceanWater(side,causticsTexture=null){
    vec3 base=mix(shallows,depths,smoothstep(.0,1.15,depth));
    float clearChannel=exp(-pow((local.x-1.)/5.,2.)-pow((local.y-2.)/5.5,2.))*(1.-deep);
    base=mix(base,vec3(.24,.78,.72),clearChannel*.75);
-   vec3 color=base+causticTint*energy*mix(.48,.30,deep)*(1.-depth*.55);
+   vec3 color=base+causticTint*energy*.10*(1.-depth*.55);
    float ripple=pow(.5+.5*sin(basin*70.-time*.7+sin(angle*7.)*.5),24.)*smoothstep(.7,1.,basin)*(1.-smoothstep(1.,1.06,basin));
    color+=ripple*vec3(.055,.12,.10);
    gl_FragColor=vec4(color,mix(.12,.42,deep)+depth*mix(.17,.28,deep)+min(energy,.8)*.025);
@@ -235,7 +233,7 @@ function submergedSurface(material,time,causticsTexture){
    float channel=exp(-pow((q.x-.5)/5.,2.)-pow((q.y-2.)/5.,2.));
    vec3 bedColor=mix(vec3(.035,.21,.23),vec3(.14,.41,.35),sandbar);
    diffuseColor.rgb=mix(bedColor,vec3(.12,.65,.57),smoothstep(.12,.85,channel)*(.85+.15*sandbar));`:''}
-   float oceanFocus=oceanCaustic(causticsMap,q*vec2(.9,1.05));float oceanEnergy=min(pow(max(oceanFocus-.12,0.),.8)*.38,1.6);float oceanHot=smoothstep(.16,.95,oceanEnergy);vec3 oceanTint=mix(vec3(.10,.52,.48),vec3(.98,1.,.90),oceanHot);diffuseColor.rgb+=oceanTint*oceanEnergy*${abyss?'.32':'.52'};
+   float oceanFocus=oceanCaustic(causticsMap,q*vec2(.9,1.05));float oceanEnergy=smoothstep(.06,.85,oceanFocus);float oceanHot=smoothstep(.16,.95,oceanEnergy);vec3 oceanTint=mix(vec3(.10,.52,.48),vec3(.98,1.,.90),oceanHot);diffuseColor.rgb+=oceanTint*oceanEnergy*${abyss?'.32':'.52'};
   `);
  };material.customProgramCacheKey=()=>`ocean-submerged-caustics-v2-${bed}-${abyss}`;
 }
