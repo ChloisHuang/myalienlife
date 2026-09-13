@@ -65,6 +65,16 @@ test('production serves the ocean WebP ground texture for GET and HEAD',async()=
  }finally{await service?.close();await rm(directory,{recursive:true,force:true});}
 });
 
+test('production revalidates mutable public models across releases',async()=>{
+ const {createHttpService}=await import('../server/http-service.js');const directory=await mkdtemp(join(tmpdir(),'orbit-model-cache-'));let service;
+ try{
+  const bytes=await readFile(new URL('../public/assets/ocean.glb',import.meta.url));await mkdir(join(directory,'assets'));await writeFile(join(directory,'assets','ocean.glb'),bytes);
+  service=await createHttpService({directory,dist:directory,token:'static-test-token',origin:'http://game.example',autoStart:false});await new Promise(resolve=>service.server.listen(0,'127.0.0.1',resolve));
+  const response=await fetch(`http://127.0.0.1:${service.server.address().port}/assets/ocean.glb`,{method:'HEAD'});
+  assert.equal(response.status,200);assert.equal(response.headers.get('cache-control'),'no-cache');
+ }finally{await service?.close();await rm(directory,{recursive:true,force:true});}
+});
+
 test('production CSP permits WebAssembly decoder compilation without enabling JavaScript eval',async()=>{
  const {createHttpService}=await import('../server/http-service.js');const directory=await mkdtemp(join(tmpdir(),'orbit-csp-'));let service;
  try{

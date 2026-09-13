@@ -11,6 +11,7 @@ import {WebSocketServer,WebSocket} from 'ws';
 const fail=(status,message)=>{throw Object.assign(new Error(message),{status});};
 const digest=value=>createHash('sha256').update(value).digest();
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.wasm':'application/wasm','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};
+const hashedBundle=/\/assets\/[^/]+-[a-zA-Z0-9_-]{8,}\.(?:js|css)$/;
 
 async function pageSecurityPolicy(root){
  let html='';
@@ -88,7 +89,8 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
    const file=resolve(root,path==='/'?'index.html':'.'+path);
    if(!file.startsWith(root+sep)||!Object.hasOwn(mime,extname(file)))fail(404,'文件不存在');
    const info=await stat(file);if(!info.isFile())fail(404,'文件不存在');
-   res.writeHead(200,{'Content-Type':mime[extname(file)],'Content-Length':info.size,'Cache-Control':path.startsWith('/assets/')?'public, max-age=3600':'no-cache'});
+   const cacheControl=hashedBundle.test(path)?'public, max-age=31536000, immutable':'no-cache';
+   res.writeHead(200,{'Content-Type':mime[extname(file)],'Content-Length':info.size,'Cache-Control':cacheControl});
    res.end(req.method==='HEAD'?undefined:await readFile(file));
   }catch(error){if(!res.headersSent)json(res,{error:error.status?error.message:error.code==='ENOENT'?'文件不存在':'服务暂时不可用'},error.status??(error.code==='ENOENT'?404:500));else res.destroy();}
  });

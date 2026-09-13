@@ -35,9 +35,11 @@ import {getLanguage,translateText} from './i18n.js';
 import {createDynamicResolutionController,getQualityProfile} from './performance-settings.js';
 import {shouldAnimateActor} from './actor-animation-visibility.js';
 import {createIslandPreviews} from './island-previews.js';
+import {versionedAsset} from './asset-url.js';
 
 import {colors,material,mesh,box,sphere,cylinder,ring,createPropFactory} from './props.js';
 const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
+const assetPath=path=>versionedAsset(path,import.meta.env?.VITE_ASSET_VERSION??'');
 function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 
 export async function createWorld(container,getGame,{onClick,onHover,onPlace,weatherProvider=getWeather,qualityProfile=getQualityProfile('pc','high'),independentAmbient=false}){
@@ -57,14 +59,14 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const ambient=new THREE.HemisphereLight(0xe2eaff,0x70526e,1.3);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffe5d0,2.6);sun.position.set(-10,24,14);sun.castShadow=initialQuality.shadows;sun.shadow.mapSize.set(initialQuality.shadowMapSize,initialQuality.shadowMapSize);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,far:70});sun.shadow.normalBias=.09;sun.shadow.bias=-.00015;scene.add(sun);
  const rim=new THREE.DirectionalLight(0xdacbff,1.2);rim.position.set(12,6,-16);scene.add(rim);
  const composer=createPostProcessing(renderer,scene,camera);
- const loader=new GLTFLoader();const [alienAsset,mushroomAsset]=await Promise.all(['alien','mushroom'].map(n=>loader.loadAsync(`/assets/${n}.glb`)));
+ const loader=new GLTFLoader();const [alienAsset,mushroomAsset]=await Promise.all(['alien','mushroom'].map(n=>loader.loadAsync(assetPath(`/assets/${n}.glb`))));
  stylizeAsset(alienAsset.scene,{character:true});stylizeAsset(mushroomAsset.scene);
  const draco=new DRACOLoader();draco.setDecoderPath('/assets/draco/');draco.setDecoderConfig({type:'wasm'});loader.setDRACOLoader(draco);
- const fairytaleAsset=await loader.loadAsync('/assets/fairytale.glb');
- const environmentAsset=await loader.loadAsync('/assets/fairytale-environment.glb');
+ const fairytaleAsset=await loader.loadAsync(assetPath('/assets/fairytale.glb'));
+ const environmentAsset=await loader.loadAsync(assetPath('/assets/fairytale-environment.glb'));
  const fairytaleKit=createFairytaleKit(fairytaleAsset.scene,environmentAsset.scene);
- const oceanAsset=await loader.loadAsync('/assets/ocean.glb'),oceanGround=await new THREE.TextureLoader().loadAsync('/assets/ocean-ground.webp'),oceanCaustics=createOceanCaustics(renderer),oceanKit=createOceanKit(oceanAsset.scene,oceanGround,oceanCaustics.texture);draco.dispose();
- const mushroomVariants={normal:mushroomAsset};for(const name of ['giant','cluster','mutant','mutant-cluster']){const asset=await loader.loadAsync(`/assets/mushroom-${name}.glb`);stylizeAsset(asset.scene);mushroomVariants[name]=asset;}
+ const oceanAsset=await loader.loadAsync(assetPath('/assets/ocean.glb')),oceanGround=await new THREE.TextureLoader().loadAsync(assetPath('/assets/ocean-ground.webp')),oceanCaustics=createOceanCaustics(renderer),oceanKit=createOceanKit(oceanAsset.scene,oceanGround,oceanCaustics.texture);draco.dispose();
+ const mushroomVariants={normal:mushroomAsset};for(const name of ['giant','cluster','mutant','mutant-cluster']){const asset=await loader.loadAsync(assetPath(`/assets/mushroom-${name}.glb`));stylizeAsset(asset.scene);mushroomVariants[name]=asset;}
  // Portrait updates share one context for the lifetime of the world.
  const portraitRenderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});portraitRenderer.setSize(160,160);portraitRenderer.toneMapping=renderer.toneMapping;portraitRenderer.toneMappingExposure=renderer.toneMappingExposure;
  const portraitScene=new THREE.Scene(),portraitCamera=new THREE.PerspectiveCamera(32,1,.1,10);

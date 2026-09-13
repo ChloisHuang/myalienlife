@@ -8,9 +8,9 @@ import {injectAnalyticsIntoDist,readAnalyticsSnippet} from './deploy-analytics.j
 export const root=fileURLToPath(new URL('../',import.meta.url));
 const analyticsSnippetPath=resolve(root,'.deploy/google-analytics-head.html');
 export function run(command,args,options={}){const result=spawnSync(command,args,{cwd:root,stdio:'inherit',...options});if(result.error)throw result.error;if(result.status!==0)throw new Error(`${command} failed (${result.status})`);return result;}
-export async function buildRelease({analyticsSnippet}={}){
+export async function buildRelease({analyticsSnippet,assetVersion=String(Date.now())}={}){
  const directory=resolve(root,'.deploy/release');await rm(directory,{recursive:true,force:true});await mkdir(directory,{recursive:true});
- run(process.execPath,['node_modules/vite/bin/vite.js','build'],{env:{...process.env,VITE_SERVER_AUTHORITY:'1'}});
+ run(process.execPath,['node_modules/vite/bin/vite.js','build'],{env:{...process.env,VITE_SERVER_AUTHORITY:'1',VITE_ASSET_VERSION:assetVersion}});
  await build({entryPoints:[resolve(root,'server/production.js'),resolve(root,'server/preflight.js')],outdir:directory,bundle:true,platform:'node',format:'esm',target:'node24',external:['geoip-country'],banner:{js:"import {createRequire} from 'node:module';const require=createRequire(import.meta.url);"},outExtension:{'.js':'.mjs'}});
  const geo=resolve(directory,'node_modules/geoip-country');
  await build({entryPoints:[resolve(root,'node_modules/geoip-country/lib/geoip.js')],outfile:resolve(geo,'lib/geoip.js'),bundle:true,platform:'node',format:'cjs',target:'node24'});
