@@ -22,7 +22,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
 import {ITEMS,neighbors,canPlace} from './simulation.js';
-import {appearance,groundHeight} from './characters.js';
+import {appearance,groundHeight,objectHeight} from './characters.js';
 import {createCharacter,updateCharacter} from './character-rig.js';
 import {createLivingVisual,createGardenBondVisual,createLivingTrailVisual,livingPose} from './living-visuals.js';
 import {livingSite} from './living-state.js';
@@ -190,7 +190,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
   for(const[id,o]of objectMeshes)if(!g.objects.some(x=>x.id===id)){o.userData.spiritTree?.dispose();o.userData.gardenBond?.dispose();disposeStaticBatches(o);o.removeFromParent();objectMeshes.delete(id);}
   for(const o of g.objects){
    if(!objectMeshes.has(o.id)){
-    const group=prop(o.type,islandOf(o));group.position.set(o.x,o.type==='spiritTree'||['spore','ocean'].includes(islandOf(o))?groundHeight(o.x,o.z,sideOf(o),islandOf(o)):.29,o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};trackTextures(group);applyTextureQuality(quality);
+    const group=prop(o.type,islandOf(o));group.position.set(o.x,objectHeight(o),o.z);group.rotation.y=o.rotation;group.userData.target={kind:'object',id:o.id};trackTextures(group);applyTextureQuality(quality);
     if(o.plant&&islandOf(o)==='spore')group.userData.gardenBond=createGardenBondVisual(group);
     objectMeshes.set(o.id,group);
    }

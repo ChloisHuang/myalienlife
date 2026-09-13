@@ -214,3 +214,6 @@ body.dossier-collapsed .locations{right:36px}body.dossier-collapsed .camera-cont
  .phone-layout #dossier-list{max-height:calc(100dvw - 160px)}
 }
 @media(prefers-reduced-motion:reduce){:is(#autonomy,[data-snapshot-id="autonomy"])::after{transition:none}}
+.context-resident-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.context-heading .context-control{display:inline-flex;align-items:center;gap:4px;margin-left:0;padding:4px 6px;font-size:10px;color:#607451;border-radius:4px;white-space:nowrap}
+.context-heading .context-control:hover{background:#e8f0df}

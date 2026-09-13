@@ -162,6 +162,11 @@ test('guests browse resident dossiers locally and navigate once without tracking
   await page.locator('#dossier-next').click();await page.locator('#dossier-select').click();await page.locator(`[data-dossier-option="${initial.npcs.nova.uid}"]`).click();
   await expect(page.locator('#world')).toHaveAttribute('data-island','home');await expect(page.locator('#world')).toHaveAttribute('data-side','front');
   expect(service.authority.state.player.uid).toBe(initial.player.uid);expect(writes).toEqual([]);expect(errors).toEqual([]);
+  await page.locator('#operator-login').click();await page.locator('#operator-token').fill('dossier-test-'.repeat(5));await page.locator('#operator-form button[type="submit"]').click();await expect(page.locator('#operator-dialog')).not.toBeVisible();
+  await page.locator('#claim-control').click();await expect(page.locator('#online-status')).toHaveAttribute('data-status','operator');
+  await page.locator('#dossier-select').click();await page.locator(`[data-dossier-option="${initial.npcs.nova.uid}"]`).click();
+  await expect.poll(()=>service.authority.state.player.uid).toBe(initial.npcs.nova.uid);
+  await expect(page.locator('#autonomy')).toBeEnabled();expect(errors).toEqual([]);
  }finally{await page.close();await service.close();await rm(directory,{recursive:true,force:true});}
 });
 

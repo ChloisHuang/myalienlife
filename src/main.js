@@ -197,7 +197,20 @@ function buildFleetPanel(){
 function changeTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));lastPanel='';renderPanel();refreshDossier();}
 function relationName(n){return n>=70?'挚友':n>=35?'朋友':'初识';}
 function activeResidentId(){return game.controlledId??'player';}
-function dossierEntries(){return [{id:'player',person:game.player},...neighbors(game).map(({id})=>({id,person:game.npcs[id]}))];}
+const dossierOrder=new Map();
+let dossierControl=Promise.resolve();
+function dossierEntries(){
+ const entries=[{id:'player',person:game.player},...neighbors(game).map(({id})=>({id,person:game.npcs[id]}))];
+ for(const {person} of entries)if(!dossierOrder.has(person.uid))dossierOrder.set(person.uid,dossierOrder.size);
+ return entries.sort((a,b)=>dossierOrder.get(a.person.uid)-dossierOrder.get(b.person.uid));
+}
+async function controlDossier(uid){
+ if(hosted&&!online.canOperate||dossierResidentUid!==uid||game.player.uid===uid)return;
+ const entry=dossierEntries().find(({person})=>person.uid===uid);if(!entry)return;
+ const result=await switchControl(game,entry.id);
+ if(!result.ok){toast(result.message);return;}
+ portraitKey='';lastPanel='';refresh();save();
+}
 function resident(){
  const entry=dossierEntries().find(({person})=>person.uid===dossierResidentUid);
  selectedResident=entry?.id??'player';
@@ -208,6 +221,7 @@ function activateDossier(entry){
  dossierResidentUid=entry.person.uid;selectedResident=entry.id;
  game.viewIsland=islandOf(entry.person);game.viewSide=sideOf(entry.person);
  world.resetCamera();closeContext();closeCharacterSwitcher();closeDossierList();lastPanel='';refresh();$('#panel-content').scrollTop=0;
+ if(!hosted||online.canOperate)dossierControl=dossierControl.then(()=>controlDossier(entry.person.uid));
 }
 function captureDossierPreview(uid){
  const entry=dossierEntries().find(({person})=>person.uid===uid);if(!entry)return null;
@@ -515,6 +529,10 @@ async function showContext(target,x,y){
  if(target.kind==='object')actions.push(...livingOptions(game,game.objects.find(o=>o.id===target.id)));
  if(target.kind==='npc'&&supportedIsland(game.player)&&game.npcs[target.id].age>=game.config.lifeStages.infantEnd)actions.push(...LIVING_SOCIAL);
   actions=actions.filter(a=>UFO_BUILD_ACTIONS.has(a)||canAffordAction(game,'player',a));const el=$('#context-menu');el.innerHTML=`<div class="context-heading"><div><strong>${title}</strong><small>${subtitle}</small></div><button id="context-close" aria-label="关闭互动菜单">${icon('X')}</button></div><div class="context-actions">${actions.map(a=>`<button data-action="${a}" ${ACTIONS[a].minRelation&&(game.relationships[target.id]??0)<ACTIONS[a].minRelation?'disabled title="需要 35 友好度"':''}>${icon(ACTIONS[a].icon)}<span>${a==='study'?`学习${studyName(game.player,studyFacilitySkill(game.npcs[target.id]??game.objects.find(o=>o.id===target.id)))}`:actionLabel(a)}</span><small>${game.config.actionDurations[a]} 秒</small></button>`).join('')}${build&&target.kind==='object'&&isSellableItem(game.objects.find(o=>o.id===target.id))?`<button data-sell="${target.id}" class="sell-action">${icon('Coins')} 出售 · 返还 70% 星币</button>`:''}</div>`;el.hidden=false;el.style.left=`${Math.max(12,Math.min(x+15,innerWidth-320))}px`;el.style.top=`${Math.max(85,Math.min(y-40,innerHeight-325))}px`;
+ if(target.kind==='npc'&&(!hosted||online.canOperate)){
+  const name=el.querySelector('.context-heading strong'),row=document.createElement('div');row.className='context-resident-title';name.before(row);row.append(name);
+  row.insertAdjacentHTML('beforeend',`<button class="context-control" data-character="${target.id}" title="切换主控居民" aria-label="切换主控居民">${icon('Users')}<span>切换主控居民</span></button>`);
+ }
  if(target.kind==='object'){const obj=game.objects.find(o=>o.id===target.id);if(WONDER_OPTIONS[obj.type]||obj.type==='portal'){const status=document.createElement('p');status.id='wonder-status';el.querySelector('.context-heading').after(status);if(actions.some(a=>WONDER_ACTIONS[a]?.paired)){const label=document.createElement('label');label.className='birth-partner';label.innerHTML=`共同活动伙伴 <select id="wonder-partner"><option value="">选择邻居</option>${neighbors(game).filter(n=>sameSide(n,obj)&&n.age>=game.config.lifeStages.infantEnd).map(n=>`<option value="${n.id}">${n.name}</option>`).join('')}</select><small>邀请加入对方队列，完成已有安排后一起开始。</small>`;status.after(label);label.querySelector('select').onchange=refreshWonderMenu;}refreshWonderMenu();}}
  for(const b of el.querySelectorAll('[data-action]')){const affordabilityError=canAffordAction(game,'player',b.dataset.action)?null:`星币不足，需要 ${actionCost(game,b.dataset.action)} 星币。`;const error=actionAccessError(game,{id:'player',position:game.player,skills:game.skills},b.dataset.action)||civilizationError(game,b.dataset.action,game.objects.find(o=>o.id===target.id),game.player,game.skills)||affordabilityError;if(error){b.disabled=true;b.title=error;b.querySelector('span').insertAdjacentHTML('beforeend',`<em class="interaction-reason">${error}</em>`);}}
  if(target.kind==='object'&&game.objects.find(o=>o.id===target.id).type==='portal')el.querySelector('.context-actions').insertAdjacentHTML('beforeend',Object.entries(islandCatalog(game)).filter(([id])=>id!==islandOf(game.player)&&discovered(game,id)).map(([id,island])=>{const error=starVoyageError(game,game.player,game.skills,id);return `<button data-star-voyage="${id}" ${error?'disabled':''} title="${error||''}">${icon('Orbit')} 星门直达${island.name}（量子职业＋科学满级）</button>`;}).join(''));
@@ -616,7 +634,7 @@ $('#app').addEventListener('click',async e=>{
    const person=game.npcs[b.dataset.character];if(!person?.alive)return;
    chooseDossier(person.uid);
    closeCharacterSwitcher();closeContext();refresh();toast(`视角已切换到${person.name}`);
-  }else{dossierResidentUid=null;const result=await switchControl(game,b.dataset.character);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';closeCharacterSwitcher();closeContext();world.focus('player');refresh();save();toast(result.message||`现在由${game.player.name}主控。`);}else toast(result.message);}
+  }else{const person=game.npcs[b.dataset.character];if(person){chooseDossier(person.uid);await dossierControl;world.focus('player');}}
  }
  if(b.dataset.inherit){const result=await takeOver(game,b.dataset.inherit);if(result.ok){selectedResident='player';portraitKey='';lastPanel='';refresh();save();toast(`现在由你陪伴${game.player.name}生活。`);}else toast(result.message);}
  if(b.id==='new-life'&&confirm('重新开始将覆盖当前存档，确定开始新的星湾生活吗？'))startNewLife();

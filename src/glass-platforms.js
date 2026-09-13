@@ -1,6 +1,7 @@
 // Fixed outdoor decks share their footprint with resident ground placement.
 export const GLASS_PLATFORMS=[
- {id:'terrace',x:-2,z:3.1,width:9,depth:2.3,radius:.65,rotation:0,height:.15},
+ // Keep the glass below the overlapping stepping stones' .15 top surface.
+ {id:'terrace',x:-2,z:3.1,width:9,depth:2.3,radius:.65,rotation:0,height:.14},
  {id:'research',x:7,z:-3.5,width:7.2,depth:7.2,radius:3.6,rotation:0,height:.19},
  {id:'pond-side',x:2.8,z:6.6,width:4.8,depth:2.8,radius:.8,rotation:-.14,height:.10},
 ];

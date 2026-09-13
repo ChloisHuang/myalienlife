@@ -141,7 +141,7 @@ test('dossier roster lists a switched controlled resident only once',async({page
  await expect(page.locator('#dossier-list [aria-selected=true]')).toHaveCount(1);
  await expect(page.locator('#dossier-list [role=option]')).toHaveCount(Object.keys(g.npcs).length);
 });
-test('resident dossiers slide closed and browse without changing control',async({page})=>{
+test('resident dossiers slide closed and switch control',async({page})=>{
  const g=createGame();g.speed=0;g.autonomy.enabled=false;g.npcs.nova.needs.hunger=17;fixtures.set(page,g);
  await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
  await expect(page.locator('#dossier-toggle')).toHaveAttribute('aria-expanded','true');
@@ -154,9 +154,9 @@ test('resident dossiers slide closed and browse without changing control',async(
  await expect(page.locator('#dossier-body .needs-grid')).toContainText('17');
  await expect(page.locator('#world')).toHaveAttribute('data-island','home');
  await expect(page.locator('#world')).toHaveAttribute('data-side','front');
- await expect(page.locator('#autonomy')).toBeDisabled();
+ await expect(page.locator('#autonomy')).toBeEnabled();
  await page.locator('#save').click();const saved=await savedState(page);
- expect(saved.player.uid).toBe(g.player.uid);expect(saved.controlledId).toBe(g.controlledId);expect(saved.queue).toEqual(g.queue);
+ expect(saved.player.uid).toBe(g.npcs.nova.uid);expect(saved.controlledId).toBe('nova');expect(saved.queue).toEqual(g.npcs.nova.queue);
  await page.locator('#dossier-toggle').click();await expect(page.locator('#dossier-toggle')).toHaveAttribute('aria-expanded','false');
  await expect.poll(()=>page.locator('.dashboard').evaluate(e=>e.getBoundingClientRect().left>=innerWidth-1)).toBe(true);
  await page.locator('#dossier-toggle').click();await expect(page.locator('#player-name')).toHaveText(g.npcs.nova.name);
@@ -166,6 +166,26 @@ test('resident dossiers slide closed and browse without changing control',async(
  await page.screenshot({path:'artifacts/dossier-mobile.png'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
  await page.setViewportSize({width:1440,height:1000});await page.screenshot({path:'artifacts/dossier-desktop.png'});
+});
+test('dossier arrows keep a stable roster and NPC menu can assign control',async({page})=>{
+ const g=createGame();g.speed=0;g.objects=[];Object.assign(g.npcs.nova,{x:0,z:4});fixtures.set(page,g);
+ await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});
+ await page.locator('#dossier-select').click();
+ const roster=await page.locator('[data-dossier-option]').evaluateAll(options=>options.map(option=>option.dataset.dossierOption));
+ await page.locator('#dossier-select').click();
+ for(const uid of [...roster.slice(1),roster[0]]){
+  await page.locator('#dossier-next').click();await expect(page.locator('#autonomy')).toBeEnabled();
+  await page.locator('#save').click();expect((await savedState(page)).player.uid).toBe(uid);
+ }
+ const bounds=await page.locator('#world canvas').boundingBox(),point=new Vector3(0,.9,4).project(sceneCamera(bounds));
+ await page.mouse.click(bounds.x+(point.x+1)*bounds.width/2,bounds.y+(1-point.y)*bounds.height/2);
+ await expect(page.locator('#context-menu')).toBeVisible();
+ await page.screenshot({path:'artifacts/dossier-control-menu.png'});
+ await expect(page.locator('#context-menu [data-character="nova"]')).toBeVisible();
+ await page.locator('#context-menu [data-character="nova"]').click();
+ await expect(page.locator('#player-name')).toHaveText(g.npcs.nova.name);await expect(page.locator('#autonomy')).toBeEnabled();
+ await page.locator('#save').click();expect((await savedState(page)).controlledId).toBe('nova');
+ await expect(page.locator('#context-menu')).toBeHidden();
 });
 test('phone dossiers start closed and portrait renders a usable horizontal scene',async({page})=>{
  await page.setViewportSize({width:390,height:844});
