@@ -57,6 +57,9 @@ export const CAREERS={
 };
 const NPC_CAREERS={nova:'botanist',zig:'scientist',lumi:'diplomat',pip:'diplomat'};
 const EMPLOYMENT_CAREERS=Object.keys(CAREERS).filter(id=>id!==CONTINUING_EDUCATION_CAREER);
+export const RESIDENT_ARRIVAL_CHANCE=.2;
+const ARRIVAL_COLORS=['#f2a6c4','#a9b9f2','#f2c477','#8ed8c4','#d6a6ef'];
+const ARRIVAL_PREFERENCES={architect:{developBlueprint:24,constructIsland:18},chef:{cook:24,prepareRations:18},scientist:{research:24,observe:18},botanist:{garden:24,extractMaterials:18},diplomat:{chat:24,joke:18}};
 const careerLevel=(id,level=1)=>CAREERS[id]?.levels[level-1];
 export function careerSkillRequirements(id,level=1,config){return{...(careerDefinition(config?{config}:null,id).levels[level-1]?.skills||{})};}
 export function missingCareerSkills(skills,id,level=1,config){return Object.entries(careerSkillRequirements(id,level,config)).filter(([key,required])=>(skills?.[key]??0)<required).map(([key,required])=>({key,required,current:skills?.[key]??0}));}
@@ -191,8 +194,48 @@ const identity=(n,profile)=>({side:'front',uid:n.id,name:n.name,color:n.color,tr
 const controlledResidentId=g=>g.controlledId??'player';
 export const neighbors=g=>Object.entries(g.npcs).filter(([id])=>id!==controlledResidentId(g)).map(([id,n])=>({id,...n}));
 const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),career:createCareer(n.id),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
+const randomIndex=(random,length)=>Math.min(length-1,Math.floor(Math.max(0,Math.min(.999999,random()))*length));
+const arrivalIslands=g=>Object.keys(islandCatalog(g)).filter(id=>id==='home'||g.civilization.visits[id]>0);
+function livingPopulationByIsland(g){
+ const counts=Object.fromEntries(arrivalIslands(g).map(id=>[id,0]));
+ for(const person of allActors(g))if(person.position.alive&&Object.hasOwn(counts,islandOf(person.position)))counts[islandOf(person.position)]++;
+ return counts;
+}
+function missingArrivalCareers(g,island){
+ const present=new Set(allActors(g).filter(person=>person.position.alive&&islandOf(person.position)===island).map(person=>careerOf(g,person).id));
+ return EMPLOYMENT_CAREERS.filter(id=>!present.has(id));
+}
+function arrivalIsland(g){
+ const counts=livingPopulationByIsland(g),candidates=arrivalIslands(g).filter(id=>counts[id]<5&&missingArrivalCareers(g,id).length);
+ if(!candidates.length)return null;
+ if(candidates.includes(g.viewIsland))return g.viewIsland;
+ return candidates.sort((a,b)=>counts[a]-counts[b]||a.localeCompare(b))[0];
+}
+function arrivalSpots(g,island){
+ const occupied=allActors(g).filter(person=>person.position.alive&&islandOf(person.position)===island&&sideOf(person.position)==='front');
+ const spots=[];
+ for(let z=-5;z<=5;z+=2)for(let x=-9;x<=9;x+=2)if(canPlace(g,x,z,'front',island)&&!occupied.some(person=>Math.hypot(person.position.x-x,person.position.z-z)<1.8))spots.push({x,z});
+ return spots;
+}
+function createArrivalResident(g,island,careerId,spot,random){
+ const id=`resident-${g.nextId++}`,preferences={...PREFERENCES.player,...ARRIVAL_PREFERENCES[careerId]},used=[g.player,...Object.values(g.npcs),...(g.memorials||[])].map(person=>person.name),name=generateResidentName({uid:id,preferences},used),person=createNeighbor({id,name,color:ARRIVAL_COLORS[randomIndex(random,ARRIVAL_COLORS.length)],trait:`${CAREERS[careerId].name} · 新抵达`,x:spot.x,z:spot.z});
+ person.gender=Object.keys(GENDERS)[randomIndex(random,Object.keys(GENDERS).length)];person.age=adultStart(g)+randomIndex(random,Math.max(1,90-adultStart(g)));person.island=island;person.homeIsland=island;person.side='front';person.money=ADULT_STARTING_MONEY;person.preferences=preferences;person.needs=Object.fromEntries(Object.keys(NEEDS).map(key=>[key,90]));person.skills=createSkills();Object.assign(person.skills,careerSkillRequirements(careerId,1,g.config));person.career={id:careerId,level:1,shifts:0};person.familyDesire=.7;person.lastBirthDay=null;person.activity='刚抵达星湾，正在熟悉新的岛面';person.ai=createAI(true);
+ const related=Object.keys(g.npcs);person.relationships=Object.fromEntries(related.map(other=>[other,60]));g.relationships??={};g.relationships[id]=60;for(const other of related){g.npcs[other].relationships??={};g.npcs[other].relationships[id]=60;}g.npcs[id]=person;
+ return person;
+}
+export function addResidents(g,island,count=1,random=Math.random){
+ if(!arrivalIslands(g).includes(island)||!Number.isInteger(count)||count<1)return{ok:false,residents:[],message:'请选择已发现且已登陆的星岛。'};
+ ensureStarIsland(g,island);const residents=[];
+ while(residents.length<count){const careers=missingArrivalCareers(g,island),spots=arrivalSpots(g,island);if(!careers.length||!spots.length)break;const person=createArrivalResident(g,island,careers[randomIndex(random,careers.length)],spots[randomIndex(random,spots.length)],random);residents.push(person);const text=`${person.name}抵达${islandDefinition(g,island).name}，加入${CAREERS[person.career.id].name}职业。`;g.log.unshift({text,at:g.minute});recordMajorEvent(g,text,'arrival');}
+ return{ok:residents.length===count,residents,message:residents.length?`有 ${residents.length} 位新居民抵达${islandDefinition(g,island).name}。`:'当前岛面没有可用的居民落脚点或空缺职业。'};
+}
+function maybeResidentArrival(g,random){
+ g.population??={lastArrivalDay:0};if(g.population.lastArrivalDay===g.day)return null;g.population.lastArrivalDay=g.day;
+ if(allActors(g).filter(person=>person.position.alive).length>=5||random()>=RESIDENT_ARRIVAL_CHANCE)return null;
+ const island=arrivalIsland(g);return island?addResidents(g,island,1,random):null;
+}
 export function createGame(config){return {
- version:25,living:createLiving({day:1,minute:510}),space:createSpaceLogistics(),civilization:createCivilization(),viewIsland:'home',wonders:createWonders(),viewSide:'front',controlledId:'player',config:normalizeConfig(config),harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(true),
+ version:25,living:createLiving({day:1,minute:510}),space:createSpaceLogistics(),civilization:createCivilization(),viewIsland:'home',wonders:createWonders(),viewSide:'front',controlledId:'player',config:normalizeConfig(config),population:{lastArrivalDay:0},harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(true),
  npcs:Object.fromEntries(NPCS.map(n=>[n.id,createNeighbor(n)])),
  needs:{hunger:76,energy:88,social:62,fun:72,hygiene:85,comfort:79},relationships:{nova:15,zig:12,lumi:20,pip:8},
  career:{id:'scientist',level:1,shifts:0},skills:{...createSkills(),science:CAREERS.scientist.levels[0].skills.science},queue:[],nextId:1,
@@ -785,7 +828,7 @@ export function enforceFleetLimit(g){
 function recordEnvironmentDay(g,day){for(const person of allActors(g)){const id=islandOf(person.position);recordEnvironmentExperience(person.position,person.needs,environmentProfile(id,islandDefinition(g,id)),day);}}
 export function tick(g,seconds,random=Math.random){
  enforceFleetLimit(g);
- if(!g.speed)return;const dt=seconds*g.speed,time=g.config?.time||{gameMinutesPerRealSecond:2,starYearDays:8},gameMinutesPerSecond=time.gameMinutesPerRealSecond;g.minute+=dt*gameMinutesPerSecond;while(g.minute>=1440){recordEnvironmentDay(g,g.day);g.minute-=1440;g.day++;payGovernmentSubsidy(g);}
+ if(!g.speed)return;const dt=seconds*g.speed,time=g.config?.time||{gameMinutesPerRealSecond:2,starYearDays:8},gameMinutesPerSecond=time.gameMinutesPerRealSecond;g.minute+=dt*gameMinutesPerSecond;while(g.minute>=1440){recordEnvironmentDay(g,g.day);g.minute-=1440;g.day++;payGovernmentSubsidy(g);maybeResidentArrival(g,random);}
  const crops=cropDefinitions(g);advancePlants(g.objects,dt*gameMinutesPerSecond,crops);advanceWonders(g,dt*gameMinutesPerSecond,allActors(g));
  for(const person of allActors(g))for(const q of [...person.queue])if(WONDER_ACTIONS[q.type]?.paired&&(q.hostId?!pairedHost(g,q):q.invited&&!pairedGuest(g,q)))cancelPaired(g,q);
  // Direct conversations take precedence over a neighbor's autonomous plan.
@@ -976,6 +1019,7 @@ export function restore(raw){
  for(const p of [g.player,...Object.values(g.npcs||{})])if(p?.prayer){if(p.prayer.radiance===undefined)p.prayer.radiance=0;normalizePrayerState(p.prayer);}
  for(const parent of (g.incubations||[]).flatMap(b=>b.parents||[]))if(!parent.prayer)parent.prayer=createPrayerState();else{if(parent.prayer.radiance===undefined)parent.prayer.radiance=0;normalizePrayerState(parent.prayer);}
  g.controlledId??='player';
+ g.population??={lastArrivalDay:0};g.population.lastArrivalDay??=0;
  if(g.controlledId!=='player'&&g.npcs?.[g.controlledId]){g.player=g.npcs[g.controlledId];g.player.needs=g.needs;g.player.skills=g.skills;g.player.career=g.career;g.player.queue=g.queue;g.player.ai=g.autonomy;g.player.relationships=g.relationships;g.player.inventory??=g.harvest;g.player.money??=0;}
  for(const o of g.objects||[])if(o.type==='gate'&&o.fixed&&o.id.startsWith('island-gate-'))Object.assign(o,DEFAULT_GATE_POSITION);
  migrateResidentNames(g);
@@ -1002,6 +1046,7 @@ export function restore(raw){
  const validResident=p=>p&&validEducation(p.education)&&Number.isInteger(p.devotion)&&range(p.devotion,0,100)&&validPrayerState(p.prayer)&&Object.hasOwn(islandCatalog(g),islandOf(p))&&Object.hasOwn(islandCatalog(g),p.homeIsland)&&Object.hasOwn(SIDES,sideOf(p))&&Object.hasOwn(GENDERS,p.gender)&&range(p.age,0,120)&&validGenome(p.genome)&&Array.isArray(p.mutations)&&p.mutations.every(m=>typeof m==='string')&&range(p.familyDesire,0,1)&&(p.lastBirthDay===null||range(p.lastBirthDay,1,1e12))&&Number.isInteger(p.lastEnvironmentExperienceDay)&&range(p.lastEnvironmentExperienceDay,0,1e12)&&range(p.migrationCooldownUntil,0,1e12)&&validEnvironmentPreferences(p.environmentPreferences)&&validEnvironmentExperience(p.environmentExperience)&&typeof p.alive==='boolean'&&typeof p.uid==='string'&&typeof p.name==='string'&&p.name.length<=40&&/^#[0-9a-f]{6}$/i.test(p.color)&&typeof p.trait==='string'&&range(p.starvation,0,1e12)&&validParents(p.parents)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
  const validIncubationParent=p=>validGenome(p.genome)&&validPrayerState(p.prayer)&&/^#[0-9a-f]{6}$/i.test(p.color)&&range(p.familyDesire,0,1)&&validEnvironmentPreferences(p.environmentPreferences)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
  const validAI=a=>a&&(a.cooperationAfter===undefined||range(a.cooperationAfter,0,1e12))&&typeof a.enabled==='boolean'&&range(a.cooldown,0,60)&&typeof a.reason==='string'&&(a.lastAction===null||Object.hasOwn(ACTIONS,a.lastAction))&&(a.lastTarget===null||typeof a.lastTarget==='string')&&Number.isInteger(a.lastWorkDay)&&a.lastWorkDay>=0;
+ const validPopulation=p=>p&&Number.isInteger(p.lastArrivalDay)&&range(p.lastArrivalDay,0,1e12);
  const validFlight=a=>a.type==='boardUfo'?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):a.type!=='voyage'||typeof a.shipId==='string'&&g.space.ships.some(s=>s.id===a.shipId)&&Array.isArray(a.passengerUids)&&a.passengerUids.length<=11&&a.passengerUids.every(id=>typeof id==='string')&&new Set(a.passengerUids).size===a.passengerUids.length;
  if(g?.version===17){for(const queue of [g.queue,...Object.values(g.npcs).map(n=>n.queue)])for(let i=queue.length-1;i>=0;i--)if(queue[i].type==='blink')queue.splice(i,1);delete g.config.actionDurations.blink;delete g.config.actionCosts.blink;g.version=18;}
  if(g?.version===18){for(const queue of [g.queue,...Object.values(g.npcs).map(n=>n.queue)])for(let i=queue.length-1;i>=0;i--)if(queue[i].type==='senseNether')queue.splice(i,1);delete g.config.actionDurations.senseNether;delete g.config.actionCosts.senseNether;g.version=19;}
@@ -1045,7 +1090,7 @@ export function restore(raw){
  const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&validLivingQueue(g,a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type)))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&isSeating(o)))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(['walk','plantMushroom'].includes(a.type)||LIVING_SOCIAL.has(a.type)&&a.targetId==="player"&&g.player.alive||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
  const residentNpcCount=Object.keys(g.npcs||{}).length-Number(g.controlledId!=='player');
  // Capacity limits new births; it must not invalidate an existing save after an island is removed or a legacy migration changes the capacity.
- const valid=g?.version===25&&validLiving(g)&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
+ const valid=g?.version===25&&validLiving(g)&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&validPopulation(g.population)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
   &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&(id===g.controlledId||range(g.relationships?.[id],0,100))&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validCareerState(n.career)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))
   &&Array.isArray(g.incubations)&&g.incubations.length<=Object.keys(islandCatalog(g)).length*8&&g.incubations.every(b=>typeof b.id==='string'&&range(b.due,0,1e12)&&validParents(b.parents)&&b.parents.length>=1&&b.parents.every(validIncubationParent)&&g.objects.some(o=>o.id===b.podId&&o.type==='nursery'))&&new Set(g.incubations.map(b=>b.podId)).size===g.incubations.length
   &&Array.isArray(g.memorials)&&g.memorials.every(m=>typeof m.uid==='string'&&typeof m.name==='string'&&range(m.age,0,120)&&validParents(m.parents)&&['old_age','starvation'].includes(m.cause)&&range(m.day,1,1e12))

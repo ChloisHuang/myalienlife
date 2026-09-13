@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchControl,autonomousCandidates} from '../src/simulation.js';
+import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchControl,autonomousCandidates,ACTIONS} from '../src/simulation.js';
+import {removeUfo} from '../src/space-logistics.js';
 import {backDiscovered} from '../src/space-logistics.js';
 import {autonomyBonus} from '../src/autonomy.js';
 import {generateIsland} from '../src/island-generator.js';
@@ -9,6 +10,16 @@ const run=(g,seconds=80)=>{for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.5);};
 function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const key in g.config.needDecay)g.config.needDecay[key]=0;g.civilization.technology=240;g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];g.skills.science=18;g.money=10000;return g;}
 function equip(g,tier=2){g.space.ships.push({id:'ship-a',tier,island:'home',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.home=24;}
 function addGenerated(g,index=0,visited=1){const island=generateIsland(g.civilization.seed,index);g.civilization.islands[island.id]=island;g.civilization.discoveryPath.push(island.id);g.civilization.visits[island.id]=visited;g.civilization.surveys[island.id]=0;g.civilization.surveyDays[island.id]=0;g.civilization.projects[island.id]=createProject(g.civilization.seed^index);return island;}
+test('idle UFO removal returns cargo and rations, then removes the ship',()=>{
+ const g=setup(),ship={id:'remove-me',tier:2,island:'home',side:'front',food:4,durability:60,reservedBy:null};g.space.ships=[ship];g.space.cargo[ship.id]=12;g.space.materials.home=8;g.space.provisions.home=3;g.money=100;
+ const result=removeUfo(g,ship.id);assert.equal(result.ok,true);assert.equal(g.space.ships.length,0);assert.equal(g.space.cargo[ship.id],undefined);assert.equal(g.space.materials.home,20);assert.equal(g.space.provisions.home,7);assert.equal(g.money,520);assert.match(result.message,/手动删除/);
+});
+test('reserved UFO cannot be removed before its voyage is cancelled',()=>{
+ const g=setup(),ship={id:'reserved-ufo',tier:1,island:'home',side:'front',food:0,durability:100,reservedBy:42};g.space.ships=[ship];const result=removeUfo(g,ship.id);assert.equal(result.ok,false);assert.match(result.message,/取消航行/);assert.equal(g.space.ships[0],ship);
+});
+test('UFO removal is a user build command, not a resident action',()=>{
+ const g=setup();assert.equal(ACTIONS.removeUfo,undefined);assert.equal(autonomousCandidates(g,'player').some(q=>q.type==='removeUfo'),false);
+});
 test('manufacture and rations require their professions and create persisted resources after completion',()=>{
  const g=setup();g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);run(g);assert.equal(g.space.ships[0].tier,2);assert.match(g.space.ships[0].id,/^ufo-\d+$/);assert.equal(g.money,8600);
  const stove=buyItem(g,'stove',5,5).object;assert.ok(stove);assert.equal(enqueue(g,'prepareRations',stove.id).ok,false);g.career={id:'chef',level:1,shifts:0};g.skills.cooking=3;const money=g.money;assert.equal(enqueue(g,'prepareRations',stove.id).ok,true);run(g);assert.equal(g.space.provisions.home,8);assert.equal(g.money,money-30);assert.deepEqual(restore(serialize(g)).space,g.space);

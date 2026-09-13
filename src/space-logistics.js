@@ -9,7 +9,13 @@ export const UFOS=[
 export const UFO_WEAR_PER_FLIGHT=10;
 export function fleetLimit(g){return g.civilization.discoveryPath.filter(id=>!g.civilization.destroyedIslands.includes(id)).length*2;}
 export function fleetBuildError(g,actionId=null){const pending=new Set([g.queue,...Object.values(g.npcs).map(p=>p.queue)].flat().filter(q=>/^buildUfo[123]$/.test(q.type)&&q.id!==actionId).map(q=>q.id)).size;return g.space.ships.length+pending>=fleetLimit(g)?`UFO 数量上限 ${fleetLimit(g)} 艘（每座未摧毁星岛 2 艘），含已排队制造。`:null;}
-export function retireUfo(g,ship,reason){depositShipCargo(g,ship);const refund=Math.floor(ufoDefinition(ship).price*.5*ship.durability/100);g.space.provisions[ship.island]=(g.space.provisions[ship.island]??0)+ship.food;g.money+=refund;g.space.ships.splice(g.space.ships.indexOf(ship),1);g.log.unshift({text:`${ufoDefinition(ship).name}因${reason}回收，返还 ${refund} 星币及 ${ship.food} 份食物。`,at:g.minute});}
+export function retireUfo(g,ship,reason){depositShipCargo(g,ship);const refund=Math.floor(ufoDefinition(ship).price*.5*ship.durability/100);g.space.provisions[ship.island]=(g.space.provisions[ship.island]??0)+ship.food;g.money+=refund;g.space.ships.splice(g.space.ships.indexOf(ship),1);const message=`${ufoDefinition(ship).name}因${reason}回收，返还 ${refund} 星币及 ${ship.food} 份食物。`;g.log.unshift({text:message,at:g.minute});return message;}
+export function removeUfo(g,id){
+ const ship=g.space.ships.find(s=>s.id===id);
+ if(!ship)return{ok:false,message:'这艘 UFO 已不存在。'};
+ if(ship.reservedBy!==null)return{ok:false,message:'这艘 UFO 正在等待登船，请先取消航行安排。'};
+ return{ok:true,message:retireUfo(g,ship,'手动删除')};
+}
 export const createSpaceLogistics=()=>({backs:{home:true},ships:[],provisions:{},materials:{},cargo:{}});
 export const backDiscovered=(g,id)=>id==='home'||g.space.backs[id]===true;
 export const ufoDefinition=ship=>UFOS[ship.tier-1];

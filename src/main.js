@@ -12,7 +12,7 @@ import {createOnlineClient} from './online-client.js';
 import {createVisitorsUi} from './visitors-ui.js';
 import {createIdentityCard} from './identity-card.js';
 import {displayNumber} from './display-number.js';
-import {UFO_WEAR_PER_FLIGHT,backDiscovered,ufoDefinition,shipFoodStatus} from './space-logistics.js';
+import {UFO_WEAR_PER_FLIGHT,backDiscovered,ufoDefinition,shipFoodStatus,fleetLimit} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
 import {islandCatalog,islandDefinition,discovered,civilizationError,voyageError,starVoyageError} from './civilization.js';
 import {islandOf} from './island.js';
@@ -37,7 +37,7 @@ import './floating-island.css';
 import {createFloatingIsland} from './floating-island.js';
 import {PictureInPicture2,ArrowLeft} from 'lucide';
 import {createFullscreenController} from './fullscreen.js';
-import {createElement,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole} from 'lucide';
+import {createElement,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole,Trash2} from 'lucide';
 import {createWorld} from './world.js';
 import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,actionCost,canAffordAction,isSellableItem} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,isSeating,lifeStage,skillProgress} from './characters.js';
@@ -47,7 +47,7 @@ import {afterPaint,deferAfterPaint} from './startup-scheduling.js';
 
 const $=s=>document.querySelector(s);
 const UFO_BUILD_ACTIONS=new Set(['buildUfo1','buildUfo2','buildUfo3']);
-const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole};
+const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole,Trash2};
 const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('class',`icon ${cls}`);el.setAttribute('aria-hidden','true');return el.outerHTML;};
 const githubMark=()=>'<svg class="icon" data-icon="github-mark" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>';
 Object.assign(icons,{PictureInPicture2,ArrowLeft});
@@ -80,6 +80,7 @@ const updateResident=async(_game,...args)=>command('updateResident',...args);
 const loadShipFood=async(_game,...args)=>command('loadShipFood',...args);
 const loadShipMaterials=async(_game,...args)=>command('loadShipMaterials',...args);
 const unloadShipMaterials=async(_game,...args)=>command('unloadShipMaterials',...args);
+const removeUfo=async(_game,...args)=>command('removeUfo',...args);
 $('#app').innerHTML=translateHtml('<div id="loading"><h2>正在读取星湾存档</h2><p>从服务器恢复你的生活进度…</p></div>');
 try{game=hosted?await online.load():await persistence.load();}catch(error){
  console.error('游戏存档读取失败',error);
@@ -168,7 +169,7 @@ if(hosted){
  new ResizeObserver(()=>{$('#journal').style.top=`${locationPanel.offsetTop+locationPanel.offsetHeight+24}px`;}).observe(locationPanel);
 }
 const flightDialog=document.createElement('dialog');flightDialog.id='flight-dialog';$('#app').append(flightDialog);
-const mutationControls='[data-speed],#autonomy,[data-inherit],#new-life,[data-cancel],[data-action],[data-career],[data-item],[data-destroy-island],[data-star-voyage],[data-load-ship],[data-load-materials],[data-unload-materials],[data-sell],#work,#study,#save,#config-reset,#restart-epoch,#config-project-default,#build-button,#randomize-heads,#study-focus,#family-desire,#confirm-flight,#config-form input,#config-form button[type="submit"],#resident-form input,#resident-form select,#resident-form button[type="submit"]';
+const mutationControls='[data-speed],#autonomy,[data-inherit],#new-life,[data-cancel],[data-action],[data-career],[data-item],[data-destroy-island],[data-star-voyage],[data-load-ship],[data-load-materials],[data-unload-materials],[data-remove-ufo],[data-sell],#work,#study,#save,#config-reset,#restart-epoch,#config-project-default,#build-button,#randomize-heads,#study-focus,#family-desire,#confirm-flight,#config-form input,#config-form button[type="submit"],#resident-form input,#resident-form select,#resident-form button[type="submit"]';
 if(hosted)for(const type of ['click','change','submit'])$('#app').addEventListener(type,event=>{if(!online.canOperate&&(event.target.closest(mutationControls)||type==='submit'&&['resident-form','config-form'].includes(event.target.id))){event.preventDefault();event.stopImmediatePropagation();toast('当前为只读，请先获取操作权');}},true);
 function openFlight(id,shipId=null){
  const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));
@@ -187,6 +188,11 @@ function showUfo(id){
  const cargoSection=document.createElement('section');cargoSection.className='cargo-controls';cargoSection.innerHTML=`<h3>植生复材货舱</h3><p>已装 ${cargo} / ${def.cargoCapacity} 份 · 本岛库存 ${stock} 份</p><label>装载数量 <input id="cargo-amount" type="number" min="1" max="${max}" step="1" value="${Math.min(10,max)}" ${locked||max<1?'disabled':''}/></label><div><button data-load-materials="${id}" ${locked||max<1?'disabled':''}>装载材料</button><button data-unload-materials="${id}" ${locked||!cargo?'disabled':''}>卸回本岛</button></div><small>材料随飞船运输，抵达后自动卸入目标星岛仓库。货舱与乘客座位、食物补给独立。</small>`;
  dialog.querySelector('[data-load-ship]').after(cargoSection);
  $('#app').append(dialog);localizePage();dialog.addEventListener('click',event=>{if(event.target.closest('[data-voyage]'))dialog.close();});dialog.onclose=()=>dialog.remove();dialog.showModal();
+}
+function buildFleetPanel(){
+ if(!build)return'';
+ const ships=game.space.ships;
+ return `<section class="ufo-build-panel" aria-label="UFO 舰队"><div class="ufo-build-heading"><h3>${icon('Orbit')} UFO 舰队</h3><small>${ships.length} / ${fleetLimit(game)} 艘</small></div>${ships.length?`<div class="ufo-build-list">${ships.map(ship=>{const def=ufoDefinition(ship),reserved=ship.reservedBy!==null;return `<div class="ufo-build-row"><div><strong>${def.name}</strong><small>${islandDefinition(game,ship.island).name} · ${SIDES[ship.side]} · ${reserved?'已安排':'空闲'} · 耐久 ${ship.durability}/100</small></div><button type="button" class="ufo-remove-button" data-remove-ufo="${ship.id}" ${reserved?'disabled':''} aria-label="删除 UFO" title="${reserved?'已安排航行，请先取消登船安排':'删除并回收 UFO'}">${icon('Trash2')}</button></div>`}).join('')}</div>`:'<p class="ufo-build-empty">暂无 UFO</p>'}</section>`;
 }
 function changeTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));lastPanel='';renderPanel();refreshDossier();}
 function relationName(n){return n>=70?'挚友':n>=35?'朋友':'初识';}
@@ -399,7 +405,7 @@ function renderPanel(){
   $('#panel-content').innerHTML=`<div class="career-layout">${residentPicker()}<div class="career-current"><div class="career-icon">${icon(c.icon)}</div><div><span class="eyebrow">${c.name} · 等级 ${state.level}</span><h3>${level.title}</h3><p>${careerSummary}</p><small>${studying?'学习期间不会安排工作班次。':`当前级别技能：${careerSkillsText(skills,state.id,state.level)}`}</small><p class="career-chain">${c.levels.map(l=>l.title).join(' → ')}</p></div>${isPlayer&&!studying?`<button class="primary" id="work">开始工作 ${icon('ArrowRight')}</button>`:''}</div><details class="continuing-education"${studying?' open':''}><summary>学历与继续教育</summary>${learningPanel(person,skills,true)}</details><div class="career-options">${Object.entries(CAREERS).map(([id,career])=>{const missing=missingCareerSkills(skills,id,1,game.config),chosen=id===state.id,locked=!isPlayer||chosen||missing.length;return `<button data-career="${id}" class="${chosen?'chosen':''}" aria-label="加入${career.name}" ${locked?'disabled':''} title="${chosen?'当前职业':missing.length?`技能不足：${careerMissingText(skills,id)}`:'达到入职门槛，可申请'}">${icon(career.icon)}<span>${career.name}</span><small>入职要求：${careerSkillsText(skills,id)}</small>${chosen?icon('Check'):icon('ArrowUpRight')}</button>`;}).join('')}</div><div class="skills">${Object.entries(SKILLS).map(([key,skill])=>`${skill.name} ${Math.floor(skills[key])}`).join(' <span>·</span> ')} <span>·</span> 入职与晋升均按配置检查技能</div></div>`;
  }
  if(educationOpen)$('.continuing-education')?.setAttribute('open','');
- if(tab==='items')$('#panel-content').innerHTML=`<div class="catalog"><div class="pack-filters">${['全部',...new Set(ITEMS.map(i=>i.pack))].map(p=>`<button data-pack="${p}" class="${pack===p?'active':''}">${p}</button>`).join('')}<small>${build?'摆放时按 R 旋转':'购买家具，装点你的星际小家'}</small></div><div class="item-grid">${ITEMS.filter(i=>pack==='全部'||i.pack===pack).map(i=>`<button class="item-card ${selectedItem===i.id?'selected':''}" data-item="${i.id}" aria-label="购买 ${i.name}"><div class="item-art ${i.pack==='生活舱'?'rose':i.pack==='星际科技'?'lavender':'green'}">${icon(i.icon)}</div><div><strong>${i.name}</strong><small>✦ ${i.price}</small></div><span class="item-description">${i.desc}</span></button>`).join('')}</div></div>`;
+ if(tab==='items')$('#panel-content').innerHTML=`<div class="catalog">${buildFleetPanel()}<div class="pack-filters">${['全部',...new Set(ITEMS.map(i=>i.pack))].map(p=>`<button data-pack="${p}" class="${pack===p?'active':''}">${p}</button>`).join('')}<small>${build?'摆放时按 R 旋转':'购买家具，装点你的星际小家'}</small></div><div class="item-grid">${ITEMS.filter(i=>pack==='全部'||i.pack===pack).map(i=>`<button class="item-card ${selectedItem===i.id?'selected':''}" data-item="${i.id}" aria-label="购买 ${i.name}"><div class="item-art ${i.pack==='生活舱'?'rose':i.pack==='星际科技'?'lavender':'green'}">${icon(i.icon)}</div><div><strong>${i.name}</strong><small>✦ ${i.price}</small></div><span class="item-description">${i.desc}</span></button>`).join('')}</div></div>`;
 }
  function plantDetails(o){const p=o.plant,crop=cropDefinition(game,o.type),yieldAmount=harvestAmount(o,game.config.crops);return `<strong>${plantStatus(o)}</strong><div class="plant-meters">${[['生长',p.growth*100],['水分',p.water],['健康',p.health]].map(([label,value])=>`<div><span>${label}<b>${Math.floor(value)}%</b></span><div class="meter"><span style="width:${value}%"></span></div></div>`).join('')}</div><small>约 ${crop.minutes/60} 游戏小时 · 当前产量 ${yieldAmount} 份${crop.name}${p.giant?'（巨型作物）':''}</small><p>预计收入 ${yieldAmount*harvestPrice(o,game.config.crops)} 星币 · 自动出售${o.type==='mushroom'?` · 收获后植株消失 · 补种 ${MUSHROOM_SEED_COST} 星币`:''}</p>`;}
 function refreshLivingMenu(){
@@ -633,6 +639,7 @@ $('#app').addEventListener('click',async e=>{
  if(b.dataset.starVoyage){const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));const result=await enqueue(game,'starVoyage',portal?.id,undefined,null,b.dataset.starVoyage);toast(result.ok?'已安排独自通过星门航行。':result.message);closeContext();refresh();}
  if(b.dataset.loadShip){const result=await loadShipFood(game,b.dataset.loadShip);toast(result.message);b.closest('dialog').close();showUfo(b.dataset.loadShip);refresh();}
  if(b.dataset.loadMaterials||b.dataset.unloadMaterials){const id=b.dataset.loadMaterials||b.dataset.unloadMaterials,result=b.dataset.loadMaterials?await loadShipMaterials(game,id,Number($('#cargo-amount').value)):await unloadShipMaterials(game,id);toast(result.message);if(result.ok){showUfo(id);refresh();save();}}
+ if(b.dataset.removeUfo){if(!confirm('确定删除这艘 UFO？剩余耐久、货舱材料和食物将回收，操作无法撤销。'))return;const result=await removeUfo(game,b.dataset.removeUfo);toast(result.message);if(result.ok){lastPanel='';b.closest('dialog')?.close();refresh();save();}}
  if(b.dataset.voyage){openFlight(b.dataset.voyage,b.dataset.ship||null);closeContext();}
  if(b.dataset.ufo){const ship=game.space.ships.find(s=>s.id===b.dataset.ufo);if(ship){game.viewIsland=ship.island;game.viewSide=ship.side;world.focusUfo(ship.id);showUfo(ship.id);refresh();}}
  if(b.dataset.sell){if(await sellItem(game,b.dataset.sell)){toast('家具已出售，返还 70% 星币。');refresh();}else toast('请先取消与这件家具相关的行动。');closeContext();}

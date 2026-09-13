@@ -1,5 +1,5 @@
 import * as sim from './simulation.js';
-import {loadShipFood,loadShipMaterials,unloadShipMaterials} from './space-logistics.js';
+import {loadShipFood,loadShipMaterials,unloadShipMaterials,removeUfo} from './space-logistics.js';
 import {islandCatalog} from './civilization.js';
 import {SIDES} from './island.js';
 import {SKILLS} from './characters.js';
@@ -15,7 +15,7 @@ const point=v=>v==null||object(v)&&number(v.x)&&number(v.z)&&Object.keys(v).ever
 const spec={
  enqueue:[[v=>string(v)&&Object.hasOwn(sim.ACTIONS,v),nullable,point,nullable,nullable,v=>v==null||Array.isArray(v)&&v.length<=24&&v.every(string),nullable],1,(g,type,target,position,partner,destination,passengers,ship)=>sim.enqueue(g,type,target,position??undefined,partner??null,destination??null,passengers??[],ship??null)],
  enqueueStudy:[[],0,sim.enqueueStudy],cancelAction:[[id],1,sim.cancelAction],
- buyItem:[[string,number,number,number],3,sim.buyItem],sellItem:[[string],1,sim.sellItem],
+ buyItem:[[string,number,number,number],3,sim.buyItem],sellItem:[[string],1,sim.sellItem],removeUfo:[[string],1,removeUfo],
  setCareer:[[v=>string(v)&&Object.hasOwn(sim.CAREERS,v)],1,sim.setCareer],setAutonomy:[[bool],1,sim.setAutonomy],
  switchControl:[[string],1,sim.switchControl],takeOver:[[string],1,sim.takeOver],
  destroyIsland:[[string],1,sim.destroyIsland],randomizeHeads:[[],0,sim.randomizeHeads],
