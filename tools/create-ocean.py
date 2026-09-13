@@ -3,6 +3,7 @@ import math
 import sys
 from pathlib import Path
 import bpy
+import bmesh
 from mathutils import Matrix, Vector
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,7 +12,8 @@ rebuild_palace='--palace-only' in sys.argv
 rebuild_back='--back-only' in sys.argv or rebuild_wreck or rebuild_palace
 rebuild_houses='--houses-only' in sys.argv
 rebuild_pools='--front-pools-only' in sys.argv
-if rebuild_back or rebuild_houses or rebuild_pools:
+rebuild_bench='--bench-only' in sys.argv
+if rebuild_back or rebuild_houses or rebuild_pools or rebuild_bench:
     bpy.ops.wm.open_mainfile(filepath=str(ROOT/'artifacts/ocean/ocean.blend'))
 else:
     bpy.ops.object.select_all(action='SELECT')
@@ -20,7 +22,7 @@ else:
 def material(name, color, glow=0):
     rgb = [int(color[i:i+2], 16)/255 for i in (0, 2, 4)]
     rgb = [v/12.92 if v <= .04045 else ((v+.055)/1.055)**2.4 for v in rgb]
-    m = bpy.data.materials.get(name) if rebuild_back or rebuild_houses or rebuild_pools else None
+    m = bpy.data.materials.get(name) if rebuild_back or rebuild_houses or rebuild_pools or rebuild_bench else None
     if m is None:m = bpy.data.materials.new(name)
     m.diffuse_color = (*rgb, 1)
     m.use_nodes = True
@@ -754,6 +756,117 @@ def terrain(dark):
     stage(.8,lambda:fountain(True) if dark else pearl_pools())
     stage(1,palace if dark else lambda:raised(lighthouse,7,-7))
 
+def wave_bench():
+    before=set(bpy.context.scene.objects)
+    colors=['087D9B','0A9EB4','2EC4CA','68DDD3','B4F0E2']
+    for i,c in enumerate(colors):M[f'wave{i}']=material(f'wave water {i}',c,.12)
+    M['foam']=material('wave foam','E9E3E3',.04)
+    # Sweep rounded sections along an S-shaped rise and a returning curl.
+    # Colour ribbons follow that flow; no extruded panels or horizontal bands.
+    path=[[(.20,0),(-.45,.03),(-.87,.48),(-.77,.9)],
+          [(-.77,.9),(-.69,1.26),(-.25,1.52),(.14,1.36)],
+          [(.14,1.36),(.38,1.26),(.32,1.13),(.20,1.19)]]
+    arm_path=[[(.62,.22),(.45,.03),(-.25,-.02),(-.45,.32)],
+              [(-.45,.32),(-.75,.72),(-.43,1.13),(.04,1.17)],
+              [(.04,1.17),(.40,1.22),(.61,.96),(.42,.78)]]
+    def profile(t,arm=False):
+        curves=arm_path if arm else path;count=len(curves)
+        segment=min(count-1,int(t*count));u=t*count-segment;p=curves[segment]
+        weights=[(1-u)**3,3*u*(1-u)**2,3*u*u*(1-u),u**3]
+        return Vector(tuple(sum(weights[i]*p[i][axis] for i in range(4)) for axis in range(2)))
+    def surface(name,verts,faces,bands):
+        o=mesh(name,verts,faces,'wave0')
+        for j in range(1,5):o.data.materials.append(M[f'wave{j}'])
+        o.data.materials.append(M['foam'])
+        for p,band in zip(o.data.polygons,bands):
+            p.material_index=band;p.use_smooth=band!=5
+    def swell(center,height,width,arm=False):
+        wave_start=set(bpy.context.scene.objects)
+        rings=49;sides=32;verts=[];faces=[];bands=[]
+        def breadth_at(t):
+            if arm:return width*(1-.25*math.sin(t*math.pi)**2+.35*math.exp(-((t-.67)/.16)**2)-.55*t**8)
+            return width*(1.5+1.05*(1-t)**3+.55*math.exp(-((t-.72)/.13)**2))
+        def crest_lift(t):
+            u=min(t/.35,1)
+            return 0 if arm else .71*u*u*(3-2*u)
+        def back_clearance(t):
+            u=min(t/.35,1)
+            return 0 if arm else .55*u*u*(3-2*u)
+        def point(t,angle):
+            t+=.018*math.sin(angle*5+center)*math.exp(-((t-.70)/.2)**2)*math.sin(math.pi*t)
+            angle-=.32*math.sin(t*5+center)+.24*t
+            q=profile(t,arm);direction=profile(min(1,t+.001),arm)-profile(max(0,t-.001),arm);direction.normalize()
+            normal=Vector((direction.y,-direction.x))
+            radius=.30*(1-t)+.055*t+.12*math.sin(math.pi*t)
+            breadth=breadth_at(t)
+            lateral=math.sin(angle)*breadth
+            thickness=math.cos(angle)*radius*(1+.06*math.sin(angle*3+t*7))
+            forward=q.x+normal.x*thickness-back_clearance(t)*math.cos(math.radians(35))
+            up=q.y*height+normal.y*thickness+.08*math.sin(math.pi*t)*math.cos(angle)**2+crest_lift(t)
+            if arm:return (forward*.64+.15,.18+up,center+lateral)
+            return (forward-.12,.49+up,center+lateral+.045*math.sin(t*5+center)*math.sin(math.pi*t)+back_clearance(t)*math.sin(math.radians(35)))
+        for i in range(rings):
+            t=i/(rings-1)
+            for j in range(sides):verts.append(point(t,j*math.tau/sides))
+        for i in range(rings-1):
+            t=(i+.5)/(rings-1)
+            for j in range(sides):
+                k=i*sides+j;next_j=(j+1)%sides
+                faces.append((k,i*sides+next_j,(i+1)*sides+next_j,k+sides))
+                angle=(j+.5)*math.tau/sides
+                band=[2,3,4,3,2,1,0,0,1,2,3,1][j*12//sides]
+                bands.append(band)
+        faces.extend([tuple(reversed(range(sides))),tuple((rings-1)*sides+j for j in range(sides))]);bands.extend([1,1])
+        surface('rounded inward wave',verts,faces,bands)
+        foam_parts=[]
+        for i in range(32 if arm else 27):
+            t=.40+.60*i/26 if i<27 else .10*(i-27)/4
+            q=profile(t,arm)
+            direction=profile(min(1,t+.001),arm)-profile(max(0,t-.001),arm);direction.normalize()
+            normal=Vector((direction.y,-direction.x))
+            radius=.30*(1-t)+.055*t+.12*math.sin(math.pi*t)
+            x=q.x-normal.x*radius*.85-back_clearance(t)*math.cos(math.radians(35));y=q.y*height-normal.y*radius*.85+.08*math.sin(math.pi*t)+crest_lift(t)
+            p=(x*.64+.15,.18+y,center) if arm else (x-.12,.49+y,center+.045*math.sin(t*5+center)*math.sin(math.pi*t)+back_clearance(t)*math.sin(math.radians(35)))
+            r=(.088 if arm else .145)*(1+.09*math.sin(i*2.3+center))
+            if i>=27:p=(q.x*.64+.15,.18+q.y*height,center);r=.22
+            breadth=breadth_at(t)
+            bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=1,location=xyz(p))
+            o=finish(bpy.context.object,'foam');o.scale=(r,breadth*1.12,r)
+            bpy.ops.object.transform_apply(location=False,rotation=False,scale=True);foam_parts.append(o)
+        foam=join_objects(foam_parts,'rounded continuous wave foam')
+        modifier=foam.modifiers.new('fused foam volume','REMESH');modifier.mode='VOXEL';modifier.voxel_size=.025 if arm else .035
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        modifier=foam.modifiers.new('soft foam facets','DECIMATE');modifier.ratio=.22
+        bpy.ops.object.modifier_apply(modifier=modifier.name)
+        pivot=Matrix.Translation(Vector(xyz((0,0,center))))
+        turn=pivot@Matrix.Rotation(math.radians(-35),4,'Z')@pivot.inverted()
+        for o in set(bpy.context.scene.objects)-wave_start:o.matrix_world=turn@o.matrix_world
+    for center,height,width in [(-.72,1.58,.32),(0,2.01,.34),(.72,1.52,.32)]:
+        swell(center,height,width)
+    # Rounded, gently undulating seat, still at the existing sitting height.
+    verts=[];faces=[];bands=[];sides=32
+    for i in range(41):
+        z=-1.26+2.52*i/40
+        for j in range(sides):
+            a=j*math.tau/sides
+            verts.append((.06+.62*math.cos(a)+.12*math.sin(z*5),.49+.17*math.sin(a)+.04*math.sin(z*5+.8),z))
+    for i in range(40):
+        for j in range(sides):
+            k=i*sides+j;n=(j+1)%sides
+            faces.append((k,i*sides+n,(i+1)*sides+n,k+sides))
+            bands.append([2,3,4,3,2,1,0,1][j//4])
+    faces.extend([tuple(reversed(range(sides))),tuple(40*sides+j for j in range(sides))]);bands.extend([1,1])
+    surface('rounded flowing seat',verts,faces,bands)
+    for z in [-1.17,1.17]:swell(z,.70,.18,True)
+    for x,z,y,r in [(.20,-1.02,2.95,.075),(.30,-.62,3.10,.06),(.32,-.29,3.40,.08),(.39,.28,3.20,.06),(.23,.88,3.00,.07),(.35,1.1,2.90,.055)]:
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2,radius=r,location=xyz((x,y,z)))
+        finish(bpy.context.object,'foam')
+    for o in set(bpy.context.scene.objects)-before:
+        o.matrix_world=Matrix.Diagonal((1.12,1.25,1,1))@o.matrix_world
+        bm=bmesh.new();bm.from_mesh(o.data)
+        bmesh.ops.recalc_face_normals(bm,faces=bm.faces)
+        bm.to_mesh(o.data);bm.free()
+
 def facility(kind):
     if kind=='pod':
         clam_shell(0,.06,0,2.35,2.9,1.8)
@@ -775,9 +888,7 @@ def facility(kind):
         arch(0,.1,.04,1.95,2.6,'glow',.035)
         ball((0,2.9,0),(.2,.22,.2),'pearl')
     elif kind=='sofa':
-        box((0,.38,0),(1.45,.3,2.4),'ivory')
-        box((0,.59,0),(1.3,.16,2.3),'teal')
-        for z in [-1.2,1.2]:scallop(0,.6,z,1.5,.7,.3)
+        wave_bench()
     elif kind=='music':
         lathe((0,0,0),[(.65,0),(.45,.4)],'ivory')
         curve([(-.6,.4,0),(-.7,1.8,0),(.6,1.8,0),(.65,.4,0)],.09,'gold')
@@ -825,7 +936,11 @@ def stage(progress,build):
     o=join_objects(list(set(bpy.context.scene.objects)-before),f'stage-{int(progress*100)}')
     o['revealAt']=progress;o.parent=stage_root
 
-if rebuild_back or rebuild_houses or rebuild_pools:
+if rebuild_bench:
+    bpy.data.objects.remove(bpy.data.objects['ocean-sofa'],do_unlink=True)
+    before=set(bpy.context.scene.objects);facility('sofa')
+    join_objects(list(set(bpy.context.scene.objects)-before),'ocean-sofa')
+elif rebuild_back or rebuild_houses or rebuild_pools:
     stage_root=bpy.data.objects['ocean-front' if rebuild_houses or rebuild_pools else 'ocean-back']
     target_stage=.8 if rebuild_pools else .4 if rebuild_houses else 1 if rebuild_palace else .6 if rebuild_wreck else None
     for previous in list(stage_root.children):

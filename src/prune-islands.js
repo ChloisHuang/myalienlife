@@ -7,7 +7,7 @@ export function pruneGeneratedIslands(g){
  for(const {p,q}of records)for(const a of q)if(moved.has(p.uid)||removedObjects.has(a.targetId)||removed.has(a.destinationId)||removed.has(islandOf(a.target))||(a.passengerUids??[]).some(id=>moved.has(id)))cancelled.add(a.id);
  let changed=true;while(changed){changed=false;for(const {q}of records)for(const a of q)if(a.hostActionId&&cancelled.has(a.hostActionId)&&!cancelled.has(a.id)){cancelled.add(a.id);changed=true;}}
  for(const {p,q,ai}of records){for(let i=q.length-1;i>=0;i--)if(cancelled.has(q[i].id))q.splice(i,1);if(moved.has(p.uid))Object.assign(p,destination);if(removedObjects.has(ai.lastTarget))ai.lastTarget=null;}
- let ships=0;for(const ship of g.space.ships){if(removed.has(ship.island)){ship.island='home';ship.side='front';ships++;}if(cancelled.has(ship.reservedBy))ship.reservedBy=null;}
+ let ships=0;for(const ship of g.space.ships){if(removed.has(ship.island)||removed.has(ship.flight?.from.island)||removed.has(ship.flight?.to.island)){ship.island='home';ship.side='front';delete ship.flight;ships++;}if(cancelled.has(ship.reservedBy))ship.reservedBy=null;}
  // Keep unborn residents and their occupied nursery when removing an island.
  const occupied=new Set(g.incubations.map(b=>b.podId));for(const o of g.objects)if(removedObjects.has(o.id)&&occupied.has(o.id)){Object.assign(o,homeSpot());removedObjects.delete(o.id);}
  g.objects=g.objects.filter(o=>!removedObjects.has(o.id));

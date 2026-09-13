@@ -3,6 +3,65 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {StarToonMaterial} from './npr.js';
 import {batchStatic,disposeStaticBatches} from './static-batching.js';
 import {OCEAN_ITEMS,OCEAN_WATER,oceanHeight} from './ocean-definition.js';
+import {ISLAND_FACE_OFFSET} from './cream-ground.js';
+
+const shoreOutline=a=>1+.02*Math.sin(a*7)+.016*Math.sin(a*13);
+const outletWeight=a=>THREE.MathUtils.smoothstep(a,.65,.78)*(1-THREE.MathUtils.smoothstep(a,1.38,1.51));
+
+function createOceanStoneBelt(){
+ const segments=116,top=.04,bottom=-2*ISLAND_FACE_OFFSET+.13,positions=[],indices=[],pieces=[];
+ // Match the mirrored reverse outline; overlap both authored skins with uneven joins.
+ const boundary=(a,t)=>{
+  const front=shoreOutline(a)*(1+.08*outletWeight(a));
+  const back=1+.022*Math.sin(-a*5)+.018*Math.cos(a*9);
+  return front*(1-t)+back*t;
+ };
+ const edge=(a,t)=>THREE.MathUtils.lerp(top+.09*Math.sin(a*11)+.035*Math.cos(a*23),.72,outletWeight(a))*(1-t)+(bottom+.09*Math.sin(a*11+3)+.035*Math.cos(a*23))*t;
+ for(const t of [0,1])for(let i=0;i<segments;i++){
+  const a=i*Math.PI*2/segments,r=boundary(a,t)-.012*(1-outletWeight(a)*(1-t));
+  positions.push(14.6*Math.cos(a)*r,edge(a,t),10.4*Math.sin(a)*r);
+ }
+ for(let i=0;i<segments;i++){
+  const j=(i+1)%segments;
+  indices.push(i,j,i+segments,j,j+segments,i+segments);
+ }
+ const core=new THREE.BufferGeometry();core.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));core.setIndex(indices);
+ pieces.push(core.toNonIndexed());core.dispose();
+ for(let row=0;row<3;row++)for(let i=0;i<58;i++){
+  const a=(i+.5*(row%2))*Math.PI*2/58,t=(row+.5)/3,r=boundary(a,t);
+  const width=Math.hypot(14.6*Math.sin(a),10.4*Math.cos(a))*Math.PI*2/58;
+  const w=width*.47,h=(top-bottom)/6+.055+.045*Math.sin(i*2.3+row),bevel=.09,vertices=[],faces=[];
+  const relief=.28+.065*Math.sin(i*4.7+row);
+  for(const [inset,z]of [[bevel,-relief],[0,-relief+bevel],[0,.16]])for(const [x,y]of [[-1,-1],[1,-1],[1,1],[-1,1]])vertices.push(x*(w-inset),y*(h-inset),z);
+  faces.push(0,2,1,0,3,2,8,9,10,8,10,11);
+  for(let ring=0;ring<2;ring++)for(let corner=0;corner<4;corner++){
+   const a=ring*4+corner,b=ring*4+(corner+1)%4;faces.push(a,b,a+4,b,b+4,a+4);
+  }
+  const block=new THREE.BufferGeometry();block.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));block.setIndex(faces);
+  const geometry=block.toNonIndexed();block.dispose();
+  geometry.rotateZ(.055*Math.sin(i*3+row));geometry.rotateY(Math.atan2(-10.4*Math.cos(a),-14.6*Math.sin(a)));
+  geometry.translate(14.6*Math.cos(a)*r,edge(a,t),10.4*Math.sin(a)*r);
+  // Keep the intact, tilted stone caps above the .62 water surface.
+  if(row===0){
+   geometry.computeBoundingBox();const cap=.82+.025*Math.sin(i*2.3);
+   geometry.translate(0,(cap-geometry.boundingBox.max.y)*outletWeight(a),0);
+  }
+  pieces.push(geometry);
+ }
+ const dry=new THREE.Color(0xf4e6d4),wet=new THREE.Color(0x9bb4a9),tint=new THREE.Color();
+ for(const [index,geometry]of pieces.entries()){
+  geometry.computeVertexNormals();const p=geometry.attributes.position,colors=new Float32Array(p.count*3);
+  for(let i=0;i<p.count;i++){
+   const depth=THREE.MathUtils.clamp((top-p.getY(i))/(top-bottom),0,1);
+   tint.copy(dry).lerp(wet,depth).multiplyScalar(index===0?.91:.96+.04*Math.sin(index*2.4));tint.toArray(colors,i*3);
+  }
+  geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+ }
+ const material=new StarToonMaterial({name:'stone',color:0xffffff,vertexColors:true,side:THREE.DoubleSide});
+ const root=new THREE.Mesh(mergeGeometries(pieces),material);for(const geometry of pieces)geometry.dispose();
+ root.name='ocean-stone-belt';root.castShadow=root.receiveShadow=true;
+ return root;
+}
 
 const skins=new Set(['pod','food','shower','lab','portal','sofa','music','blueprintTable','constructionTerminal']);
 const vertexShader=`varying vec2 p;void main(){p=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
@@ -67,7 +126,20 @@ export function createOceanWater(side,causticsTexture=null){
    #include <tonemapping_fragment>
    #include <colorspace_fragment>
   }`});
- const surface=new THREE.Mesh(new THREE.CircleGeometry(1,96),material);
+ const geometry=new THREE.CircleGeometry(1,96);
+ if(!dark){
+  // Follow the outlet contour below the raised stone rim, well above the .18 bed.
+  const segments=116,positions=[0,0,0],uvs=[.5,.5],indices=[];
+  for(const [radius,height]of [[.97,spec.y],[1.08,.54]])for(let i=0;i<segments;i++){
+   const a=i*Math.PI*2/segments,r=radius*shoreOutline(a),x=14.6*Math.cos(a)*r/spec.rx,y=-10.4*Math.sin(a)*r/spec.rz;
+   positions.push(x,y,height-spec.y);uvs.push(x*.5+.5,y*.5+.5);
+  }
+  for(let i=0;i<segments;i++){
+   const a=i+1,b=(i+1)%segments+1;indices.push(0,b,a,a,b,a+segments,b,b+segments,a+segments);
+  }
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));geometry.deleteAttribute('normal');geometry.setIndex(indices);geometry.computeVertexNormals();
+ }
+ const surface=new THREE.Mesh(geometry,material);
  surface.rotation.x=-Math.PI/2;surface.scale.set(spec.rx,spec.rz,1);surface.position.y=spec.y;
  surface.name=`ocean-${side}-water`;surface.renderOrder=4;if(!dark)root.add(surface);
  const falls=new THREE.ShaderMaterial({uniforms,vertexShader,side:THREE.DoubleSide,transparent:true,depthWrite:false,
@@ -149,7 +221,25 @@ export function createOceanKit(asset,groundTexture,causticsTexture=null){
  function model(name){
   const source=asset.getObjectByName(name);if(!source)throw new Error(`Ocean asset missing: ${name}`);
   const root=new THREE.Group(),copy=source.clone(true),shared=new Map();root.add(copy);
-  function convert(m){if(!shared.has(m))shared.set(m,new StarToonMaterial({name:m.name,color:m.color,emissive:m.emissive,emissiveIntensity:m.emissiveIntensity,vertexColors:m.vertexColors,side:THREE.DoubleSide}));return shared.get(m);}
+  function convert(m){
+   if(!shared.has(m)){
+    const material=new StarToonMaterial({name:m.name,color:m.color,emissive:m.emissive,emissiveIntensity:m.emissiveIntensity,vertexColors:m.vertexColors,side:THREE.DoubleSide});
+    if(name==='ocean-sofa'){
+     material.flatShading=true;
+     material.onBeforeCompile=shader=>{
+      StarToonMaterial.prototype.onBeforeCompile.call(material,shader);
+      shader.fragmentShader=shader.fragmentShader.replace('outgoingLight=diffuseColor.rgb*shade*mix(1.0,.32,ink)+totalEmissiveRadiance;',`
+       vec3 oceanSculptureShade=mix(vec3(.52,.65,.69),vec3(1.,.98,.95),smoothstep(.08,.95,lightLevel));
+       oceanSculptureShade*=illumination/max(luminance,.001)*min(max(lightBudget,luminance),1.);
+       outgoingLight=diffuseColor.rgb*oceanSculptureShade+totalEmissiveRadiance;
+      `);
+     };
+     material.customProgramCacheKey=()=> 'ocean-wave-sculpture-v1';
+    }
+    shared.set(m,material);
+   }
+   return shared.get(m);
+  }
   copy.traverse(o=>{if(o.isMesh){o.material=Array.isArray(o.material)?o.material.map(convert):convert(o.material);o.castShadow=o.receiveShadow=true;}});
   return root;
  }
@@ -165,6 +255,7 @@ export function createOceanKit(asset,groundTexture,causticsTexture=null){
    const root=model(`ocean-${side}`),stages=[];
    root.name=`ocean-${side}`;root.traverse(o=>{if(typeof o.userData.revealAt==='number')stages.push(o);});
    batchStatic(root);
+   if(side==='front')root.add(createOceanStoneBelt());
    if(side==='back'){
     root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material]){
      if(m.name==='ocean warm glass'){m.emissive.set(0xffd79a);m.emissiveIntensity=1.4;}
@@ -211,7 +302,7 @@ export function createOceanKit(asset,groundTexture,causticsTexture=null){
    root.add(water.root);water.root.traverse(o=>{if(typeof o.userData.revealAt==='number')stages.push(o);});if(life)root.add(life.root);
    return {root,lodTargets:[],setProgress(p){for(const s of stages)s.visible=p>=s.userData.revealAt;},
     update(seconds,wind,night,exposure=1){water.update(seconds);life?.setExposure(exposure);life?.update(seconds);},
-    dispose(){water.root.removeFromParent();life?.root.removeFromParent();water.dispose();life?.dispose();disposeStaticBatches(root);const materials=new Set();root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m);});for(const m of materials)m.dispose();root.removeFromParent();}
+    dispose(){water.root.removeFromParent();life?.root.removeFromParent();water.dispose();life?.dispose();root.getObjectByName('ocean-stone-belt')?.geometry.dispose();disposeStaticBatches(root);const materials=new Set();root.traverse(o=>{if(o.isMesh)for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m);});for(const m of materials)m.dispose();root.removeFromParent();}
    };
   }
  };

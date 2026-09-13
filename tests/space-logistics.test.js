@@ -18,14 +18,17 @@ test('reserved UFO cannot be removed before its voyage is cancelled',()=>{
  const g=setup(),ship={id:'reserved-ufo',tier:1,island:'home',side:'front',food:0,durability:100,reservedBy:42};g.space.ships=[ship];const result=removeUfo(g,ship.id);assert.equal(result.ok,false);assert.match(result.message,/取消航行/);assert.equal(g.space.ships[0],ship);
 });
 
-test('completed passenger flight automatically returns the empty UFO and consumes another use',()=>{
- const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);
- const ship=g.space.ships[0];assert.equal(g.player.island,'spore');assert.equal(ship.island,'home');assert.equal(ship.side,'front');assert.equal(ship.durability,80);assert.match(g.log.map(l=>l.text).join(' '),/自动返航/);
+test('completed passenger flight visibly returns the empty UFO before it docks at the origin',()=>{
+ const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);
+ for(let i=0;i<400&&g.player.island!=='spore';i++)tick(g,.1,()=>.5);
+ const ship=g.space.ships[0];assert.equal(g.player.island,'spore');assert.equal(ship.island,'spore');assert.equal(ship.side,'front');assert.equal(ship.durability,80);assert.equal(ship.flight?.kind,'return');assert.equal(ship.flight?.to.island,'home');assert.match(g.log.map(l=>l.text).join(' '),/自动返航/);
+ run(g,10);assert.equal(ship.island,'home');assert.equal(ship.side,'front');assert.equal(ship.flight,undefined);
 });
 
-test('an idle remote UFO can be dispatched to the controlled resident and dispatch costs one use',async()=>{
- const {dispatchUfo}=await import('../src/simulation.js');const g=setup();equip(g);const ship=g.space.ships[0];ship.island='spore';ship.durability=70;
- const result=dispatchUfo(g,ship.id);assert.equal(result.ok,true);assert.equal(ship.island,'home');assert.equal(ship.side,'front');assert.equal(ship.durability,60);assert.match(result.message,/调度/);
+test('an idle remote UFO dispatches through the same visible empty-flight state and costs one use',()=>{
+ const g=setup();equip(g);const ship=g.space.ships[0];ship.island='spore';ship.durability=70;
+ const result=dispatchUfo(g,ship.id);assert.equal(result.ok,true);assert.equal(ship.island,'spore');assert.equal(ship.side,'front');assert.equal(ship.durability,60);assert.equal(ship.flight?.kind,'dispatch');assert.equal(ship.flight?.to.island,'home');assert.match(result.message,/调度/);
+ assert.equal(dispatchUfo(g,ship.id).ok,false);run(g,10);assert.equal(ship.island,'home');assert.equal(ship.side,'front');assert.equal(ship.flight,undefined);
  ship.island='spore';ship.reservedBy=99;assert.equal(dispatchUfo(g,ship.id).ok,false);assert.equal(ship.durability,60);
 });
 test('UFO removal is a user build command, not a resident action',()=>{
@@ -122,8 +125,8 @@ test('fleet capacity includes pending manufacture and permits completion of the 
 test('old ships migrate with durability and excess fleet is recycled without losing cargo',()=>{
  const g=setup();equip(g);g.version=20;g.space.ships=Array.from({length:6},(_,i)=>({...g.space.ships[0],id:`old-${i}`,food:2}));for(const s of g.space.ships)delete s.durability;const loaded=restore(serialize(g));assert.equal(loaded.space.ships.length,2);assert.ok(loaded.space.ships.every(s=>s.durability===100));assert.equal(loaded.space.provisions.home,32);
 });
-test('last durability supports a return flight and recycles only after landing',()=>{
- const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);const ship=g.space.ships[0];ship.durability=20;assert.equal(dispatchUfo(g,ship.id).ok,true);assert.equal(ship.durability,10);assert.equal(ship.island,'spore');assert.equal(enqueue(g,'voyage','spore-portal',undefined,null,'home').ok,true);run(g,40);assert.equal(g.player.island,'home');assert.equal(g.space.ships.length,0);assert.match(g.log.map(l=>l.text).join(' '),/耐久耗尽/);
+test('last durability supports a dispatch flight and recycles only after the final passenger landing',()=>{
+ const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);const ship=g.space.ships[0];ship.durability=20;assert.equal(dispatchUfo(g,ship.id).ok,true);assert.equal(ship.durability,10);assert.equal(ship.island,'home');assert.equal(ship.flight?.kind,'dispatch');run(g,10);assert.equal(ship.island,'spore');assert.equal(enqueue(g,'voyage','spore-portal',undefined,null,'home').ok,true);run(g,40);assert.equal(g.player.island,'home');assert.equal(g.space.ships.length,0);assert.match(g.log.map(l=>l.text).join(' '),/耐久耗尽/);
 });
 test('a UFO with one remaining leg can take any route and is recycled after landing',()=>{
  const g=setup();equip(g);g.space.ships[0].durability=10;

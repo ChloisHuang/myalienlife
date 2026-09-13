@@ -35,8 +35,18 @@ export function ufoHoverMotion(id,seconds,flight){
   yaw:phase('heading')+wave(.047,'turn')*1.6+wave(.091,'turn2')*.45};
 }
 const mix=(a,b,t)=>({x:THREE.MathUtils.lerp(a.x,b.x,t),y:THREE.MathUtils.lerp(a.y,b.y,t),z:THREE.MathUtils.lerp(a.z,b.z,t)});
+const flightLean=(dx,dz,t)=>{const distance=Math.hypot(dx,dz);if(distance<.001)return{pitch:0,roll:0};const angle=(.24*Math.sin(Math.PI*t)+.18*Math.sin(2*Math.PI*t))*Math.min(1,distance/4);return{pitch:angle*dz/distance,roll:-angle*dx/distance};};
+function emptyUfoFlightPresentation(g,ship,flight){
+ const progress=THREE.MathUtils.clamp(flight.elapsed/Math.max(.001,flight.duration),0,1),source={...ship,...flight.from},target={...ship,...flight.to},fromDock=ufoDock(g,source),toDock=ufoDock(g,target),arriving=progress>=.5,location=arriving?target:source,label=flight.kind==='return'?'自动返航':'调度';
+ let position=fromDock,scale=1,pitch=0,roll=0,stage=`${label} · 正在起飞`;
+ if(progress<.45){const phase=progress/.45,t=smooth(phase),lean=flightLean(12,-5,phase);position={x:fromDock.x+t*12,y:fromDock.y+t*8,z:fromDock.z-t*5};scale=1-t;({pitch,roll}=lean);}
+ else if(progress<.55){position=arriving?{x:toDock.x-12,y:toDock.y+8,z:toDock.z-5}:{x:fromDock.x+12,y:fromDock.y+8,z:fromDock.z-5};scale=0;stage=`${label} · 星际航行`;}
+ else{const phase=(progress-.55)/.45,t=1-smooth(phase),lean=flightLean(12,5,phase);position={x:toDock.x-t*12,y:toDock.y+t*8,z:toDock.z-t*5};scale=1-t;({pitch,roll}=lean);stage=`${label} · 正在抵达`;}
+ return{...position,island:location.island,side:location.side,scale,pitch,roll,progress,flying:true,beam:0,stage,pickup:position,crew:[],route:`${islandDefinition(g,flight.from.island).name} → ${islandDefinition(g,flight.to.island).name}`};
+}
 // The saved action is the single clock for the ship, beam and every passenger.
 export function ufoFlightPresentation(g,ship){
+ if(ship.flight)return emptyUfoFlightPresentation(g,ship,ship.flight);
  const host=[{person:g.player,queue:g.queue},...Object.values(g.npcs).map(person=>({person,queue:person.queue}))].find(p=>p.queue.some(q=>q.id===ship.reservedBy&&q.type==='voyage'));
  const action=host?.queue.find(q=>q.id===ship.reservedBy),flying=action?.phase==='acting';
  const progress=flying?THREE.MathUtils.clamp(action.elapsed/Math.max(.001,g.config?.actionDurations?.voyage??ACTIONS.voyage.duration),0,1):0;
@@ -44,12 +54,7 @@ export function ufoFlightPresentation(g,ship){
  const spot=landing?ufoLandingSpot(g,action.destinationId):host?.person;
  const pickup=spot?{x:spot.x,y:UFO_HOVER_HEIGHT+1,z:spot.z}:dock;
  let position=dock,scale=1,stage=action?'等待登船':'悬浮停靠',beam=0,pitch=0,roll=0;
- const lean=(dx,dz,t)=>{
-  const distance=Math.hypot(dx,dz);if(distance<.001)return;
-  // Forward thrust, then a small counter-lean to brake; zero tilt at both endpoints.
-  const angle=(.24*Math.sin(Math.PI*t)+.18*Math.sin(2*Math.PI*t))*Math.min(1,distance/4);
-  pitch=angle*dz/distance;roll=-angle*dx/distance;
- };
+ const lean=(dx,dz,t)=>{({pitch,roll}=flightLean(dx,dz,t));};
  if(flying){
   if(progress<.12){const t=progress/.12;position=mix(dock,pickup,smooth(t));lean(pickup.x-dock.x,pickup.z-dock.z,t);stage='前往接人';}
   else if(progress<.28){position=pickup;beam=1;stage='光束吸入';}

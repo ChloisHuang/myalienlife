@@ -1,11 +1,54 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
-import {Group,Mesh,BoxGeometry,MeshStandardMaterial,Scene,OrthographicCamera,Texture,Matrix4} from 'three';
+import {Group,Mesh,BoxGeometry,MeshStandardMaterial,Scene,OrthographicCamera,Texture,Matrix4,Box3,Vector3} from 'three';
 import {createWeatherEffects} from '../src/weather-effects.js';
 import {createAtmosphere} from '../src/npr.js';
 import {createOceanKit,createOceanWater,createOceanFragments,createOceanCaustics} from '../src/ocean.js';
 import {OCEAN_WATER,oceanHeight,oceanFrontLand} from '../src/ocean-definition.js';
+
+test('ocean stone belt closes the gap between both island faces only once',()=>{
+ const asset=new Group();
+ for(const side of ['front','back']){const root=new Group();root.name=`ocean-${side}`;asset.add(root);}
+ const kit=createOceanKit(asset,new Texture()),front=kit.terrain('front'),back=kit.terrain('back');
+ const belt=front.root.getObjectByName('ocean-stone-belt');
+ assert.ok(belt,'a continuous stone belt joins the separate terrain skins');
+ const bounds=new Box3().setFromObject(belt);
+ assert.ok(bounds.min.y<=-1.8&&bounds.max.y>=-.2,'belt overlaps both cliff skins');
+ assert.equal(back.root.getObjectByName('ocean-stone-belt'),undefined);
+ front.dispose();back.dispose();
+});
+
+test('cliff transition is one static draw with irregular stone edges and no extra triangle cost',()=>{
+ const asset=new Group(),source=new Group();source.name='ocean-front';asset.add(source);
+ const terrain=createOceanKit(asset,new Texture()).terrain('front'),belt=terrain.root.getObjectByName('ocean-stone-belt'),meshes=[];
+ belt.traverse(o=>{if(o.isMesh)meshes.push(o);});
+ assert.equal(meshes.length,1,'core and rocks must share one draw');
+ const mesh=meshes[0],p=mesh.geometry.attributes.position,c=mesh.geometry.attributes.color;
+ assert.ok((mesh.geometry.index?.count??p.count)/3<=5632,'do not exceed the previous belt triangle budget');
+ const water=terrain.root.getObjectByName('ocean-front-water');
+ assert.ok((mesh.geometry.index?.count??p.count)/3+water.geometry.index.count/3<=5728,'the water lip must fit inside the original combined geometry budget');
+ assert.ok(c,'stone tint varies within the mesh instead of one flat colored band');
+ assert.equal(mesh.material.vertexColors,true);assert.equal(mesh.material.transparent,false);
+ const upper=new Set(),lower=new Set();
+ for(let i=0;i<p.count;i++){
+  if(p.getY(i)>-.15)upper.add(p.getY(i).toFixed(3));
+  if(p.getY(i)<-1.8)lower.add(p.getY(i).toFixed(3));
+ }
+ assert.ok(upper.size>10&&lower.size>10,'both joins are irregular rather than horizontal cuts');
+ let disposed=0;mesh.geometry.addEventListener('dispose',()=>disposed++);
+ terrain.dispose();assert.equal(disposed,1,'runtime cliff geometry is released with its terrain');
+});
+
+test('wave sculpture uses faceted lighting without changing other ocean furniture',()=>{
+ const asset=new Group();
+ for(const type of ['sofa','pod']){const mesh=new Mesh(new BoxGeometry(),new MeshStandardMaterial());mesh.name=`ocean-${type}`;asset.add(mesh);}
+ const kit=createOceanKit(asset,new Texture());
+ const bench=kit.prop('sofa','ocean',false).getObjectByName('ocean-sofa');
+ const bed=kit.prop('pod','ocean',false).getObjectByName('ocean-pod');
+ assert.equal(bench.material.flatShading,true);
+ assert.notEqual(bed.material.flatShading,true);
+});
 
 test('underwater face has no surface disk or waterfall curtain',()=>{
  const w=OCEAN_WATER.back;assert.ok(w.rx*w.rz/(14.6*10.4)>.95);
@@ -18,6 +61,30 @@ test('underwater face has no surface disk or waterfall curtain',()=>{
 test('front outlet has no isolated waterfall panel',()=>{
  const water=createOceanWater('front');
  assert.ok(!water.root.children.some(o=>o.geometry?.parameters.height===1.6));water.dispose();
+});
+test('outlet water follows the shelf with positive clearance and never overlaps its surface',()=>{
+ const water=createOceanWater('front'),surface=water.surface,p=surface.geometry.attributes.position,v=new Vector3();surface.updateMatrixWorld(true);
+ let rim=0,interior=0;
+ for(let i=0;i<p.count;i++){
+  v.fromBufferAttribute(p,i).applyMatrix4(surface.matrixWorld);
+  const angle=Math.atan2(v.z/10.4,v.x/14.6),radius=Math.hypot(v.x/14.6,v.z/10.4);
+  if(angle<.9||angle>1.3)continue;
+  assert.ok(v.y>=.539&&v.y<=.621,'water stays above the bed and below the stone caps');
+  if(radius>1.04){assert.ok(Math.abs(v.y-.54)<.001,'rim follows the shelf without a coplanar overlap');rim++;}
+  if(radius>.8&&radius<1.02&&Math.abs(v.y-.62)<.001)interior++;
+ }
+ assert.ok(rim>3&&interior>3);assert.ok(surface.geometry.index.count/3<=350);water.dispose();
+});
+test('outlet stones rise above the water rim without coplanar flattened caps',()=>{
+ const asset=new Group(),source=new Group();source.name='ocean-front';asset.add(source);
+ const terrain=createOceanKit(asset,new Texture()).terrain('front'),p=terrain.root.getObjectByName('ocean-stone-belt').geometry.attributes.position;
+ let raised=0;const heights=new Set();
+ for(let i=0;i<p.count;i++){
+  const angle=Math.atan2(p.getZ(i)/10.4,p.getX(i)/14.6);
+  if(angle>.85&&angle<1.3&&p.getY(i)>.7){raised++;heights.add(p.getY(i).toFixed(3));}
+ }
+ assert.ok(raised>100,'the stone rim must visibly stand above the .62 water surface');
+ assert.ok(heights.size>10,'stones retain their individual tilted caps');terrain.dispose();
 });
 test('dynamic ocean caustics use bounded turbulence in the shared 30 Hz pass',()=>{
  let renders=0,current=null;const renderer={getRenderTarget:()=>current,setRenderTarget:value=>{current=value;},render:()=>{renders++;}};

@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Ocean Wave Bench</title><link rel="icon" href="data:,"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}canvas{display:block}</style></head><body><script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {DRACOLoader} from 'three/addons/loaders/DRACOLoader.js';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {createOceanKit} from '/src/ocean.js';
+const isolated=new URLSearchParams(location.search).has('isolated');
+const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,alpha:isolated});
+renderer.setPixelRatio(devicePixelRatio);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.append(renderer.domElement);
+const scene=new THREE.Scene();scene.background=isolated?null:new THREE.Color('#52869a');
+const camera=new THREE.OrthographicCamera(-2,2,2,-2,.1,100);camera.position.set(5.3,3.5,3.6);
+const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,1.2,0);controls.update();
+scene.add(new THREE.HemisphereLight(0xe3f5ff,0x6b8275,2.4));
+const sun=new THREE.DirectionalLight(0xfff4df,3.2);sun.position.set(3,7,-4);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.0005;sun.shadow.normalBias=.025;scene.add(sun);
+const floor=new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.7,.16,64),new THREE.MeshStandardMaterial({color:0xe6d5b0,roughness:1}));floor.position.y=-.1;floor.receiveShadow=true;scene.add(floor);
+floor.visible=!isolated;
+const draco=new DRACOLoader().setDecoderPath('/assets/draco/');
+const loader=new GLTFLoader().setDRACOLoader(draco);
+const asset=(await loader.loadAsync('/assets/ocean.glb')).scene;
+const bench=createOceanKit(asset,new THREE.Texture()).prop('sofa','ocean');scene.add(bench);
+window.benchPreview={renderer,scene,camera,controls,bench,loader};
+const bounds=new THREE.Box3().setFromObject(bench).getBoundingSphere(new THREE.Sphere());
+controls.target.copy(bounds.center);
+function resize(){
+ renderer.setSize(innerWidth,innerHeight);const aspect=innerWidth/innerHeight,halfHeight=bounds.radius*1.04/Math.min(aspect,1);
+ camera.left=-halfHeight*aspect;camera.right=halfHeight*aspect;camera.top=halfHeight;camera.bottom=-halfHeight;
+ camera.position.copy(new THREE.Vector3(1.7,.85,-1.1).normalize().multiplyScalar(8).add(bounds.center));
+ camera.updateProjectionMatrix();controls.update();
+}
+addEventListener('resize',resize);resize();renderer.setAnimationLoop(()=>renderer.render(scene,camera));
+document.body.dataset.ready='true';
+</script></body></html>

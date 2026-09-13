@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>Wave Bench Reference Comparison</title>
+<style>body{margin:0;background:#e9eff0;font:16px system-ui;color:#243638}main{display:grid;grid-template-columns:1fr 1fr;gap:20px;padding:20px}h2{font-size:18px;margin:0 0 12px}.frame{position:relative;overflow:hidden;aspect-ratio:1;background:#56899b}.frame img{position:absolute;max-width:none}p{padding:0 20px}@media(max-width:650px){main{grid-template-columns:1fr}}</style></head>
+<body><main><section><h2>设计稿</h2><div class="frame"><img id="reference" src="/artifacts/ocean/wave-bench-reference.png"></div></section><section><h2>实际模型渲染</h2><div class="frame"><img id="actual" src="/artifacts/ocean/wave-bench-isolated.png"></div></section></main>
+<p>仅对齐椅子外接框；模型未使用设计稿贴图。相似度验收与运行测试分开。</p>
+<script type="module">
+const metrics=await(await fetch('/artifacts/ocean/wave-bench-reference-check.json')).json();
+for(const [id,box] of [['reference',{x:.13,y:.067,w:.81,h:.81}],['actual',metrics.normalizedBounds]]){
+ const img=document.getElementById(id);await img.decode();
+ const scale=Math.min(1/box.w,1/box.h*img.naturalWidth/img.naturalHeight);
+ img.style.width=`${scale*100}%`;img.style.left=`${(1-box.w*scale)*50-box.x*scale*100}%`;
+ img.style.top=`${(1-box.h*scale*img.naturalHeight/img.naturalWidth)*50-box.y*scale*img.naturalHeight/img.naturalWidth*100}%`;
+}
+document.body.dataset.ready='true';
+</script></body></html>

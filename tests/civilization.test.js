@@ -22,7 +22,7 @@ test('a real UFO voyage creates a playable island and consumes one-way food',()=
  assert.equal(g.player.island,'spore');assert.equal(g.viewIsland,'spore');assert.equal(g.civilization.visits.spore,1);assert.equal(g.space.ships[0].food,0);
  assert.equal(enqueue(g,'research','lab').ok,false);assert.equal(enqueue(g,'explore','spore-portal').ok,true);run(g,35);assert.equal(g.civilization.surveys.spore,1);
  assert.equal(enqueue(g,'explore','spore-portal').ok,false);assert.equal(g.civilization.technology,40);assert.equal(g.civilization.knowledge,6);
- g.player.preferences={};g.skills.botany=0;const loaded=restore(serialize(g));assert.equal(dispatchUfo(loaded,'test-ship').ok,true);assert.equal(enqueue(loaded,'voyage','spore-portal',undefined,null,'home').ok,true);run(loaded,35);assert.equal(loaded.player.island,'home');assert.equal(loaded.space.ships[0].food,0);
+ g.player.preferences={};g.skills.botany=0;let loaded=restore(serialize(g));assert.equal(dispatchUfo(loaded,'test-ship').ok,true);loaded=restore(serialize(loaded));assert.equal(loaded.space.ships[0].flight?.kind,'dispatch');run(loaded,10);assert.equal(enqueue(loaded,'voyage','spore-portal',undefined,null,'home').ok,true);run(loaded,35);assert.equal(loaded.player.island,'home');assert.equal(loaded.space.ships[0].food,0);
 });
 test('different islands cannot interact or cross through the ordinary gate network',()=>{
  const g=setup();g.objects.push({id:'remote-gate',type:'gate',island:'spore',side:'front',x:0,z:0,rotation:0});

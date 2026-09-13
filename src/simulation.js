@@ -4,7 +4,7 @@ import {createLiving,validLiving,migrateLiving,pruneLiving,bondTo,changeBond,mut
 import {trailAt,trailGuide} from './living-routes.js';
 import {spatialTarget,spatialCandidates,waitForCompany,refuses,resourceTurn} from './living-spatial.js';
 import {LIVING_ACTIONS,LIVING_SOCIAL,livingConversation,livingOptions,livingError,livingBonus,finishLiving,advanceLiving,bondWeight,validLivingQueue} from './living-world.js';
-import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
+import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,UFO_EMPTY_FLIGHT_SECONDS,ufoInTransit,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
 import {oceanBlocked,OCEAN_ITEMS} from './ocean-definition.js';
 import {FAIRYTALE_ITEMS,FAIRYTALE_CONSTRUCTION_ITEMS,fairytaleBlocked} from './fairytale-definition.js';
@@ -343,19 +343,31 @@ export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,
  if(g.autonomy){g.autonomy.cooldown=3;g.autonomy.reason='优先执行你的安排';}return{ok:true};
 }
 export function cancelAction(g,id){const q=g.queue.find(a=>a.id===id);if(q?.type==='voyage'||q?.type==='boardUfo')cancelFlight(g,q);if(WONDER_ACTIONS[q?.type]?.paired)cancelPaired(g,q);g.queue=g.queue.filter(a=>a.id!==id);g.autonomy.cooldown=5;g.autonomy.reason='稍作休息，再决定下一步';}
+function startEmptyUfoFlight(ship,to,kind,retireReason){
+ if(ufoInTransit(ship)||ship.durability<UFO_WEAR_PER_FLIGHT)return false;
+ const from={island:ship.island,side:ship.side};ship.durability-=UFO_WEAR_PER_FLIGHT;ship.flight={kind,from,to:{island:to.island,side:to.side},elapsed:0,duration:UFO_EMPTY_FLIGHT_SECONDS};
+ if(ship.durability===0)ship.flight.retireReason=retireReason;return true;
+}
 function autoReturnUfo(g,ship,origin){
- if(ship.durability<UFO_WEAR_PER_FLIGHT)return false;
- ship.durability-=UFO_WEAR_PER_FLIGHT;Object.assign(ship,origin);const message=`${ufoDefinition(ship).name}完成载客后空船自动返航至${islandDefinition(g,origin.island).name}，消耗 1 次航程。`;g.log.unshift({text:message,at:g.minute});
- if(ship.durability===0)retireUfo(g,ship,'自动返航后耐久耗尽');return true;
+ if(!startEmptyUfoFlight(ship,origin,'return','自动返航后耐久耗尽'))return false;
+ const message=`${ufoDefinition(ship).name}完成载客后空船自动返航至${islandDefinition(g,origin.island).name}，消耗 1 次航程。`;g.log.unshift({text:message,at:g.minute});return true;
 }
 export function dispatchUfo(g,id){
  const ship=g.space.ships.find(s=>s.id===id);if(!ship)return{ok:false,message:'这艘 UFO 已不存在。'};
+ if(ship.flight)return{ok:false,message:'这艘 UFO 正在飞行中，请等待抵达。'};
  if(ship.reservedBy!==null)return{ok:false,message:'这艘 UFO 正在等待登船，请先取消航行安排。'};
  if(sameSide(ship,g.player))return{ok:false,message:'这艘 UFO 已在当前岛面。'};
- const target=islandOf(g.player),definition=islandDefinition(g,target);if(ufoDefinition(ship).range<definition.level)return{ok:false,message:'这艘 UFO 的航程不足，无法调度到当前星岛。'};
+ const target=islandOf(g.player),side=sideOf(g.player),definition=islandDefinition(g,target);if(ufoDefinition(ship).range<definition.level)return{ok:false,message:'这艘 UFO 的航程不足，无法调度到当前星岛。'};
  if(ship.durability<UFO_WEAR_PER_FLIGHT)return{ok:false,message:'这艘 UFO 耐久不足，无法执行调度。'};
- ship.durability-=UFO_WEAR_PER_FLIGHT;Object.assign(ship,{island:target,side:sideOf(g.player)});const cargo=depositShipCargo(g,ship),message=`${ufoDefinition(ship).name}已调度到${definition.name} · ${SIDES[ship.side]}，消耗 1 次航程${cargo?`，并卸下 ${cargo} 份植生复材`:''}。`;g.log.unshift({text:message,at:g.minute});
- if(ship.durability===0)retireUfo(g,ship,'调度后耐久耗尽');return{ok:true,message};
+ startEmptyUfoFlight(ship,{island:target,side},'dispatch','调度后耐久耗尽');const cargo=g.space.cargo[ship.id]??0,message=`${ufoDefinition(ship).name}开始调度到${definition.name} · ${SIDES[side]}，消耗 1 次航程${cargo?`；抵达后将卸下 ${cargo} 份植生复材`:''}。`;g.log.unshift({text:message,at:g.minute});return{ok:true,message};
+}
+function advanceUfoFlights(g,dt){
+ for(const ship of [...g.space.ships]){
+  const flight=ship.flight;if(!flight)continue;flight.elapsed=Math.min(flight.duration,flight.elapsed+dt);if(flight.elapsed<flight.duration)continue;
+  const {kind,to,retireReason}=flight;Object.assign(ship,to);delete ship.flight;
+  if(kind==='dispatch'){const cargo=depositShipCargo(g,ship);if(cargo)g.log.unshift({text:`${ufoDefinition(ship).name}抵达${islandDefinition(g,ship.island).name}并卸下 ${cargo} 份植生复材。`,at:g.minute});}
+  if(retireReason)retireUfo(g,ship,retireReason);
+ }
 }
 function evacuateIslandContents(g,id,{markDestroyed=false,strictNurserySpace=true,reason='已安全撤离被摧毁的星岛'}={}){
  const objects=new Set(g.objects.filter(o=>islandOf(o)===id).map(o=>o.id)),rescuedPods=[];
@@ -377,7 +389,7 @@ function evacuateIslandContents(g,id,{markDestroyed=false,strictNurserySpace=tru
   if(evacuate){Object.assign(person.position,{island:'home',side:'front',x:0,z:2});person.ai.cooldown=5;person.ai.reason=reason;}
   if(person.position.homeIsland===id)person.position.homeIsland='home';
  }
- for(const ship of g.space.ships)if(ship.island===id)Object.assign(ship,{island:'home',side:'front',reservedBy:null});
+ for(const ship of g.space.ships)if(ship.island===id||ship.flight?.from.island===id||ship.flight?.to.island===id){Object.assign(ship,{island:'home',side:'front',reservedBy:null});delete ship.flight;}
  g.space.provisions.home=(g.space.provisions.home??0)+(g.space.provisions[id]??0);delete g.space.provisions[id];delete g.space.backs[id];
  g.space.materials.home=(g.space.materials.home??0)+(g.space.materials[id]??0);delete g.space.materials[id];
  g.objects=g.objects.filter(o=>!objects.has(o.id));g.objects.push(...rescuedPods);
@@ -833,7 +845,7 @@ function advanceAction(g,person,dt,random){
 export function enforceFleetLimit(g){
  const limit=fleetLimit(g);while(g.space.ships.length>limit){
   const inhabited=new Set(allActors(g).map(p=>islandOf(p.position)));
-  const priority=s=>Number(s.reservedBy!==null)*1000+Number(inhabited.has(s.island)&&g.space.ships.filter(o=>o.island===s.island).length===1)*100+s.tier*10+s.durability/100;
+  const priority=s=>Number(s.reservedBy!==null||ufoInTransit(s))*1000+Number(inhabited.has(s.island)&&g.space.ships.filter(o=>o.island===s.island).length===1)*100+s.tier*10+s.durability/100;
   const ship=[...g.space.ships].sort((a,b)=>priority(a)-priority(b))[0];
   if(ship.reservedBy!==null){const q=allActors(g).flatMap(p=>p.queue).find(q=>q.id===ship.reservedBy);if(q)cancelFlight(g,q);}
   retireUfo(g,ship,'舰队超过星岛上限');
@@ -842,7 +854,7 @@ export function enforceFleetLimit(g){
 function recordEnvironmentDay(g,day){for(const person of allActors(g)){const id=islandOf(person.position);recordEnvironmentExperience(person.position,person.needs,environmentProfile(id,islandDefinition(g,id)),day);}}
 export function tick(g,seconds,random=Math.random){
  enforceFleetLimit(g);
- if(!g.speed)return;const dt=seconds*g.speed,time=g.config?.time||{gameMinutesPerRealSecond:2,starYearDays:8},gameMinutesPerSecond=time.gameMinutesPerRealSecond;g.minute+=dt*gameMinutesPerSecond;while(g.minute>=1440){recordEnvironmentDay(g,g.day);g.minute-=1440;g.day++;payGovernmentSubsidy(g);maybeResidentArrival(g,random);}
+ if(!g.speed)return;const dt=seconds*g.speed,time=g.config?.time||{gameMinutesPerRealSecond:2,starYearDays:8},gameMinutesPerSecond=time.gameMinutesPerRealSecond;g.minute+=dt*gameMinutesPerSecond;while(g.minute>=1440){recordEnvironmentDay(g,g.day);g.minute-=1440;g.day++;payGovernmentSubsidy(g);maybeResidentArrival(g,random);}advanceUfoFlights(g,dt);
  const crops=cropDefinitions(g);advancePlants(g.objects,dt*gameMinutesPerSecond,crops);advanceWonders(g,dt*gameMinutesPerSecond,allActors(g));
  for(const person of allActors(g))for(const q of [...person.queue])if(WONDER_ACTIONS[q.type]?.paired&&(q.hostId?!pairedHost(g,q):q.invited&&!pairedGuest(g,q)))cancelPaired(g,q);
  // Direct conversations take precedence over a neighbor's autonomous plan.

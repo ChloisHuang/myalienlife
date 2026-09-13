@@ -36,6 +36,14 @@ test('queued and cancelled flights keep the UFO at its dock',()=>{
  const g=fixture(),ship=g.space.ships[0];g.queue[0].phase='waiting';let state=ufoFlightPresentation(g,ship);assert.equal(state.flying,false);assert.equal(state.stage,'等待登船');assert.equal(state.x,ufoDock(g,ship).x);
  ship.reservedBy=null;g.queue=[];state=ufoFlightPresentation(g,ship);assert.equal(state.stage,'悬浮停靠');assert.equal(state.scale,1);
 });
+test('empty return and dispatch flights reuse the inter-island UFO motion without passenger beams',()=>{
+ const g=createGame(),ship={id:'empty-flight',tier:2,island:'spore',side:'front',food:0,durability:80,reservedBy:null};g.space.ships=[ship];
+ ship.flight={kind:'return',from:{island:'spore',side:'front'},to:{island:'home',side:'front'},elapsed:0,duration:6};
+ const start=ufoFlightPresentation(g,ship);assert.equal(start.island,'spore');assert.equal(start.scale,1);assert.equal(start.beam,0);assert.deepEqual(start.crew,[]);
+ ship.flight.elapsed=3;const cruise=ufoFlightPresentation(g,ship);assert.equal(cruise.island,'home');assert.ok(cruise.scale<.05);assert.match(cruise.route,/→/);
+ ship.flight.elapsed=6;const end=ufoFlightPresentation(g,ship),targetDock=ufoDock(g,{...ship,island:'home',side:'front'});assert.equal(end.island,'home');assert.equal(end.x,targetDock.x);assert.equal(end.y,targetDock.y);assert.equal(end.z,targetDock.z);assert.equal(end.scale,1);
+ ship.flight={kind:'dispatch',from:{island:'home',side:'front'},to:{island:'spore',side:'front'},elapsed:1,duration:6};assert.match(ufoFlightPresentation(g,ship).stage,/调度/);
+});
 test('all UFO tiers use hull fluorescence with no detached orbit or light cone',()=>{
  for(const tier of [1,2,3]){const visual=createUfoVisual(tier);assert.ok(visual.root.getObjectByName('hull-fluorescent-strip'));visual.root.traverse(node=>{if(node.geometry?.type==='TorusGeometry')assert.ok(node.geometry.parameters.radius<1.6);assert.notEqual(node.material?.blending,2);});visual.update(1,12);assert.equal(visual.root.userData.foodStatus,'full');visual.update(.2,13);assert.equal(visual.root.userData.foodStatus,'partial');visual.dispose();}
 });
