@@ -37,6 +37,27 @@ test('migration preference differs by resident and only a meaningful advantage c
  assert.equal(candidates.length,1);
 });
 
+test('migration pressure follows settled homeIsland population instead of temporary visitors',()=>{
+ const g=remoteGame();g.player.environmentPreferences={nature:100,community:0,discovery:100,calm:0};
+ const people=[{id:'player',position:g.player,needs:g.needs,skills:g.skills,queue:[],ai:g.autonomy},...Object.entries(g.npcs).map(([id,n])=>({id,position:n,needs:n.needs,skills:n.skills,queue:n.queue,ai:n.ai}))];
+ const candidate={type:'settleIsland',targetId:'spore-terminal'};
+ for(const n of Object.values(g.npcs)){n.island='spore';n.homeIsland='home';}
+ const visitorsOnly=autonomyBonus(g,people[0],candidate,people);
+ for(const n of Object.values(g.npcs)){n.island='home';n.homeIsland='spore';}
+ const crowdedHome=autonomyBonus(g,people[0],candidate,people);
+ assert.ok(visitorsOnly>crowdedHome,`visitors=${visitorsOnly}, crowded=${crowdedHome}`);
+});
+
+test('voyage attraction treats homeIsland as residence even while that resident is away',()=>{
+ const g=remoteGame();g.player.island='home';g.player.homeIsland='home';
+ const person={id:'player',position:g.player,needs:g.needs,skills:g.skills,queue:[],ai:g.autonomy},nova={id:'nova',position:g.npcs.nova,needs:g.npcs.nova.needs,queue:[],ai:g.npcs.nova.ai};
+ for(const key in g.needs)g.needs[key]=80;
+ const candidate={type:'voyage',targetId:'home-terminal',destinationId:'spore'};
+ g.npcs.nova.island='home';g.npcs.nova.homeIsland='spore';const settledAway=autonomyBonus(g,person,candidate,[person,nova]);
+ g.npcs.nova.island='spore';g.npcs.nova.homeIsland='home';const temporaryVisitor=autonomyBonus(g,person,candidate,[person,nova]);
+ assert.ok(temporaryVisitor>settledAway,`visitor=${temporaryVisitor}, settled=${settledAway}`);
+});
+
 test('experience nudges environmental fit and migration is cooled down after moving',()=>{
  const g=remoteGame();
  g.player.environmentPreferences={nature:100,community:10,discovery:90,calm:20};

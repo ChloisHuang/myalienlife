@@ -343,6 +343,20 @@ export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,
  if(g.autonomy){g.autonomy.cooldown=3;g.autonomy.reason='优先执行你的安排';}return{ok:true};
 }
 export function cancelAction(g,id){const q=g.queue.find(a=>a.id===id);if(q?.type==='voyage'||q?.type==='boardUfo')cancelFlight(g,q);if(WONDER_ACTIONS[q?.type]?.paired)cancelPaired(g,q);g.queue=g.queue.filter(a=>a.id!==id);g.autonomy.cooldown=5;g.autonomy.reason='稍作休息，再决定下一步';}
+function autoReturnUfo(g,ship,origin){
+ if(ship.durability<UFO_WEAR_PER_FLIGHT)return false;
+ ship.durability-=UFO_WEAR_PER_FLIGHT;Object.assign(ship,origin);const message=`${ufoDefinition(ship).name}完成载客后空船自动返航至${islandDefinition(g,origin.island).name}，消耗 1 次航程。`;g.log.unshift({text:message,at:g.minute});
+ if(ship.durability===0)retireUfo(g,ship,'自动返航后耐久耗尽');return true;
+}
+export function dispatchUfo(g,id){
+ const ship=g.space.ships.find(s=>s.id===id);if(!ship)return{ok:false,message:'这艘 UFO 已不存在。'};
+ if(ship.reservedBy!==null)return{ok:false,message:'这艘 UFO 正在等待登船，请先取消航行安排。'};
+ if(sameSide(ship,g.player))return{ok:false,message:'这艘 UFO 已在当前岛面。'};
+ const target=islandOf(g.player),definition=islandDefinition(g,target);if(ufoDefinition(ship).range<definition.level)return{ok:false,message:'这艘 UFO 的航程不足，无法调度到当前星岛。'};
+ if(ship.durability<UFO_WEAR_PER_FLIGHT)return{ok:false,message:'这艘 UFO 耐久不足，无法执行调度。'};
+ ship.durability-=UFO_WEAR_PER_FLIGHT;Object.assign(ship,{island:target,side:sideOf(g.player)});const cargo=depositShipCargo(g,ship),message=`${ufoDefinition(ship).name}已调度到${definition.name} · ${SIDES[ship.side]}，消耗 1 次航程${cargo?`，并卸下 ${cargo} 份植生复材`:''}。`;g.log.unshift({text:message,at:g.minute});
+ if(ship.durability===0)retireUfo(g,ship,'调度后耐久耗尽');return{ok:true,message};
+}
 function evacuateIslandContents(g,id,{markDestroyed=false,strictNurserySpace=true,reason='已安全撤离被摧毁的星岛'}={}){
  const objects=new Set(g.objects.filter(o=>islandOf(o)===id).map(o=>o.id)),rescuedPods=[];
  // Preserve growing starbuds by evacuating their occupied incubators first.
@@ -665,12 +679,12 @@ function finishAction(g,person,q,random){
  if(q.type==='voyage'||q.type==='starVoyage'){
   const id=q.destinationId,byShip=q.type==='voyage',ship=byShip?g.space.ships.find(s=>s.id===q.shipId):null,passengers=byShip?flightPassengers(g,q):[],count=passengers.length+1;
   if(byShip&&(!ship||ship.reservedBy!==q.id||passengers.length!==(q.passengerUids?.length??0)||passengers.some(p=>!sameSide(p.position,person.position)))){cancelFlight(g,q);return;}
-  ensureStarIsland(g,id);const spot=ufoLandingSpot(g,id);
+  const origin=byShip?{island:ship.island,side:ship.side}:null;ensureStarIsland(g,id);const spot=ufoLandingSpot(g,id);
   if(!spot){cancelFlight(g,q);g.log.unshift({text:'UFO 降落区被挡住，请腾出通路。',at:g.minute});return;}
   const shortage=byShip?flightFoodPenalty(ship.food,count):null;
   if(byShip){ship.food=Math.max(0,ship.food-count);ship.durability-=UFO_WEAR_PER_FLIGHT;ship.island=id;ship.side='front';ship.reservedBy=null;const cargo=depositShipCargo(g,ship);if(cargo)g.log.unshift({text:`${ufoDefinition(ship).name}向${islandDefinition(g,id).name}卸下 ${cargo} 份植生复材。`,at:g.minute});}
   for(const p of [person,...passengers]){if(shortage){p.needs.hunger=clamp(p.needs.hunger-shortage.hunger);p.needs.energy=clamp(p.needs.energy-shortage.energy);}Object.assign(p.position,spot);g.civilization.visits[id]++;if(p!==person){const at=p.queue.findIndex(a=>a.hostActionId===q.id);if(at>=0)p.queue.splice(at,1);restFromCooperation(g,p);}if(p.id==='player'){g.viewIsland=id;g.viewSide='front';}}
-  if(isPlayer)g.completed++;g.log.unshift({text:byShip?`${ufoDefinition(ship).name}载 ${count} 人抵达${islandDefinition(g,id).name}，舱内剩余 ${ship.food} 份食物。${shortage.missing?`缺粮 ${shortage.missing} 份，每人营养 −${shortage.hunger}、能量 −${shortage.energy}。`:''}`:`${person.position.name}通过星门抵达${islandDefinition(g,id).name}。`,at:g.minute});releaseAction(person,q);if(byShip&&ship.durability===0)retireUfo(g,ship,'耐久耗尽');return;
+  if(isPlayer)g.completed++;g.log.unshift({text:byShip?`${ufoDefinition(ship).name}载 ${count} 人抵达${islandDefinition(g,id).name}，舱内剩余 ${ship.food} 份食物。${shortage.missing?`缺粮 ${shortage.missing} 份，每人营养 −${shortage.hunger}、能量 −${shortage.energy}。`:''}`:`${person.position.name}通过星门抵达${islandDefinition(g,id).name}。`,at:g.minute});releaseAction(person,q);if(byShip){if(ship.durability===0)retireUfo(g,ship,'耐久耗尽');else autoReturnUfo(g,ship,origin);}return;
  }
  const wonderIssue=wonderError(g,q.type,object,person,allActors(g),q.partnerId);
  if(wonderIssue){person.queue.shift();person.ai.cooldown=3;g.log.unshift({text:wonderIssue,at:g.minute});return;}

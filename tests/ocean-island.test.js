@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,serialize,restore,ensureStarIsland,ITEMS,buyItem,canPlace,enqueue,tick} from '../src/simulation.js';
+import {createGame,serialize,restore,ensureStarIsland,ITEMS,buyItem,canPlace,enqueue,tick,dispatchUfo} from '../src/simulation.js';
 import {STAR_ISLANDS,discoverAdjacentIsland} from '../src/civilization.js';
 import {localToWorld,groundHeight,approachPosition} from '../src/characters.js';
 import {OCEAN_LAYOUT} from '../src/ocean-definition.js';
@@ -27,7 +27,7 @@ test('normal gameplay discovers, visits, builds and settles ocean without the pr
  assert.deepEqual(g.civilization.discoveryPath,['home','spore']);
  act('voyage','portal','spore');act('explore','spore-portal');
  assert.deepEqual(g.civilization.discoveryPath,['home','spore','ocean']);
- act('voyage','spore-portal','ocean');
+ assert.equal(dispatchUfo(g,'release-voyage').ok,true);act('voyage','spore-portal','ocean');
  assert.equal(g.player.island,'ocean');assert.equal(g.viewIsland,'ocean');
  assert.equal(g.civilization.visits.ocean,1);
  const project=g.civilization.projects.ocean;
@@ -50,7 +50,7 @@ test('normal gameplay discovers, visits, builds and settles ocean without the pr
  g=restore(serialize(g));assert.equal(g.player.homeIsland,'ocean');
  assert.equal(g.space.backs.ocean,true);assert.equal(g.civilization.projects.ocean.construction,600);
  act('research','ocean-lab');assert.equal(g.player.side,'front');
- act('voyage','ocean-portal','home');assert.equal(g.player.island,'home',JSON.stringify(g.log.slice(0,3)));
+ assert.equal(dispatchUfo(g,'release-voyage').ok,true);act('voyage','ocean-portal','home');assert.equal(g.player.island,'home',JSON.stringify(g.log.slice(0,3)));
 });
 
 test('restoring ocean updates authored furniture without moving purchased objects',()=>{

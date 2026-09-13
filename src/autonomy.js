@@ -8,7 +8,8 @@ const interests={starVoyage:'explore',buildUfo1:'research',buildUfo2:'research',
 const specialties={starVoyage:'science',buildUfo1:'science',buildUfo2:'science',buildUfo3:'science',prepareRations:'cooking',spaceResearch:'science',voyage:'science',lightGrow:'botany',catchBugs:'botany',releaseBugs:'botany',traceRelic:'science',decodeRelic:'science',decodeTogether:'science',restoreMemory:'science',tuneInsight:'science',tuneSleep:'science',activateCrystal:'science',passOrb:'social',lounge:'social',sootheOrb:'social',gift:'social',flirt:'social',travel:'science'};
 export function actionPreference(p,type){return p.position.preferences[type]??(p.position.preferences[interests[type]]||0)*.65;}
 const near=(a,b,r)=>sameSide(a,b)&&Math.hypot(a.x-b.x,a.z-b.z)<=r;
-const residentsOn=(people,island)=>people.filter(person=>islandOf(person.position)===island).length;
+const settledResidentsOn=(people,island)=>people.filter(person=>(person.position.homeIsland??'home')===island).length;
+const MIGRATION_POPULATION_PENALTY=2;
 const hasSettlementEssentials=(g,position)=>['food','pod','shower'].every(type=>g.objects.some(o=>sameSide(o,position)&&o.type===type));
 export function autonomyBonus(g,p,c,people){
  const o=g.objects.find(o=>o.id===c.targetId),type=c.type,now=(g.day-1)*1440+g.minute;
@@ -32,9 +33,10 @@ export function autonomyBonus(g,p,c,people){
  if(type==='settleIsland'){
   const targetId=islandOf(p.position),currentId=p.position.homeIsland??'home',now=(g.day-1)*1440+g.minute;
   if(targetId===currentId||migrationCooldownRemaining(p.position,now)>0)return null;
-  const preference=migrationPreference(p,targetId,environmentProfile(targetId,islandDefinition(g,targetId)),currentId,environmentProfile(currentId,islandDefinition(g,currentId)));
-  if(preference.advantage<MIGRATION_MIN_ADVANTAGE)return null;
-  bonus+=4+Math.min(10,(preference.advantage-MIGRATION_MIN_ADVANTAGE)*.3);
+  const preference=migrationPreference(p.position,targetId,environmentProfile(targetId,islandDefinition(g,targetId)),currentId,environmentProfile(currentId,islandDefinition(g,currentId)));
+  const populationPressure=Math.max(0,settledResidentsOn(people,targetId)-1)*MIGRATION_POPULATION_PENALTY,effectiveAdvantage=preference.advantage-populationPressure;
+  if(effectiveAdvantage<MIGRATION_MIN_ADVANTAGE)return null;
+  bonus+=4+Math.min(10,(effectiveAdvantage-MIGRATION_MIN_ADVANTAGE)*.3);
  }
  if(type==='voyage'||type==='starVoyage'){
   const lowestNeed=Math.min(...Object.values(p.needs)),current=islandOf(p.position),home=p.position.homeIsland??'home',remote=current!==home;
@@ -47,7 +49,7 @@ export function autonomyBonus(g,p,c,people){
   }else{
    if(remote)return null;
    if(lowestNeed<55)return null;
-   const residents=residentsOn(people,c.destinationId);bonus+=residents===0?28:residents<2?18:8;
+   const residents=settledResidentsOn(people,c.destinationId);bonus+=residents===0?28:residents<2?18:8;
   }
  }
  if(['passOrb','decodeTogether'].includes(type))bonus+=6;

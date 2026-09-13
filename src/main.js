@@ -21,6 +21,7 @@ import {WONDER_OPTIONS,WONDER_ACTIONS,wonderStatus} from './wonders.js';
 import {PRAYER_RULES,PRAYER_MUTATIONS,isNether,isRadiant,isDual,prayerRaceName} from './prayer.js';
 import {SIDES,sideOf,sameSide} from './island.js';
 import {createPersistence} from './persistence.js';
+import {pullRemoteSave} from './remote-save.js';
 import {HEAD_SHAPE} from './genetics.js';
 
 import {canWorkAt} from './simulation.js';
@@ -37,7 +38,7 @@ import './floating-island.css';
 import {createFloatingIsland} from './floating-island.js';
 import {PictureInPicture2,ArrowLeft} from 'lucide';
 import {createFullscreenController} from './fullscreen.js';
-import {createElement,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole,Trash2} from 'lucide';
+import {createElement,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Download,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole,Trash2} from 'lucide';
 import {createWorld} from './world.js';
 import {interactionError,NEEDS,neighbors,birthDecision,gameMinutes,CAREERS,missingCareerSkills,careerEntryMessage,careerDefinition,cropDefinition,normalizeConfig,validConfig,MUTATION_PARTS,ITEMS,ACTIONS,createGame,tick,actionCost,canAffordAction,isSellableItem} from './simulation.js';
 import {GENDERS,SKILLS,STAGES,isSeating,lifeStage,skillProgress} from './characters.js';
@@ -47,7 +48,7 @@ import {afterPaint,deferAfterPaint} from './startup-scheduling.js';
 
 const $=s=>document.querySelector(s);
 const UFO_BUILD_ACTIONS=new Set(['buildUfo1','buildUfo2','buildUfo3']);
-const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole,Trash2};
+const icons={BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind,Orbit,Rotate3D,Sun,Pause,Play,FastForward,Sparkles,Hammer,Save,Download,Settings,CircleHelp,CloudSun,House,Flower2,Radio,Plus,Minus,Scan,Minimize2,LocateFixed,VolumeX,Smile,Compass,Heart,Coffee,HeartPulse,Users,BriefcaseBusiness,PackageOpen,ArrowUpRight,X,MousePointer2,ArrowRight,Move,GripVertical,Check,Frown,Volume2,TriangleAlert,Utensils,Zap,MessagesSquare,Droplets,Armchair,Atom,Sprout,BedDouble,Music2,Telescope,Gem,TreePine,Lamp,Footprints,Moon,Gift,Coins,Languages,LockKeyhole,Trash2};
 const icon=(name,cls='')=>{const el=createElement(icons[name]);el.setAttribute('class',`icon ${cls}`);el.setAttribute('aria-hidden','true');return el.outerHTML;};
 const githubMark=()=>'<svg class="icon" data-icon="github-mark" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>';
 Object.assign(icons,{PictureInPicture2,ArrowLeft});
@@ -81,6 +82,7 @@ const loadShipFood=async(_game,...args)=>command('loadShipFood',...args);
 const loadShipMaterials=async(_game,...args)=>command('loadShipMaterials',...args);
 const unloadShipMaterials=async(_game,...args)=>command('unloadShipMaterials',...args);
 const removeUfo=async(_game,...args)=>command('removeUfo',...args);
+const dispatchUfo=async(_game,...args)=>command('dispatchUfo',...args);
 $('#app').innerHTML=translateHtml('<div id="loading"><h2>正在读取星湾存档</h2><p>从服务器恢复你的生活进度…</p></div>');
 try{game=hosted?await online.load():await persistence.load();}catch(error){
  console.error('游戏存档读取失败',error);
@@ -101,7 +103,7 @@ $('#app').innerHTML=`
   <a class="brand" href="/" aria-label="星外日常">${icon('Orbit')}<div><b>星外日常<span>ORBIT LIFE</span></b><small>在宇宙的一角，好好生活。</small></div></a>
   <a id="github-link" class="github-link" href="https://github.com/ChloisHuang/myalienlife/" target="_blank" rel="noreferrer" aria-label="在 GitHub 查看项目" title="在 GitHub 查看项目">${githubMark()}</a>
   <div class="time-control"><div class="day">${icon('Sun')}<span id="day">第 ${game.day} 天</span><b id="clock">08:30</b></div><div class="speed-buttons">${buttons([['暂停','Pause','data-speed="0"'],['正常速度','Play','data-speed="1"'],['三倍速度','FastForward','data-speed="3"']])}</div></div>
-  <div class="top-actions"><div class="wallet">${icon('Sparkles')}<strong id="money">2,400</strong><small>星币</small></div><button id="build-button" class="build-button" aria-label="建造模式">${icon('Hammer')}</button><button id="language-toggle" class="language-toggle" type="button" data-language="${getLanguage()==='zh'?'en':'zh'}" aria-label="Switch language" title="Switch language">${icon('Languages')}<span data-language-label>${languageButtonLabel}</span></button><button class="icon-button" id="config" title="参数配置" aria-label="参数配置">${icon('Settings')}</button><button class="icon-button" id="save" title="保存游戏" aria-label="保存游戏">${icon('Save')}</button><button class="icon-button" id="help" title="操作指南" aria-label="操作指南">${icon('CircleHelp')}</button></div>
+  <div class="top-actions"><div class="wallet">${icon('Sparkles')}<strong id="money">2,400</strong><small>星币</small></div><button id="build-button" class="build-button" aria-label="建造模式">${icon('Hammer')}</button><button id="language-toggle" class="language-toggle" type="button" data-language="${getLanguage()==='zh'?'en':'zh'}" aria-label="Switch language" title="Switch language">${icon('Languages')}<span data-language-label>${languageButtonLabel}</span></button><button class="icon-button" id="config" title="参数配置" aria-label="参数配置">${icon('Settings')}</button>${hosted?'':`<button class="icon-button" id="pull-remote-save" title="拉取线上存档" aria-label="拉取线上存档">${icon('Download')}</button>`}<button class="icon-button" id="save" title="保存游戏" aria-label="保存游戏">${icon('Save')}</button><button class="icon-button" id="help" title="操作指南" aria-label="操作指南">${icon('CircleHelp')}</button></div>
  <span id="save-status" title="每 60 秒保存到服务器；离开页面和刷新前也会保存。"></span></header>
  <main class="scene-ui">
   <div class="location"><span class="eyebrow">KEPLER–186F / 居住区 07</span><h1>露米纳星湾<span class="live-dot"></span></h1><p id="weather" aria-label="当前天气"></p></div>
@@ -156,6 +158,7 @@ const fullscreen=createFullscreenController({
  onError(error){toast(error?.message||'当前浏览器未允许全屏');}
 });
 $('#save-status').dataset.state='ready';
+if(!hosted){const remoteSaveButton=$('#pull-remote-save');remoteSaveButton.onclick=async()=>{if(!confirm(translateText('将用 VPS 线上存档覆盖当前本地存档，本地未保存进度会丢失。确定继续吗？')))return;remoteSaveButton.disabled=true;try{toast('正在拉取线上存档…');await pullRemoteSave();saveBlocked=true;game.speed=0;toast('线上存档已拉取，正在重新载入。');location.reload();}catch(error){console.error('拉取线上存档失败',error);toast('拉取线上存档失败，请检查线上服务。');remoteSaveButton.disabled=false;}};}
 $('#language-toggle').onclick=()=>{const next=toggleLanguage();localizePage(next);lastPanel='';refresh();};
 setInterval(()=>save(),60000);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)save(false,true);});
@@ -169,7 +172,7 @@ if(hosted){
  new ResizeObserver(()=>{$('#journal').style.top=`${locationPanel.offsetTop+locationPanel.offsetHeight+24}px`;}).observe(locationPanel);
 }
 const flightDialog=document.createElement('dialog');flightDialog.id='flight-dialog';$('#app').append(flightDialog);
-const mutationControls='[data-speed],#autonomy,[data-inherit],#new-life,[data-cancel],[data-action],[data-career],[data-item],[data-destroy-island],[data-star-voyage],[data-load-ship],[data-load-materials],[data-unload-materials],[data-remove-ufo],[data-sell],#work,#study,#save,#config-reset,#restart-epoch,#config-project-default,#build-button,#randomize-heads,#study-focus,#family-desire,#confirm-flight,#config-form input,#config-form button[type="submit"],#resident-form input,#resident-form select,#resident-form button[type="submit"]';
+const mutationControls='[data-speed],#autonomy,[data-inherit],#new-life,[data-cancel],[data-action],[data-career],[data-item],[data-destroy-island],[data-star-voyage],[data-load-ship],[data-load-materials],[data-unload-materials],[data-remove-ufo],[data-dispatch-ufo],[data-sell],#work,#study,#save,#config-reset,#restart-epoch,#config-project-default,#build-button,#randomize-heads,#study-focus,#family-desire,#confirm-flight,#config-form input,#config-form button[type="submit"],#resident-form input,#resident-form select,#resident-form button[type="submit"]';
 if(hosted)for(const type of ['click','change','submit'])$('#app').addEventListener(type,event=>{if(!online.canOperate&&(event.target.closest(mutationControls)||type==='submit'&&['resident-form','config-form'].includes(event.target.id))){event.preventDefault();event.stopImmediatePropagation();toast('当前为只读，请先获取操作权');}},true);
 function openFlight(id,shipId=null){
  const portal=game.objects.find(o=>o.type==='portal'&&sameSide(o,game.player));
@@ -182,8 +185,8 @@ function openFlight(id,shipId=null){
 }
 function showUfo(id){
  const previous=$('.ufo-dialog');if(previous){previous.close();previous.remove();}
- const ship=game.space.ships.find(s=>s.id===id);if(!ship)return;const def=ufoDefinition(ship),dialog=document.createElement('dialog');dialog.className='ufo-dialog';
- dialog.innerHTML=`<button class="dialog-close" aria-label="关闭 UFO">${icon('X')}</button><h2>${def.name}</h2><p>悬浮停靠于${islandDefinition(game,ship.island).name} · ${SIDES[ship.side]}</p><p>${def.seats} 个座位 · 耐久 ${ship.durability}/100 · 可达科技 ${def.range} 级星岛 · 舱内食物 ${ship.food} / ${shipFoodStatus(ship).capacity} 份 · ${shipFoodStatus(ship).full?'补给满载':'补给未满'}</p><p>每次航行消耗 10 耐久，耐久至少 10 点即可出航；耗尽后到站回收。每位乘客每次航行消耗 1 份食物；当前星球有在世星厨时，缺粮禁止出航；无星厨时每缺 1 份食物，每位乘客扣 10 营养、5 能量。</p><button class="island-launch" data-load-ship="${ship.id}">从岛上库存装载食物</button><p>${ship.reservedBy?'已安排航行，正在等待乘客登船。':'选择目的地后安排乘客。'}</p>${Object.entries(islandCatalog(game)).filter(([destination])=>destination!==ship.island&&discovered(game,destination)).map(([destination,island])=>{const error=voyageError(game,game.player,game.skills,destination,1,null,ship.id);return `<button class="island-launch" data-voyage="${destination}" data-ship="${ship.id}" ${error?'disabled':''} title="${error||''}">前往${island.name}${error?` · ${error}`:''}</button>`;}).join('')}`;
+ const ship=game.space.ships.find(s=>s.id===id);if(!ship)return;const def=ufoDefinition(ship),dialog=document.createElement('dialog'),dispatchTarget=islandOf(game.player),dispatchIssue=ship.reservedBy!==null?'已安排航行，请先取消登船安排':ship.durability<UFO_WEAR_PER_FLIGHT?'耐久不足':def.range<islandDefinition(game,dispatchTarget).level?'航程不足':null;dialog.className='ufo-dialog';
+ dialog.innerHTML=`<button class="dialog-close" aria-label="关闭 UFO">${icon('X')}</button><h2>${def.name}</h2><p>悬浮停靠于${islandDefinition(game,ship.island).name} · ${SIDES[ship.side]}</p><p>${def.seats} 个座位 · 耐久 ${ship.durability}/100 · 可达科技 ${def.range} 级星岛 · 舱内食物 ${ship.food} / ${shipFoodStatus(ship).capacity} 份 · ${shipFoodStatus(ship).full?'补给满载':'补给未满'}</p><p>载客单程、空船自动返航和远程调度各消耗 10 耐久（1 次航程）；载客抵达后，只要还有航程次数，UFO 会空船返回出发岛面。耐久耗尽后到站回收。每位乘客每次载客航行消耗 1 份食物；当前星球有在世星厨时，缺粮禁止出航；无星厨时每缺 1 份食物，每位乘客扣 10 营养、5 能量。</p>${sameSide(ship,game.player)?'':`<button class="island-launch" data-dispatch-ufo="${ship.id}" ${dispatchIssue?'disabled':''} title="${dispatchIssue||''}">调度到${islandDefinition(game,dispatchTarget).name} · 消耗 1 次航程</button>`}<button class="island-launch" data-load-ship="${ship.id}">从岛上库存装载食物</button><p>${ship.reservedBy?'已安排航行，正在等待乘客登船。':'选择目的地后安排乘客。'}</p>${Object.entries(islandCatalog(game)).filter(([destination])=>destination!==ship.island&&discovered(game,destination)).map(([destination,island])=>{const error=voyageError(game,game.player,game.skills,destination,1,null,ship.id);return `<button class="island-launch" data-voyage="${destination}" data-ship="${ship.id}" ${error?'disabled':''} title="${error||''}">前往${island.name}${error?` · ${error}`:''}</button>`;}).join('')}`;
  const cargo=game.space.cargo[id]??0,stock=game.space.materials[ship.island]??0,max=Math.min(stock,def.cargoCapacity-cargo),locked=ship.reservedBy!==null||!sameSide(ship,game.player);
  const cargoSection=document.createElement('section');cargoSection.className='cargo-controls';cargoSection.innerHTML=`<h3>植生复材货舱</h3><p>已装 ${cargo} / ${def.cargoCapacity} 份 · 本岛库存 ${stock} 份</p><label>装载数量 <input id="cargo-amount" type="number" min="1" max="${max}" step="1" value="${Math.min(10,max)}" ${locked||max<1?'disabled':''}/></label><div><button data-load-materials="${id}" ${locked||max<1?'disabled':''}>装载材料</button><button data-unload-materials="${id}" ${locked||!cargo?'disabled':''}>卸回本岛</button></div><small>材料随飞船运输，抵达后自动卸入目标星岛仓库。货舱与乘客座位、食物补给独立。</small>`;
  dialog.querySelector('[data-load-ship]').after(cargoSection);
@@ -658,6 +661,7 @@ $('#app').addEventListener('click',async e=>{
  if(b.dataset.loadShip){const result=await loadShipFood(game,b.dataset.loadShip);toast(result.message);b.closest('dialog').close();showUfo(b.dataset.loadShip);refresh();}
  if(b.dataset.loadMaterials||b.dataset.unloadMaterials){const id=b.dataset.loadMaterials||b.dataset.unloadMaterials,result=b.dataset.loadMaterials?await loadShipMaterials(game,id,Number($('#cargo-amount').value)):await unloadShipMaterials(game,id);toast(result.message);if(result.ok){showUfo(id);refresh();save();}}
  if(b.dataset.removeUfo){if(!confirm('确定删除这艘 UFO？剩余耐久、货舱材料和食物将回收，操作无法撤销。'))return;const result=await removeUfo(game,b.dataset.removeUfo);toast(result.message);if(result.ok){lastPanel='';b.closest('dialog')?.close();refresh();save();}}
+ if(b.dataset.dispatchUfo){const result=await dispatchUfo(game,b.dataset.dispatchUfo);toast(result.message);if(result.ok){game.viewIsland=islandOf(game.player);game.viewSide=sideOf(game.player);lastPanel='';b.closest('dialog')?.close();refresh();save();}}
  if(b.dataset.voyage){openFlight(b.dataset.voyage,b.dataset.ship||null);closeContext();}
  if(b.dataset.ufo){const ship=game.space.ships.find(s=>s.id===b.dataset.ufo);if(ship){game.viewIsland=ship.island;game.viewSide=ship.side;world.focusUfo(ship.id);showUfo(ship.id);refresh();}}
  if(b.dataset.sell){if(await sellItem(game,b.dataset.sell)){toast('家具已出售，返还 70% 星币。');refresh();}else toast('请先取消与这件家具相关的行动。');closeContext();}

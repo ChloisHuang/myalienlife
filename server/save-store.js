@@ -22,5 +22,5 @@ export function createSaveStore(directory){
   try{await handle.writeFile(JSON.stringify(saved));await handle.sync();}finally{await handle.close();}
   await rename(file+'.tmp',file);return saved;
  }
- return{read:()=>pending.then(read),write(request){if(!request||typeof request!=='object')return Promise.reject(failure(400,'无效的存档请求'));const result=pending.then(()=>commit(request));pending=result.catch(()=>{});return result;}};
+ return{read:()=>pending.then(read),write(request){if(!request||typeof request!=='object')return Promise.reject(failure(400,'无效的存档请求'));const result=pending.then(()=>commit(request));pending=result.catch(()=>{});return result;},replace(state,{clientId,sequence=1}={}){const result=pending.then(async()=>{const current=await read();return commit({state,baseRevision:current.revision,clientId,sequence});});pending=result.catch(()=>{});return result;}};
 }

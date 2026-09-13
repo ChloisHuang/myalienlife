@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchControl,autonomousCandidates,ACTIONS} from '../src/simulation.js';
+import {createGame,enqueue,tick,buyItem,serialize,restore,cancelAction,switchControl,autonomousCandidates,ACTIONS,dispatchUfo} from '../src/simulation.js';
 import {removeUfo} from '../src/space-logistics.js';
 import {backDiscovered} from '../src/space-logistics.js';
 import {autonomyBonus} from '../src/autonomy.js';
@@ -16,6 +16,17 @@ test('idle UFO removal returns cargo and rations, then removes the ship',()=>{
 });
 test('reserved UFO cannot be removed before its voyage is cancelled',()=>{
  const g=setup(),ship={id:'reserved-ufo',tier:1,island:'home',side:'front',food:0,durability:100,reservedBy:42};g.space.ships=[ship];const result=removeUfo(g,ship.id);assert.equal(result.ok,false);assert.match(result.message,/取消航行/);assert.equal(g.space.ships[0],ship);
+});
+
+test('completed passenger flight automatically returns the empty UFO and consumes another use',()=>{
+ const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);
+ const ship=g.space.ships[0];assert.equal(g.player.island,'spore');assert.equal(ship.island,'home');assert.equal(ship.side,'front');assert.equal(ship.durability,80);assert.match(g.log.map(l=>l.text).join(' '),/自动返航/);
+});
+
+test('an idle remote UFO can be dispatched to the controlled resident and dispatch costs one use',async()=>{
+ const {dispatchUfo}=await import('../src/simulation.js');const g=setup();equip(g);const ship=g.space.ships[0];ship.island='spore';ship.durability=70;
+ const result=dispatchUfo(g,ship.id);assert.equal(result.ok,true);assert.equal(ship.island,'home');assert.equal(ship.side,'front');assert.equal(ship.durability,60);assert.match(result.message,/调度/);
+ ship.island='spore';ship.reservedBy=99;assert.equal(dispatchUfo(g,ship.id).ok,false);assert.equal(ship.durability,60);
 });
 test('UFO removal is a user build command, not a resident action',()=>{
  const g=setup();assert.equal(ACTIONS.removeUfo,undefined);assert.equal(autonomousCandidates(g,'player').some(q=>q.type==='removeUfo'),false);
@@ -97,22 +108,22 @@ test('only an adult chef with a local stove blocks understocked voyages',async()
 test('without a local chef missing food charges every passenger once and cannot make stocks negative',()=>{
  const g=setup();equip(g);g.space.provisions.home=1;g.needs.hunger=80;g.needs.energy=80;g.npcs.nova.needs.hunger=80;g.npcs.nova.needs.energy=80;
  assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);run(g,40);
- for(const p of [g.player,g.npcs.nova])assert.equal(p.island,'spore');for(const needs of [g.needs,g.npcs.nova.needs]){assert.equal(needs.hunger,70);assert.equal(needs.energy,75);}assert.equal(g.space.provisions.home,0);assert.equal(g.space.ships[0].food,0);assert.equal(g.space.ships[0].durability,90);
+ for(const p of [g.player,g.npcs.nova])assert.equal(p.island,'spore');for(const needs of [g.needs,g.npcs.nova.needs]){assert.equal(needs.hunger,70);assert.equal(needs.energy,75);}assert.equal(g.space.provisions.home,0);assert.equal(g.space.ships[0].food,0);assert.equal(g.space.ships[0].durability,80);assert.equal(g.space.ships[0].island,'home');
 });
 test('a chef arriving during boarding stops an understocked departure and releases passengers',()=>{
  const g=setup();equip(g);assert.ok(buyItem(g,'stove',5,5).object);g.space.provisions.home=0;assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore',['nova']).ok,true);g.npcs.zig.career.id='chef';run(g,40);assert.equal(g.player.island??'home','home');assert.equal(g.npcs.nova.island??'home','home');assert.equal(g.queue.length,0);assert.equal(g.npcs.nova.queue.length,0);assert.equal(g.space.ships[0].durability,100);assert.equal(g.space.ships[0].reservedBy,null);
 });
-test('fleet capacity is two per active island',async()=>{
- const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();assert.equal(fleetLimit(g),4);addGenerated(g);assert.equal(fleetLimit(g),6);g.civilization.destroyedIslands.push('spore');assert.equal(fleetLimit(g),4);
+test('fleet capacity is one global slot per active island',async()=>{
+ const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();assert.equal(fleetLimit(g),2);addGenerated(g);assert.equal(fleetLimit(g),3);g.civilization.destroyedIslands.push('spore');assert.equal(fleetLimit(g),2);
 });
-test('fleet capacity includes pending manufacture and permits completion of the final slot',async()=>{
- const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();equip(g);assert.equal(fleetLimit(g),4);g.space.ships.push({...g.space.ships[0],id:'ship-b'});g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);assert.equal(enqueue(g,'buildUfo2','lab').ok,true);assert.equal(enqueue(g,'buildUfo2','lab').ok,false);run(g,120);assert.equal(g.space.ships.length,4);assert.equal(g.space.ships.at(-1).durability,100);switchControl(g,'nova');assert.equal(fleetLimit(g),4);
+test('fleet capacity includes pending manufacture and permits completion of the final global slot',async()=>{
+ const {fleetLimit}=await import('../src/space-logistics.js');const g=setup();equip(g);assert.equal(fleetLimit(g),2);g.career={id:'scientist',level:2,shifts:0};assert.equal(enqueue(g,'buildUfo2','lab').ok,true);assert.equal(enqueue(g,'buildUfo2','lab').ok,false);run(g,120);assert.equal(g.space.ships.length,2);assert.equal(g.space.ships.at(-1).durability,100);switchControl(g,'nova');assert.equal(fleetLimit(g),2);
 });
 test('old ships migrate with durability and excess fleet is recycled without losing cargo',()=>{
- const g=setup();equip(g);g.version=20;g.space.ships=Array.from({length:6},(_,i)=>({...g.space.ships[0],id:`old-${i}`,food:2}));for(const s of g.space.ships)delete s.durability;const loaded=restore(serialize(g));assert.equal(loaded.space.ships.length,4);assert.ok(loaded.space.ships.every(s=>s.durability===100));assert.equal(loaded.space.provisions.home,28);
+ const g=setup();equip(g);g.version=20;g.space.ships=Array.from({length:6},(_,i)=>({...g.space.ships[0],id:`old-${i}`,food:2}));for(const s of g.space.ships)delete s.durability;const loaded=restore(serialize(g));assert.equal(loaded.space.ships.length,2);assert.ok(loaded.space.ships.every(s=>s.durability===100));assert.equal(loaded.space.provisions.home,32);
 });
 test('last durability supports a return flight and recycles only after landing',()=>{
- const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);const ship=g.space.ships[0];ship.durability=10;assert.equal(enqueue(g,'voyage','spore-portal',undefined,null,'home').ok,true);run(g,40);assert.equal(g.player.island,'home');assert.equal(g.space.ships.length,0);assert.match(g.log.map(l=>l.text).join(' '),/耐久耗尽/);
+ const g=setup();equip(g);assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);const ship=g.space.ships[0];ship.durability=20;assert.equal(dispatchUfo(g,ship.id).ok,true);assert.equal(ship.durability,10);assert.equal(ship.island,'spore');assert.equal(enqueue(g,'voyage','spore-portal',undefined,null,'home').ok,true);run(g,40);assert.equal(g.player.island,'home');assert.equal(g.space.ships.length,0);assert.match(g.log.map(l=>l.text).join(' '),/耐久耗尽/);
 });
 test('a UFO with one remaining leg can take any route and is recycled after landing',()=>{
  const g=setup();equip(g);g.space.ships[0].durability=10;
