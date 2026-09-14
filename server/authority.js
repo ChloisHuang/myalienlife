@@ -4,6 +4,10 @@ import {createGame,serialize,restore,tick} from '../src/simulation.js';
 import {applyCommand} from '../src/game-commands.js';
 import {createSaveStore} from './save-store.js';
 
+export const AUTHORITY_STEP_MS=50;
+export const AUTHORITY_MAX_REALTIME_ELAPSED_MS=500;
+export const boundedRealtimeElapsed=milliseconds=>Math.min(AUTHORITY_MAX_REALTIME_ELAPSED_MS,Math.max(0,milliseconds));
+
 export async function createAuthority({directory,initial,config,autoStart=true}={}){
  const store=createSaveStore(directory),saved=await store.read();
  let state=saved.state??restore(serialize(initial??createGame(config))),revision=saved.revision,sequence=0,accumulator=0,timer,last=performance.now(),saveAt=last,failed=null,closing=false;
@@ -16,11 +20,11 @@ export async function createAuthority({directory,initial,config,autoStart=true}=
  function advance(milliseconds){
   if(failed||closing)return;
   accumulator+=milliseconds;
-  // Same small steps as the browser. Never fast-forward days in a single tick.
-  let steps=0;while(accumulator>=50&&steps++<200){tick(state,.05);accumulator-=50;}
+  // Same small steps as the browser. Explicit advances retain exact replay semantics.
+  let steps=0;while(accumulator>=AUTHORITY_STEP_MS&&steps++<200){tick(state,AUTHORITY_STEP_MS/1000);accumulator-=AUTHORITY_STEP_MS;}
  }
  if(!saved.state)await checkpoint();
- if(autoStart)timer=setInterval(()=>{try{const now=performance.now();advance(now-last);last=now;if(now-saveAt>=5000){saveAt=now;checkpoint().catch(()=>{});}}catch(error){failed=error;state.speed=0;}},50);
+ if(autoStart)timer=setInterval(()=>{try{const now=performance.now();advance(boundedRealtimeElapsed(now-last));last=now;if(now-saveAt>=5000){saveAt=now;checkpoint().catch(()=>{});}}catch(error){failed=error;state.speed=0;}},50);
  return{
   get state(){return state;},get revision(){return revision;},get error(){return failed;},advance,checkpoint,
   async command(command){if(failed)throw Object.assign(new Error('存档服务异常，已暂停世界'),{status:503});const result=applyCommand(state,command);if(result.ok)await checkpoint();return result;},

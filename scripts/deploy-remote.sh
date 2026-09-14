@@ -58,7 +58,7 @@ old=$(readlink -f "$base/current" || true)
 if [[ -f "$conf" ]]; then cp "$conf" "$base/backups/nginx-before.conf"; else rm -f "$base/backups/nginx-before.conf"; fi
 start_world(){
  local dir=$1
- docker run -d --name myalienlife --label app=myalienlife --restart unless-stopped --stop-timeout 30 --read-only --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --memory 256m --memory-swap 384m --cpus 0.5 --pids-limit 64 --log-driver json-file --log-opt max-size=5m --log-opt max-file=2 -p "127.0.0.1:$backend:18080" -v "$dir:/app:ro" -v "$base/data:/data" -v "$base/secrets/operator-token:/run/operator-token:ro" -e HOST=0.0.0.0 -e PORT=18080 -e ORBIT_DATA_DIR=/data -e ORBIT_DIST_DIR=/app/dist -e ORBIT_TOKEN_FILE=/run/operator-token -e "ORBIT_ORIGIN=$origin" -e "ORBIT_RELEASE=$(basename "$dir")" "$(cat "$dir/image")" node /app/production.mjs >/dev/null
+ docker run -d --name myalienlife --label app=myalienlife --restart unless-stopped --stop-timeout 30 --read-only --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --memory 256m --memory-swap 384m --cpus 1.0 --pids-limit 64 --log-driver json-file --log-opt max-size=5m --log-opt max-file=2 -p "127.0.0.1:$backend:18080" -v "$dir:/app:ro" -v "$base/data:/data" -v "$base/secrets/operator-token:/run/operator-token:ro" -e HOST=0.0.0.0 -e PORT=18080 -e ORBIT_DATA_DIR=/data -e ORBIT_DIST_DIR=/app/dist -e ORBIT_TOKEN_FILE=/run/operator-token -e "ORBIT_ORIGIN=$origin" -e "ORBIT_RELEASE=$(basename "$dir")" "$(cat "$dir/image")" node /app/production.mjs >/dev/null
 }
 rollback(){
  trap - ERR

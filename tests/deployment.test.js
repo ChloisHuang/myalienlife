@@ -11,6 +11,11 @@ test('local and deployment test runs serialize files so the capacity timing gate
  assert.ok(manifest.scripts.test.split(' ').includes('--test-concurrency=1'));
  assert.match(deploy,/run\(process\.execPath,\['--test','--test-concurrency=1',\.\.\.tests\]\)/);
 });
+test('production container reserves one CPU for the authority loop and HTTP service',async()=>{
+ const remote=await readFile(new URL('../scripts/deploy-remote.sh',import.meta.url),'utf8');
+ assert.match(remote,/--cpus 1\.0\b/);
+ assert.doesNotMatch(remote,/--cpus 0\.5\b/);
+});
 test('deployment uses one explicit SSH route for commands and resumable file transfers',()=>{
  const c=deploymentConfig({host:'192.0.2.10',sshPort:22,user:'root',domain:'game.example',sshProxy:{host:'127.0.0.1',port:7890}}),t=deploymentTransport(c);
  assert.ok(t.ssh.includes('ProxyCommand=nc -X 5 -x 127.0.0.1:7890 %h %p'));

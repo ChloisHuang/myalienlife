@@ -7,10 +7,16 @@ import {createServer} from 'node:http';
 import {saveApi} from '../server/save-api.js';
 import {createProjectConfigStore} from '../server/project-config-store.js';
 import {createGame} from '../src/simulation.js';
+import {boundedRealtimeElapsed,AUTHORITY_MAX_REALTIME_ELAPSED_MS} from '../server/authority.js';
 const implementation=await import('../server/save-store.js').catch(()=>({}));
 const remoteImplementation=await import('../server/remote-save-api.js').catch(()=>({}));
 async function setup(t){assert.equal(typeof implementation.createSaveStore,'function');const dir=await mkdtemp(join(tmpdir(),'orbit-save-'));t.after(()=>rm(dir,{recursive:true,force:true}));return{dir,store:implementation.createSaveStore(dir)};}
 const request=(state,baseRevision=0,clientId='client-a',sequence=1)=>({state,baseRevision,clientId,sequence});
+test('authority bounds only realtime timer stalls without changing explicit replay semantics',()=>{
+ assert.equal(boundedRealtimeElapsed(60_000),AUTHORITY_MAX_REALTIME_ELAPSED_MS);
+ assert.equal(boundedRealtimeElapsed(125),125);
+ assert.equal(boundedRealtimeElapsed(-1),0);
+});
 test('reload reads wait for a save already being written',async t=>{const {store}=await setup(t),game=createGame();game.day=9;const writing=store.write(request(game));const loaded=await store.read();await writing;assert.equal(loaded.state?.day,9);});
 test('server save persists the full game to disk and survives a new store instance',async t=>{const {store,dir}=await setup(t),g=createGame();g.day=9;g.money=4260;assert.equal((await store.read()).state,null);const saved=await store.write(request(g));assert.equal(saved.revision,1);const restarted=implementation.createSaveStore(dir);assert.deepEqual((await restarted.read()).state,g);assert.equal(JSON.parse(await readFile(join(dir,'orbit-life.json'),'utf8')).state.money,4260);});
 test('stale browser cannot overwrite a newer save',async t=>{const {store}=await setup(t),g=createGame();await store.write(request(g));g.day=2;await store.write(request(g,1,'client-b',1));await assert.rejects(store.write(request(createGame(),1,'client-a',2)),e=>e.status===409);assert.equal((await store.read()).state.day,2);});
