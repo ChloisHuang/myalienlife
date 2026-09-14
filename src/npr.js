@@ -136,14 +136,33 @@ export function createBioluminescence(parent,{radius,height,color,count=7}){
 }
 
 export function createAtmosphere(scene,camera,random){
- const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1},storybook={value:0},ocean={value:0};
- let enteringWater=false,immersionStart=null,immersionEnd=null;
+ const time={value:0},cloudCover={value:0},spores={value:0},wind={value:.2},front={value:1},aspect={value:1},storybook={value:0},ocean={value:0},whaleReveal={value:0};
+ let enteringWater=false,immersionStart=null,immersionEnd=null,whaleUpdatedAt=null;
  const bubbleAge={value:0},bubbleStopAge={value:0};
  // Fill the viewport directly so zooming cannot crop away the nebula's detail.
+ let whaleMap;
+ if(typeof document==='undefined'){
+  whaleMap=new THREE.DataTexture(new Uint8Array([0,0,0,0]),1,1,THREE.RGBAFormat);whaleMap.needsUpdate=true;
+ }else{
+  const whaleCanvas=document.createElement('canvas');whaleCanvas.width=512;whaleCanvas.height=204;
+  const whaleContext=whaleCanvas.getContext('2d');
+  // Smooth silhouette traced from the supplied whale reference, mirrored so the existing tail animation stays on the left.
+  // The dense rounded torso and lifted flukes are intentional: the animal should read as a huge whale, not a long thin fish.
+  const whaleOutline=[[37,19],[113,38],[126,23],[163,10],[190,23],[173,21],[143,49],[170,72],[210,77],[210,67],[217,64],[263,76],[356,70],[486,87],[497,92],[500,105],[467,132],[399,148],[416,166],[414,194],[394,172],[377,167],[357,151],[291,160],[233,142],[201,152],[147,149],[133,142],[171,135],[183,126],[141,100],[114,64],[74,57],[41,37]];
+  whaleContext.fillStyle='#fff';whaleContext.beginPath();
+  const whaleLast=whaleOutline[whaleOutline.length-1],whaleFirst=whaleOutline[0];
+  whaleContext.moveTo((whaleLast[0]+whaleFirst[0])*.5,(whaleLast[1]+whaleFirst[1])*.5);
+  for(let i=0;i<whaleOutline.length;i++){
+   const point=whaleOutline[i],next=whaleOutline[(i+1)%whaleOutline.length];
+   whaleContext.quadraticCurveTo(point[0],point[1],(point[0]+next[0])*.5,(point[1]+next[1])*.5);
+  }
+  whaleContext.closePath();whaleContext.fill();
+  whaleMap=new THREE.CanvasTexture(whaleCanvas);whaleMap.colorSpace=THREE.NoColorSpace;whaleMap.generateMipmaps=false;whaleMap.minFilter=whaleMap.magFilter=THREE.LinearFilter;
+ }
  const sky=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({
-  uniforms:{time,cloudCover,front,aspect,storybook,ocean},depthWrite:false,depthTest:false,
+  uniforms:{time,cloudCover,front,aspect,storybook,ocean,whaleReveal,whaleMap:{value:whaleMap}},depthWrite:false,depthTest:false,
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,1.0,1.0);}',
-  fragmentShader:`uniform float time,cloudCover,front,aspect,storybook,ocean;varying vec2 vUv;${noiseGLSL}
+  fragmentShader:`uniform float time,cloudCover,front,aspect,storybook,ocean,whaleReveal;uniform sampler2D whaleMap;varying vec2 vUv;${noiseGLSL}
    void main(){
     vec2 p=(vUv-.5)*vec2(aspect,1.0);
     if(ocean>.5){
@@ -152,6 +171,18 @@ export function createAtmosphere(scene,camera,random){
      shallow+=vec3(.055,.075,.085)*mist(p*4.+vec2(time*.006,0.));
      float shafts=pow(.5+.5*sin(p.x*13.+p.y*3.+sin(p.x*5.+time*.02)),12.);
      vec3 color=mix(deep,shallow,front)+vec3(.04,.12,.16)*shafts*pow(vUv.y,1.3)*(1.-front);
+     // The contour follows the supplied whale reference while staying large enough to read through underwater fog.
+     vec2 whaleUv=(vUv-vec2(.66,.69))/vec2(.84,.43)+.5;
+     whaleUv.y+=sin(time*.055)*.008;
+     // Move both flukes and the tail stock together, fading the motion smoothly into the torso so the tail stays soft and connected.
+     float tailSwing=1.-smoothstep(.10,.43,whaleUv.x);
+     tailSwing=tailSwing*tailSwing*(3.-2.*tailSwing);
+     float tailSway=sin(time*.18);
+     whaleUv.y-=tailSwing*(.010+tailSway*.060);
+     float whaleBounds=step(0.,whaleUv.x)*step(whaleUv.x,1.)*step(0.,whaleUv.y)*step(whaleUv.y,1.);
+     float whale=texture2D(whaleMap,clamp(whaleUv,0.,1.)).a*whaleBounds;
+     float whaleFog=.45+.09*mist((whaleUv-.5)*5.+vec2(time*.003,0.));
+     color=mix(color,vec3(.0015,.009,.015),whale*whaleReveal*whaleFog);
      gl_FragColor=vec4(color,1.0);
      #include <tonemapping_fragment>
      #include <colorspace_fragment>
@@ -250,6 +281,11 @@ export function createAtmosphere(scene,camera,random){
   bubbleAge.value=immersionStart===null?0:t-immersionStart;
   bubbleStopAge.value=immersionEnd===null?bubbleAge.value:immersionEnd-immersionStart;
   immersion.visible=immersionStart!==null&&(immersionEnd===null||t<immersionEnd+1/.139);
+  const whaleNow=performance.now()/1000,whaleTarget=isOcean?THREE.MathUtils.smoothstep(1-frontAmount,.04,.92):0;
+  if(whaleUpdatedAt===null)whaleReveal.value=whaleTarget;
+  else if(whaleTarget<=whaleReveal.value)whaleReveal.value=whaleTarget;
+  else whaleReveal.value=THREE.MathUtils.damp(whaleReveal.value,whaleTarget,.55,Math.min(.1,Math.max(0,whaleNow-whaleUpdatedAt)));
+  whaleUpdatedAt=whaleNow;
   ocean.value=isOcean?1:0;storybook.value=isStorybook?1:0;time.value=t;aspect.value=(camera.right-camera.left)/(camera.top-camera.bottom);front.value=frontAmount;cloudCover.value=weather.weights.mist*.65+weather.weights.rain*.85;spores.value=weather.weights.spores;wind.value=weather.wind;
  }};
 }
