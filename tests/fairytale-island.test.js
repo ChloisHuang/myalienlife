@@ -79,7 +79,7 @@ test('reverse castle reserves the upper-right footprint without blocking the old
 
 test('fairytale meshes use the main planet cel shader and preserve painted colors',()=>{
  const asset=new THREE.Group(),source=new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshStandardMaterial({vertexColors:true}));source.name='fairyBench';asset.add(source);
- const result=createFairytaleKit(asset).prop('fairyBench','home');
+ const result=createFairytaleKit(asset).prop('fairyBench','eva');
  result.traverse(o=>{if(o.isMesh){assert.ok(o.material instanceof StarToonMaterial);assert.equal(o.material.vertexColors,true);o.material.dispose();}});
  source.geometry.dispose();source.material.dispose();
 });
@@ -110,12 +110,12 @@ test('the first destination is a fixed fairytale design, not a random biome',()=
 });
 test('ocean follows fairytale while the retired city remains absent',()=>{
  const g=createGame();assert.equal(islandCatalog(g).city,undefined);
- g.civilization.observations=3;assert.equal(discoverAdjacentIsland(g,'home',()=>0).name,'童梦星屿');
+ g.civilization.observations=3;assert.equal(discoverAdjacentIsland(g,'eva',()=>0).name,'童梦星屿');
  g.civilization.visits.spore=1;g.civilization.observations=12;
  assert.equal(discoverAdjacentIsland(g,'spore').theme,'ocean');
- assert.deepEqual(restore(serialize(g)).civilization.discoveryPath,['home','spore','ocean']);
- const legacy=createGame();legacy.version=23;legacy.civilization.discoveryPath=['home','spore','city'];legacy.civilization.visits.city=1;legacy.civilization.surveys.city=0;legacy.civilization.surveyDays.city=0;
- const migrated=restore(serialize(legacy));assert.equal(islandCatalog(migrated).city,undefined);assert.deepEqual(migrated.civilization.discoveryPath,['home','spore']);
+ assert.deepEqual(restore(serialize(g)).civilization.discoveryPath,['eva','spore','ocean']);
+ const legacy=createGame();legacy.version=23;legacy.civilization.discoveryPath=['eva','spore','city'];legacy.civilization.visits.city=1;legacy.civilization.surveys.city=0;legacy.civilization.surveyDays.city=0;
+ const migrated=restore(serialize(legacy));assert.equal(islandCatalog(migrated).city,undefined);assert.deepEqual(migrated.civilization.discoveryPath,['eva','spore']);
 });
 test('fairytale furniture is purchasable outside the island, fixed landmarks are not',()=>{
  const g=createGame();

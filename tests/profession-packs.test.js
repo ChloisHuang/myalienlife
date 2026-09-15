@@ -10,14 +10,14 @@ test('six professional objects can be bought, rendered and restored without inse
  assert.ok(restore(serialize(g)));assert.ok(autonomousCandidates(g,'player').every(c=>c.type));
 });
 test('design and construction stations offer different tasks and retain architect qualification',()=>{
- const g=game();g.player.island=g.viewIsland='spore';g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;
+ const g=game();g.player.island=g.viewIsland='spore';g.civilization.discoveryPath=['eva','spore'];g.civilization.visits.spore=1;
  const design=buyItem(g,'blueprintTable',0,-3).object,site=buyItem(g,'constructionTerminal',3,-3).object;
  assert.equal(enqueue(g,'developBlueprint',design.id).ok,false);g.career.id='architect';assert.equal(enqueue(g,'developBlueprint',site.id).ok,false);assert.equal(enqueue(g,'developBlueprint',design.id).ok,true);
  g.queue=[];g.civilization.projects.spore.blueprint=300;g.space.materials.spore=2;assert.equal(enqueue(g,'constructIsland',design.id).ok,false);assert.equal(enqueue(g,'constructIsland',site.id).ok,true);
 });
 test('extractor consumes one nearby mature crop and cannot harvest plants on a different island or face',()=>{
  const g=game(),extractor=buyItem(g,'extractor',0,-3,0,{island:'spore',side:'front'}).object,plant=buyItem(g,'cultivator',3,-3,0,{island:'spore',side:'front'}).object;
- g.player.island=g.viewIsland='spore';g.civilization.discoveryPath=['home','spore'];plant.plant.growth=1;g.career.id='botanist';
+ g.player.island=g.viewIsland='spore';g.civilization.discoveryPath=['eva','spore'];plant.plant.growth=1;g.career.id='botanist';
  plant.side='back';assert.equal(enqueue(g,'extractMaterials',extractor.id).ok,false);plant.side='front';assert.equal(enqueue(g,'extractMaterials',extractor.id).ok,true);
  for(let i=0;i<600;i++)tick(g,.1,()=>1);assert.equal(g.space.materials.spore,18);assert.ok(plant.plant.growth<1);assert.equal(plant.plant.harvests,1);assert.equal(enqueue(g,'extractMaterials',extractor.id).ok,false);assert.ok(restore(serialize(g)));
 });

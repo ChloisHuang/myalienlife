@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {createGame,ensureStarIsland} from '../src/simulation.js';
 import {CAPTURE_FRAME,CAPTURE_WEATHER,captureIslands,prepareIslandCapture,poseCaptureFrame} from '../tools/island-capture-fixture.js';
 
-function source(){const g=createGame();g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;ensureStarIsland(g,'spore');return g;}
+function source(){const g=createGame();g.civilization.discoveryPath=['eva','spore'];g.civilization.visits.spore=1;ensureStarIsland(g,'spore');return g;}
 test('island selection is explicit and uses the saved discovery order',()=>{
- const g=source();assert.deepEqual(captureIslands(g).map(i=>[i.number,i.id]),[[1,'home'],[2,'spore']]);
+ const g=source();assert.deepEqual(captureIslands(g).map(i=>[i.number,i.id]),[[1,'eva'],[2,'spore']]);
  assert.throws(()=>prepareIslandCapture(g,{islandNumber:3,side:'front',seed:1}),/不存在/);
  assert.throws(()=>prepareIslandCapture(g,{islandNumber:2,side:'wrong',seed:1}),/front/);
 });

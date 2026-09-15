@@ -7,22 +7,22 @@ import {explorationContent} from '../src/exploration-panel.js';
 const run=(g,n)=>{for(let i=0;i<n*10;i++)tick(g,.1,()=>0);};
 function setup(){const g=createGame();g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;for(const k in g.config.needDecay)g.config.needDecay[k]=0;return g;}
 
-function ship(g){g.skills.science=6;g.space.ships.push({id:'test-ship',tier:2,island:'home',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.home=8;}
+function ship(g){g.skills.science=6;g.space.ships.push({id:'test-ship',tier:2,island:'eva',side:'front',food:0,durability:100,reservedBy:null});g.space.provisions.eva=8;}
 test('discovery, technology, manufacture and food each gate landing',()=>{
- const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];assert.ok(discovered(g,'spore'));
+ const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['eva','spore'];assert.ok(discovered(g,'spore'));
  assert.match(voyageError(g,g.player,g.skills,'spore'),/科技/);g.civilization.technology=40;
  g.skills.science=0;
- assert.match(voyageError(g,g.player,g.skills,'spore'),/制造/);ship(g);assert.ok(buyItem(g,'stove',5,5).object);g.career.id='chef';g.space.provisions.home=0;
- assert.match(voyageError(g,g.player,g.skills,'spore'),/食物/);g.space.provisions.home=8;
+ assert.match(voyageError(g,g.player,g.skills,'spore'),/制造/);ship(g);assert.ok(buyItem(g,'stove',5,5).object);g.career.id='chef';g.space.provisions.eva=0;
+ assert.match(voyageError(g,g.player,g.skills,'spore'),/食物/);g.space.provisions.eva=8;
  assert.equal(voyageError(g,g.player,g.skills,'spore'),null);g.player.age=12;g.skills.science=0;assert.equal(voyageError(g,g.player,g.skills,'spore'),null);
 });
 test('a real UFO voyage creates a playable island and consumes one-way food',()=>{
- const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['home','spore'];g.civilization.technology=40;ship(g);
+ const g=setup();g.civilization.observations=3;g.civilization.discoveryPath=['eva','spore'];g.civilization.technology=40;ship(g);
  assert.equal(enqueue(g,'voyage','portal',undefined,null,'spore').ok,true);run(g,40);
  assert.equal(g.player.island,'spore');assert.equal(g.viewIsland,'spore');assert.equal(g.civilization.visits.spore,1);assert.equal(g.space.ships[0].food,0);
  assert.equal(enqueue(g,'research','lab').ok,false);assert.equal(enqueue(g,'explore','spore-portal').ok,true);run(g,35);assert.equal(g.civilization.surveys.spore,1);
  assert.equal(enqueue(g,'explore','spore-portal').ok,false);assert.equal(g.civilization.technology,40);assert.equal(g.civilization.knowledge,6);
- g.player.preferences={};g.skills.botany=0;let loaded=restore(serialize(g));assert.equal(dispatchUfo(loaded,'test-ship').ok,true);loaded=restore(serialize(loaded));assert.equal(loaded.space.ships[0].flight?.kind,'dispatch');run(loaded,10);assert.equal(enqueue(loaded,'voyage','spore-portal',undefined,null,'home').ok,true);run(loaded,35);assert.equal(loaded.player.island,'home');assert.equal(loaded.space.ships[0].food,0);
+ g.player.preferences={};g.skills.botany=0;let loaded=restore(serialize(g));assert.equal(loaded.space.ships[0].island,'spore');assert.equal(loaded.space.ships[0].flight,undefined);assert.equal(enqueue(loaded,'voyage','spore-portal',undefined,null,'eva').ok,true);run(loaded,35);assert.equal(loaded.player.island,'eva');assert.equal(loaded.space.ships[0].food,0);
 });
 test('different islands cannot interact or cross through the ordinary gate network',()=>{
  const g=setup();g.objects.push({id:'remote-gate',type:'gate',island:'spore',side:'front',x:0,z:0,rotation:0});
@@ -37,7 +37,7 @@ test('research is shared across residents and remains after switching control an
 });
 test('v12 migration preserves existing lore and does not invent technology or island visits',()=>{
  const g=setup();g.version=12;delete g.civilization;delete g.viewIsland;g.wonders.archive=3;
- const loaded=restore(serialize(g));assert.equal(loaded.version,25);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.civilization.technology,0);assert.equal(loaded.civilization.visits.city,undefined);
+ const loaded=restore(serialize(g));assert.equal(loaded.version,26);assert.equal(loaded.wonders.archive,3);assert.equal(loaded.civilization.technology,0);assert.equal(loaded.civilization.visits.city,undefined);
 });
 test('a multiplayer activity has exactly one candidate regardless of eligible partner count',()=>{
  const g=setup();g.objects=[];const o=buyItem(g,'lamp',0,0).object;

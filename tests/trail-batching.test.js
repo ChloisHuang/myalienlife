@@ -24,7 +24,7 @@ test('live trail instances keep swaying, opening and updating after island reent
  g.player.prayer.nether=10;visual.update(g,2,.25);
  assert.ok(visual.growth.children.every(stem=>Math.abs(stem.rotation.x)>1));
  const open=Array.from(batch.instanceMatrix.array);assert.equal(visual.steps.children[0].material.opacity,.6);
- g.viewIsland='home';visual.update(g,3,.25);assert.equal(visual.root.visible,false);
+ g.viewIsland='eva';visual.update(g,3,.25);assert.equal(visual.root.visible,false);
  assert.deepEqual(Array.from(batch.instanceMatrix.array),open);
  g.viewIsland='spore';visual.update(g,4,.25);assert.equal(visual.root.visible,true);
  assert.notDeepEqual(Array.from(batch.instanceMatrix.array),open);visual.dispose();

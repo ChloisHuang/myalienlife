@@ -91,8 +91,8 @@
 .skills{margin-top:16px;font-size:11px;color:var(--panel-muted);line-height:1.9}
 .skills span{margin:0 4px}
 .resident-panel{min-height:100%}
-.resident-home{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:8px;margin:0 0 16px;padding-bottom:16px;border-bottom:1px solid var(--panel-line)}
-.resident-home dt{display:flex;align-items:center;gap:6px;color:var(--panel-muted);font-size:12px}.resident-home dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+.resident-settlement{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:8px;margin:0 0 16px;padding-bottom:16px;border-bottom:1px solid var(--panel-line)}
+.resident-settlement dt{display:flex;align-items:center;gap:6px;color:var(--panel-muted);font-size:12px}.resident-settlement dd{margin:0;font-weight:500;overflow-wrap:anywhere}
 .prayer-status{display:flex;flex-wrap:wrap;gap:6px 14px;padding:0 0 16px;margin:0 0 16px;border-bottom:1px solid var(--panel-line);font-size:12px;color:#6d8074}
 .prayer-status strong{flex-basis:100%;font-size:13px;color:var(--panel-ink);font-weight:600}.prayer-status small{flex-basis:100%}
 .prayer-status[data-race=nether]{color:#817293}

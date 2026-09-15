@@ -5,7 +5,7 @@ import {BLINK_SECONDS} from './nether-blink.js';
 import {isRadiant} from './prayer.js';
 import {createBlinkVisual} from './nether-blink-visuals.js';
 import {shipFoodStatus} from './space-logistics.js';
-import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam} from './ufo-visuals.js';
+import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam,ufoPlacement} from './ufo-visuals.js';
 import {islandDefinition,islandCatalog,discovered} from './civilization.js';
 import {createIslandTerrain} from './island-terrain.js';
 import {createOceanKit,createOceanFragments,createOceanCaustics} from './ocean.js';
@@ -42,7 +42,7 @@ const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
 const assetPath=path=>versionedAsset(path,import.meta.env?.VITE_ASSET_VERSION??'');
 function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 
-export async function createWorld(container,getGame,{onClick,onHover,onPlace,weatherProvider=getWeather,qualityProfile=getQualityProfile('pc','high'),independentAmbient=false}){
+export async function createWorld(container,getGame,{onClick,onHover,onPlace,onBootProgress,weatherProvider=getWeather,qualityProfile=getQualityProfile('pc','high'),independentAmbient=false}){
  const ambientClock=createAmbientClock();
  let sceneOnly=false;
  const scene=new THREE.Scene();scene.background=new THREE.Color(0x10152e);scene.fog=new THREE.FogExp2(0x171c39,.006);
@@ -59,14 +59,43 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
  const ambient=new THREE.HemisphereLight(0xe2eaff,0x70526e,1.3);scene.add(ambient);const sun=new THREE.DirectionalLight(0xffe5d0,2.6);sun.position.set(-10,24,14);sun.castShadow=initialQuality.shadows;sun.shadow.mapSize.set(initialQuality.shadowMapSize,initialQuality.shadowMapSize);Object.assign(sun.shadow.camera,{left:-22,right:22,top:22,bottom:-22,far:70});sun.shadow.normalBias=.09;sun.shadow.bias=-.00015;scene.add(sun);
  const rim=new THREE.DirectionalLight(0xdacbff,1.2);rim.position.set(12,6,-16);scene.add(rim);
  const composer=createPostProcessing(renderer,scene,camera);
- const loader=new GLTFLoader();const [alienAsset,mushroomAsset]=await Promise.all(['alien','mushroom'].map(n=>loader.loadAsync(assetPath(`/assets/${n}.glb`))));
- stylizeAsset(alienAsset.scene,{character:true});stylizeAsset(mushroomAsset.scene);
+ const loader=new GLTFLoader();
+ // The decoder is attached before the first model so Draco-compressed meshes can be parsed at all.
+  // The decoder pair is fetched by three's own FileLoader, which concatenates its path and filename,
+ // so a version query cannot be attached here without landing after the filename. The server's
+ // ETag covers these instead: a repeat visit gets 304 and no body.
  const draco=new DRACOLoader();draco.setDecoderPath('/assets/draco/');draco.setDecoderConfig({type:'wasm'});loader.setDRACOLoader(draco);
- const fairytaleAsset=await loader.loadAsync(assetPath('/assets/fairytale.glb'));
- const environmentAsset=await loader.loadAsync(assetPath('/assets/fairytale-environment.glb'));
+ // Boot weights are the on-disk byte sizes of everything this screen fetches, including the Draco
+ // decoder pair, so the progress bar reports downloaded bytes rather than counted entries.
+ const bootWeights=new Map([
+  ['/assets/alien.glb',1988364],['/assets/mushroom.glb',260000],
+  // fetched by DRACOLoader on the first compressed model, so they are counted here
+  ['/assets/draco/draco_wasm_wrapper.js',58000],['/assets/draco/draco_decoder.wasm',192000],
+  ['/assets/fairytale.glb',1541000],['/assets/fairytale-environment.glb',45700],
+  ['/assets/ocean.glb',2329960],['/assets/ocean-ground.webp',29700],
+  ['/assets/mushroom-giant.glb',254000],['/assets/mushroom-cluster.glb',692000],
+  ['/assets/mushroom-mutant.glb',268000],['/assets/mushroom-mutant-cluster.glb',733000]
+ ]);
+ const bootTotal=[...bootWeights.values()].reduce((sum,size)=>sum+size,0);
+ let bootDone=0;
+ // Let the browser paint the bar between assets: parsing a multi-megabyte GLB blocks the main
+ // thread, so without a yield the bar only ever renders its final position.
+ const nextPaint=()=>new Promise(resolve=>requestAnimationFrame(()=>setTimeout(resolve,0)));
+ const markAssetDone=async path=>{bootDone+=bootWeights.get(path)??0;onBootProgress?.(Math.min(1,bootDone/bootTotal));await nextPaint();};
+ const bootLoad=async path=>{const asset=await loader.loadAsync(assetPath(path));await markAssetDone(path);return asset;};
+ const bootTexture=async path=>{const texture=await new THREE.TextureLoader().loadAsync(assetPath(path));await markAssetDone(path);return texture;};
+ onBootProgress?.(0);
+ const alienAsset=await bootLoad('/assets/alien.glb');
+ stylizeAsset(alienAsset.scene,{character:true});
+ const mushroomAsset=await bootLoad('/assets/mushroom.glb');
+ stylizeAsset(mushroomAsset.scene);
+ const fairytaleAsset=await bootLoad('/assets/fairytale.glb');
+ const environmentAsset=await bootLoad('/assets/fairytale-environment.glb');
  const fairytaleKit=createFairytaleKit(fairytaleAsset.scene,environmentAsset.scene);
- const oceanAsset=await loader.loadAsync(assetPath('/assets/ocean.glb')),oceanGround=await new THREE.TextureLoader().loadAsync(assetPath('/assets/ocean-ground.webp')),oceanCaustics=createOceanCaustics(renderer),oceanKit=createOceanKit(oceanAsset.scene,oceanGround,oceanCaustics.texture);draco.dispose();
- const mushroomVariants={normal:mushroomAsset};for(const name of ['giant','cluster','mutant','mutant-cluster']){const asset=await loader.loadAsync(assetPath(`/assets/mushroom-${name}.glb`));stylizeAsset(asset.scene);mushroomVariants[name]=asset;}
+ const oceanAsset=await bootLoad('/assets/ocean.glb'),oceanGround=await bootTexture('/assets/ocean-ground.webp'),oceanCaustics=createOceanCaustics(renderer),oceanKit=createOceanKit(oceanAsset.scene,oceanGround,oceanCaustics.texture);
+ const mushroomVariants={normal:mushroomAsset};
+ for(const name of ['giant','cluster','mutant','mutant-cluster']){const asset=await bootLoad(`/assets/mushroom-${name}.glb`);stylizeAsset(asset.scene);mushroomVariants[name]=asset;}
+ onBootProgress?.(1);
  // Portrait updates share one context for the lifetime of the world.
  const portraitRenderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});portraitRenderer.setSize(160,160);portraitRenderer.toneMapping=renderer.toneMapping;portraitRenderer.toneMappingExposure=renderer.toneMappingExposure;
  const portraitScene=new THREE.Scene(),portraitCamera=new THREE.PerspectiveCamera(32,1,.1,10);
@@ -169,8 +198,8 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    if(terrainIsland===id){remoteTerrain=null;remoteHousing=null;terrainIsland=null;}
   }
   for(const [id,entry] of terrainCache){for(const t of Object.values(entry.terrain))t.root.visible=id===g.viewIsland;if(entry.housing)entry.housing.root.visible=id===g.viewIsland;}
-  terrain.visible=darkTerrain.visible=g.viewIsland==='home';
-  if(g.viewIsland==='home'){if(remoteTerrain)for(const t of Object.values(remoteTerrain))t.root.visible=false;if(remoteHousing)remoteHousing.root.visible=false;return;}
+  terrain.visible=darkTerrain.visible=g.viewIsland==='eva';
+  if(g.viewIsland==='eva'){if(remoteTerrain)for(const t of Object.values(remoteTerrain))t.root.visible=false;if(remoteHousing)remoteHousing.root.visible=false;return;}
   if(terrainIsland!==g.viewIsland){
    const cached=terrainCache.get(g.viewIsland);remoteTerrain=cached?.terrain??{};remoteHousing=cached?.housing??null;
    if(!cached){
@@ -199,19 +228,21 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    const objectMesh=objectMeshes.get(o.id);objectMesh.visible=islandOf(o)===g.viewIsland;surfaceItems[sideOf(o)].add(objectMesh);
   }
  }
- const ufoMeshes=new Map(),onboard=new Map(),flightBoard=document.createElement('div');flightBoard.className='ufo-flight-board';flightBoard.setAttribute('aria-label','UFO 航行动态');container.append(flightBoard);let flightBoardText='';
- function syncUfos(g){
+ const ufoMeshes=new Map(),onboard=new Map(),ufoAnchors=new Map(),flightBoard=document.createElement('div');flightBoard.className='ufo-flight-board';flightBoard.setAttribute('aria-label','UFO 航行动态');container.append(flightBoard);let flightBoardText='';
+ function syncUfos(g,dt){
   const flights=[];onboard.clear();
-  for(const [id,visual] of ufoMeshes)if(!g.space.ships.some(s=>s.id===id)){visual.beam.dispose();visual.dispose();ufoMeshes.delete(id);}
+  for(const [id,visual] of ufoMeshes)if(!g.space.ships.some(s=>s.id===id)){visual.beam.dispose();visual.dispose();ufoMeshes.delete(id);ufoAnchors.delete(id);}
   for(const ship of g.space.ships){
-   if(!ufoMeshes.has(ship.id)){const visual=createUfoVisual(ship.tier);visual.beam=createUfoTransferBeam();visual.root.userData.target={kind:'ufo',id:ship.id};ufoMeshes.set(ship.id,visual);}
+   if(!ufoMeshes.has(ship.id)){const visual=createUfoVisual(ship.tier);visual.beam=createUfoTransferBeam();visual.root.userData.target={kind:'ufo',id:ship.id};ufoMeshes.set(ship.id,visual);ufoAnchors.delete(ship.id);}
    const visual=ufoMeshes.get(ship.id),root=visual.root,flight=ufoFlightPresentation(g,ship),food=shipFoodStatus(ship);
    for(const uid of flight.crew)onboard.set(uid,flight);
    surfaceItems[flight.side].add(visual.beam.root);visual.beam.update(flight);visual.beam.root.visible=!!flight.beam&&flight.island===g.viewIsland;
    root.visible=flight.island===g.viewIsland;surfaceItems[flight.side].add(root);
    const seconds=((g.day-1)*1440+g.minute)/g.config.time.gameMinutesPerRealSecond,motion=ufoHoverMotion(ship.id,seconds,flight);
    visual.update(food.ratio,seconds,flight.flying);
-   root.position.set(flight.x+motion.x,flight.y+motion.y,flight.z+motion.z);root.scale.setScalar((.85+ship.tier*.18)*flight.scale);
+   // Only a saucer's own flight path is followed exactly; re-parked neighbours glide to their new slot.
+   const placed=ufoPlacement(ufoAnchors.get(ship.id),flight,dt);ufoAnchors.set(ship.id,placed);
+   root.position.set(placed.x+motion.x,placed.y+motion.y,placed.z+motion.z);root.scale.setScalar((.85+ship.tier*.18)*flight.scale);
    // Tilt in world travel axes before the saucer's independent local spin.
    root.rotation.set(motion.pitch+flight.pitch,motion.yaw,motion.roll+flight.roll,'ZXY');
    root.userData.flightStage=flight.stage;
@@ -287,7 +318,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    const flipTarget=g.viewSide==='back'?Math.PI:0;island.rotation.x=offscreen?flipTarget:THREE.MathUtils.damp(island.rotation.x,flipTarget,5,frameDt);
    for(const entry of themedSurroundings){updateSurroundings(entry,island.rotation.x,fairy);for(const {mesh,source}of entry.fragments){mesh.position.copy(source.position);mesh.quaternion.copy(source.quaternion);}}
    faces[g.viewSide].add(ghost,buildGrid);faces[sideOf(g.player)].add(selected);
-   const flipping=Math.abs(island.rotation.x-flipTarget)>.01;container.dataset.side=g.viewSide;container.dataset.flipping=String(flipping);syncObjects(g);syncActors(g);syncUfos(g);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=visualSeconds??((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime),animateVegetation=quality.treeAnimation==='full'||quality.treeAnimation==='reduced'&&vegetationFrame++%2===0;previousSimTime=time;
+   const flipping=Math.abs(island.rotation.x-flipTarget)>.01;container.dataset.side=g.viewSide;container.dataset.flipping=String(flipping);syncObjects(g);syncActors(g);syncUfos(g,frameDt);for(const o of g.objects){if(!CROPS[o.type])continue;const group=objectMeshes.get(o.id),p=o.plant;if(o.type==='mushroom')group.userData.setMushroomVariant(mushroomVariant(p));for(const crop of group.userData.cropVisual){crop.scale.setScalar(cropVisualScale(p.growth,p.giant));crop.rotation.z=p.health<=0?.45:p.water<25?.15:0;crop.traverse(n=>{if(n.isMesh){n.userData.plantColor&&n.material.color.copy(n.userData.plantColor).lerp(new THREE.Color(0x80664c),1-p.health/100);}});if(crop.userData.fruit)crop.userData.fruit.visible=p.growth>=.7&&p.health>0;}}const time=visualSeconds??((g.day-1)*1440+g.minute)/(g.config?.time?.gameMinutesPerRealSecond??2),delta=previousSimTime===null?0:Math.max(0,time-previousSimTime),animateVegetation=quality.treeAnimation==='full'||quality.treeAnimation==='reduced'&&vegetationFrame++%2===0;previousSimTime=time;
 
    // Decorative motion must not freeze or fast-forward with network snapshots.
    const ambientTime=independentAmbient&&visualSeconds===undefined&&!offscreen?ambientClock.sample(time,g.speed,now):time;
@@ -321,7 +352,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
    const frontAmount=(1+Math.cos(island.rotation.x))/2;
    atmosphere.update(ambientTime,weather,frontAmount,g.viewIsland==='spore',g.viewIsland==='ocean');weatherEffects.update(ambientTime,weather,g.viewIsland==='ocean'?frontAmount:1);
    const daylight=THREE.MathUtils.smoothstep(Math.sin((g.minute/1440-.25)*Math.PI*2),-.18,.4),bioStrength=.5+(1-daylight)*.95;
-   if(g.viewIsland!=='home'&&remoteTerrain&&animateVegetation)for(const [side,t]of Object.entries(remoteTerrain))t.update(ambientTime,weather.wind,1-daylight,side==='back'?1-frontAmount:frontAmount);
+   if(g.viewIsland!=='eva'&&remoteTerrain&&animateVegetation)for(const [side,t]of Object.entries(remoteTerrain))t.update(ambientTime,weather.wind,1-daylight,side==='back'?1-frontAmount:frontAmount);
    const blessings=[g.queue[0],...Object.values(g.npcs).map(n=>n.queue[0])].filter(a=>a?.type==='pray'&&a.phase==='celebrating');
    for(const item of g.objects)if(item.type==='spiritTree'){
     const tree=objectMeshes.get(item.id).userData.spiritTree;tree.update((quality.treeAnimation==='off'?0:ambientTime)+item.x*.7+item.z,sideOf(item),daylight,animateVegetation?weather.wind:0,livingSite(g,item).vitality/100);
@@ -366,7 +397,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,wea
   // Transparent build ghosts retain per-piece sorting rather than opaque batches.
   setBuild(type){buildType=type;buildGrid.visible=!!type;ghost.visible=false;if(ghostProp){ghost.remove(ghostProp);ghostProp.userData.spiritTree?.dispose();ghostProp.traverse(n=>{if(n.isMesh)n.material.dispose();});}if(type){ghostProp=prop(type,undefined,false);ghostProp.traverse(n=>{if(n.isLight||n.isPoints)n.visible=false;if(n.isMesh)n.material=new THREE.MeshBasicMaterial({color:0xafffca,transparent:true,opacity:.45,side:n.material.side});});ghost.add(ghostProp);const lighting=ITEMS.find(item=>item.id===type)?.lighting;if(lighting){const coverage=ring(ghostProp,lighting.color,[0,.025,0],lighting.radius,.025);coverage.rotation.x=-Math.PI/2;coverage.material=new THREE.MeshBasicMaterial({color:lighting.color,transparent:true,opacity:.45,depthWrite:false});}}return type;},
   rotateBuild(){buildRotation+=Math.PI/2;ghost.rotation.y=buildRotation;},
-  focus(id){const game=getGame(),p=id==='home'?{x:-3,z:-1}:id==='garden'?{x:7,z:3}:id==='lab'?{x:6,z:-3}:id==='player'?game.player:game.npcs[id];if(!p)return;const dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
+  focus(id){const game=getGame(),p=id==='eva'?{x:-3,z:-1}:id==='garden'?{x:7,z:3}:id==='lab'?{x:6,z:-3}:id==='player'?game.player:game.npcs[id];if(!p)return;const dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
   focusUfo(id){const g=getGame(),ship=g.space.ships.find(s=>s.id===id);if(!ship)return;const p=ufoDock(g,ship),dx=p.x-controls.target.x,dz=p.z-controls.target.z;controls.target.set(p.x,0,p.z);camera.position.x+=dx;camera.position.z+=dz;},
   resetCamera(){resetView();},
   zoom(delta){camera.zoom=THREE.MathUtils.clamp(camera.zoom+delta,.65,2.5);camera.updateProjectionMatrix();},

@@ -12,6 +12,11 @@ const fail=(status,message)=>{throw Object.assign(new Error(message),{status});}
 const digest=value=>createHash('sha256').update(value).digest();
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.wasm':'application/wasm','.glb':'model/gltf-binary','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.svg':'image/svg+xml','.woff2':'font/woff2','.ico':'image/x-icon'};
 const hashedBundle=/\/assets\/[^/]+-[a-zA-Z0-9_-]{8,}\.(?:js|css)$/;
+// Models and textures keep stable filenames, so only a request carrying ?v=<release> is
+// content-addressed and safe to cache for a year. A bare /assets/model.glb stays revalidated:
+// otherwise a replaced model would keep serving from cache. index.html is always no-cache because
+// it is what points at the new versioned URLs.
+const hasVersionQuery=search=>new URLSearchParams(search??'').has('v');
 
 async function pageSecurityPolicy(root){
  let html='';
@@ -89,8 +94,12 @@ export async function createHttpService({directory,dist,token,origin,initial,aut
    const file=resolve(root,path==='/'?'index.html':'.'+path);
    if(!file.startsWith(root+sep)||!Object.hasOwn(mime,extname(file)))fail(404,'文件不存在');
    const info=await stat(file);if(!info.isFile())fail(404,'文件不存在');
-   const cacheControl=hashedBundle.test(path)?'public, max-age=31536000, immutable':'no-cache';
-   res.writeHead(200,{'Content-Type':mime[extname(file)],'Content-Length':info.size,'Cache-Control':cacheControl});
+   const cacheControl=(hashedBundle.test(path)||(path.startsWith('/assets/')&&hasVersionQuery(req.url?.split('?')[1])))?'public, max-age=31536000, immutable':'no-cache';
+   // Give every file a validator so a revalidating client can be answered with 304 instead of the
+   // whole multi-megabyte body.
+   const etag=`"${info.size.toString(16)}-${Math.round(info.mtimeMs).toString(16)}"`;
+   if(req.headers['if-none-match']===etag){res.writeHead(304,{'ETag':etag,'Cache-Control':cacheControl});res.end();return;}
+   res.writeHead(200,{'Content-Type':mime[extname(file)],'Content-Length':info.size,'Cache-Control':cacheControl,'ETag':etag,'Last-Modified':new Date(info.mtimeMs).toUTCString()});
    res.end(req.method==='HEAD'?undefined:await readFile(file));
   }catch(error){if(!res.headersSent)json(res,{error:error.status?error.message:error.code==='ENOENT'?'文件不存在':'服务暂时不可用'},error.status??(error.code==='ENOENT'?404:500));else res.destroy();}
  });

@@ -17,17 +17,17 @@ test('normal gameplay discovers, visits, builds and settles ocean without the pr
  for(const person of Object.values(g.npcs))person.ai.enabled=false;
  for(const key in g.config.needDecay)g.config.needDecay[key]=0;
  g.civilization.technology=120;
- g.space.ships.push({id:'release-voyage',tier:2,island:'home',side:'front',food:0,durability:100,reservedBy:null});
+ g.space.ships.push({id:'release-voyage',tier:2,island:'eva',side:'front',food:0,durability:100,reservedBy:null});
  const act=(type,target,destination=null)=>{
   const result=enqueue(g,type,target,undefined,null,destination);assert.equal(result.ok,true,result.message);
   for(let i=0;i<3000&&g.queue.length;i++)tick(g,.1,()=>0);
   assert.equal(g.queue.length,0,`${type} must finish through the normal action queue`);
  };
  for(let i=0;i<3;i++)act('explore','portal');
- assert.deepEqual(g.civilization.discoveryPath,['home','spore']);
+ assert.deepEqual(g.civilization.discoveryPath,['eva','spore']);
  act('voyage','portal','spore');act('explore','spore-portal');
- assert.deepEqual(g.civilization.discoveryPath,['home','spore','ocean']);
- assert.equal(dispatchUfo(g,'release-voyage').ok,true);for(let i=0;i<100&&g.space.ships[0].flight;i++)tick(g,.1,()=>0);act('voyage','spore-portal','ocean');
+ assert.deepEqual(g.civilization.discoveryPath,['eva','spore','ocean']);
+ assert.equal(g.space.ships[0].island,'spore');act('voyage','spore-portal','ocean');
  assert.equal(g.player.island,'ocean');assert.equal(g.viewIsland,'ocean');
  assert.equal(g.civilization.visits.ocean,1);
  const project=g.civilization.projects.ocean;
@@ -37,7 +37,7 @@ test('normal gameplay discovers, visits, builds and settles ocean without the pr
  assert.equal(project.blueprint,300);
  for(let i=0;i<60&&project.construction<600;i++)act('constructIsland','ocean-constructionTerminal');
  assert.equal(project.construction,600);assert.equal(g.space.materials.ocean,0);
- act('settleIsland','ocean-constructionTerminal');assert.equal(g.player.homeIsland,'ocean');
+ act('settleIsland','ocean-constructionTerminal');assert.equal(g.player.settlementIsland,'ocean');
  g.player.prayer.nether=10;g.autonomy.enabled=true;g.autonomy.cooldown=0;g.autonomy.lastWorkDay=g.day;
  for(const key in g.needs)g.needs[key]=90;
  g.player.preferences.explore=100;
@@ -47,10 +47,10 @@ test('normal gameplay discovers, visits, builds and settles ocean without the pr
  for(let i=0;i<3000&&g.queue.length;i++)tick(g,.1,()=>0);
  assert.equal(g.player.side,'back');
  assert.equal(buyItem(g,'oceanPearlLamp',-3,4).ok,true);
- g=restore(serialize(g));assert.equal(g.player.homeIsland,'ocean');
+ g=restore(serialize(g));assert.equal(g.player.settlementIsland,'ocean');
  assert.equal(g.space.backs.ocean,true);assert.equal(g.civilization.projects.ocean.construction,600);
  act('research','ocean-lab');assert.equal(g.player.side,'front');
- assert.equal(dispatchUfo(g,'release-voyage').ok,true);for(let i=0;i<100&&g.space.ships[0].flight;i++)tick(g,.1,()=>0);act('voyage','ocean-portal','home');assert.equal(g.player.island,'home',JSON.stringify(g.log.slice(0,3)));
+ act('voyage','ocean-portal','eva');assert.equal(g.player.island,'eva',JSON.stringify(g.log.slice(0,3)));
 });
 
 test('restoring ocean updates authored furniture without moving purchased objects',()=>{
@@ -82,10 +82,10 @@ test('v24 migration adds only empty ocean bookkeeping and preserves existing wor
  const g=createGame();g.version=24;
  for(const key of ['projects','visits','surveys','surveyDays'])delete g.civilization[key].ocean;
  const objects=structuredClone(g.objects),money=g.money;
- const loaded=restore(serialize(g));assert.equal(loaded.version,25);
+ const loaded=restore(serialize(g));assert.equal(loaded.version,26);
  assert.equal(loaded.civilization.projects.ocean.construction,0);
  assert.deepEqual(loaded.objects,objects);assert.equal(loaded.money,money);
- assert.deepEqual(loaded.civilization.discoveryPath,['home']);
+ assert.deepEqual(loaded.civilization.discoveryPath,['eva']);
  assert.equal(serialize(restore(serialize(loaded))),serialize(loaded));
 });
 test('ocean facilities survive saves; scenery excludes placement but underwater floor remains buildable',()=>{

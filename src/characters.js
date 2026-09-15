@@ -19,10 +19,10 @@ export function appearance(person,stages=DEFAULT_LIFE_STAGES){
 }
 // Coordinates are local to each item; simulation and animation use the same rotation.
 export const APPROACHES={fairyBench:[1.4,0,0],blueprintTable:[0,0,1.4],constructionTerminal:[0,0,1.4],cultivator:[0,0,1.5],extractor:[0,0,1.5],materialCabinet:[0,0,1.2],loadingPlatform:[0,0,1.5],spiritTree:[0,0,1.6],polelight:[0,0,1.1],glowlight:[0,0,1.1],stove:[0,0,1.4],tea:[0,0,1.4],banquet:[0,0,1.4],relic:[0,0,1.4],beacon:[0,0,1.4],gate:[0,0,1.7],nursery:[0,0,1.4],pod:[1.1,0,.45],sofa:[1.4,0,0],food:[0,0,1.4],shower:[0,0,1.4],lab:[0,0,1.4],music:[0,0,1.4],garden:[0,0,1.4],portal:[0,0,1.7],telescope:[0,0,1.3],crystal:[0,0,1.4],mushroom:[0,0,1.4],lamp:[0,0,1.4]};
-export function groundHeight(x,z,side='front',island='home'){
+export function groundHeight(x,z,side='front',island='eva'){
  if(island==='ocean')return oceanHeight(x,z,side);
  if(island==='spore')return fairytaleHeight(x,z);
- if(island!=='home')return .29;
+ if(island!=='eva')return .29;
  if(side==='back')return .29;
  if(x>=-8.4&&x<=4.4&&z>=-6.2&&z<=1.25)return .29;
  const platformHeight=glassPlatformHeight(x,z);if(platformHeight!==null)return platformHeight;

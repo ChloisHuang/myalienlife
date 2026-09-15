@@ -38,7 +38,7 @@ test('being in the forest is temporary exposure, not a permanent awakening',()=>
  const g=gardenWorld(),p=g.player;p.island='spore';p.side='back';
  for(let day=1;day<=30;day++){g.day=day;g.minute=600;advanceLiving(g,actors(g));}
  const s=mutableResident(g,p);assert.equal(s.imprint,null);assert.ok(s.shadow<=adaptationCap(p,'shadow'));
- p.island='home';p.side='front';g.day=60;advanceLiving(g,actors(g));assert.equal(s.shadow,0);assert.equal(s.fear,0);
+ p.island='eva';p.side='front';g.day=60;advanceLiving(g,actors(g));assert.equal(s.shadow,0);assert.equal(s.fear,0);
 });
 
 test('real completed gardening carries the pre-care crisis through to a witnessed rescue',()=>{
@@ -53,7 +53,7 @@ test('forest guardianship needs helping another frightened resident, not just se
  const g=gardenWorld(),p=g.player,b=g.npcs.nova;Object.assign(p,{island:'spore',side:'back'});Object.assign(b,{island:'spore',side:'back'});g.day=5;
  const s=mutableResident(g,p);s.shadow=60;s.fear=10;s.practice.shadow={day:5,days:5};mutableResident(g,b).fear=75;changeBond(g,p,b,{trust:30});
  finishLiving(g,actors(g)[0],{type:'accompany',targetId:'nova'},null,actors(g));assert.equal(s.imprint,'shade');
- g.day=30;p.island='home';fadeAdaptation(g,p,25);assert.equal(s.imprint,'shade');assert.equal(s.shadow,24);
+ g.day=30;p.island='eva';fadeAdaptation(g,p,25);assert.equal(s.imprint,'shade');assert.equal(s.shadow,24);
 });
 
 test('a roots oath requires sustained care, a recovered tree and two trusted witnesses',()=>{

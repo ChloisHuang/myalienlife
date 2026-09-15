@@ -32,5 +32,5 @@ test('living paths visibly open with a nearby guide, close on departure and neve
  const v=module.createLivingTrailVisual('front');v.update(g,0,.1);const closed=v.growth.children[0].rotation.x,root=v.growth.children[0].position.clone();
  Object.assign(mutableResident(g,g.player),{garden:40,charge:60});const saved=JSON.stringify(g);v.update(g,1,1);
  assert.notEqual(v.growth.children[0].rotation.x,closed);assert.deepEqual(v.growth.children[0].position,root);assert.equal(JSON.stringify(g),saved);
- g.player.island='home';v.update(g,2,1);assert.equal(v.growth.children[0].rotation.x,closed);v.dispose();
+ g.player.island='eva';v.update(g,2,1);assert.equal(v.growth.children[0].rotation.x,closed);v.dispose();
 });

@@ -6,8 +6,15 @@ export const UFOS=[
  {tier:2,name:'星梭 UFO',technology:2,range:2,seats:5,cargoCapacity:60,price:1400},
  {tier:3,name:'方舟 UFO',technology:3,range:18,seats:12,cargoCapacity:120,price:2600}
 ];
+// Only a passenger leg wears a ship out; empty return and dispatch are free repositioning.
 export const UFO_WEAR_PER_FLIGHT=10;
 export const UFO_EMPTY_FLIGHT_SECONDS=6;
+// Automatic empty return to the departure island is switched off: a UFO simply stays where it flew.
+// The behaviour, its message and the 'return' flight rendering are kept intact behind this flag.
+export const UFO_AUTO_RETURN=false;
+// A summoned ship parks here for a while before another island may call it away again (game minutes).
+export const UFO_DISPATCH_COOLDOWN=60;
+export const NO_LOCAL_UFO='所在星岛没有空闲且航程足够的 UFO，请先研发并制造。';
 export const ufoInTransit=ship=>!!ship.flight;
 export function fleetLimit(g){return g.civilization.discoveryPath.filter(id=>!g.civilization.destroyedIslands.includes(id)).length;}
 export function fleetBuildError(g,actionId=null){const pending=new Set([g.queue,...Object.values(g.npcs).map(p=>p.queue)].flat().filter(q=>/^buildUfo[123]$/.test(q.type)&&q.id!==actionId).map(q=>q.id)).size;return g.space.ships.length+pending>=fleetLimit(g)?`UFO 全局数量上限 ${fleetLimit(g)} 艘（每座未摧毁星岛提供 1 个舰队名额），含已排队制造。`:null;}
@@ -19,8 +26,8 @@ export function removeUfo(g,id){
  if(ship.reservedBy!==null)return{ok:false,message:'这艘 UFO 正在等待登船，请先取消航行安排。'};
  return{ok:true,message:retireUfo(g,ship,'手动删除')};
 }
-export const createSpaceLogistics=()=>({backs:{home:true},ships:[],provisions:{},materials:{},cargo:{}});
-export const backDiscovered=(g,id)=>id==='home'||g.space.backs[id]===true;
+export const createSpaceLogistics=()=>({backs:{eva:true},ships:[],provisions:{},materials:{},cargo:{}});
+export const backDiscovered=(g,id)=>id==='eva'||g.space.backs[id]===true;
 export const ufoDefinition=ship=>UFOS[ship.tier-1];
 const adultStart=g=>g.config?.lifeStages?.teenEnd??DEFAULT_LIFE_STAGES.teenEnd;
 export function hasLocalChef(g,island){
@@ -32,9 +39,19 @@ export function flightFoodAvailable(g,ship){return ship.food+(ship.reservedBy===
 export function availableUfo(g,p,level,count=1,actionId=null,shipId=null){
  return g.space.ships.filter(s=>!ufoInTransit(s)&&sameSide(s,p)&&(shipId===null||s.id===shipId)&&(actionId===null?s.reservedBy===null:s.reservedBy===actionId)&&ufoDefinition(s).range>=level&&ufoDefinition(s).seats>=count&&s.durability>=UFO_WEAR_PER_FLIGHT&&(!hasLocalChef(g,islandOf(p))||flightFoodAvailable(g,s)>=count)).sort((a,b)=>a.tier-b.tier)[0];
 }
+// No UFO based on this island face can ever serve the route, so one has to be called over.
+export function localUfoMissing(g,p,level){return !g.space.ships.some(s=>sameSide(s,p)&&ufoDefinition(s).range>=level);}
+// The parked UFO that should answer a travel request: it must reach the requester and still have
+// a leg left to fly on. This is an empty repositioning leg, so it carries nobody and therefore
+// consumes no rations: food and seating are only checked once passengers actually board.
+export function dispatchableUfo(g,target,level,now=0){
+ const island=islandOf(target);
+ if(g.space.ships.some(s=>s.flight?.kind==='dispatch'&&s.flight.to.island===island))return undefined;
+ return g.space.ships.filter(s=>!ufoInTransit(s)&&s.reservedBy===null&&!sameSide(s,target)&&ufoDefinition(s).range>=level&&s.durability>=UFO_WEAR_PER_FLIGHT&&now-(s.dispatchedAt??-Infinity)>=UFO_DISPATCH_COOLDOWN).sort((a,b)=>b.durability-a.durability||a.tier-b.tier)[0];
+}
 export function equipmentError(g,p,level,count,actionId,shipId=null){
  const ships=g.space.ships.filter(s=>!ufoInTransit(s)&&sameSide(s,p)&&(shipId===null||s.id===shipId)&&(actionId===null?s.reservedBy===null:s.reservedBy===actionId)&&ufoDefinition(s).range>=level);
- if(!ships.length)return '所在星岛没有空闲且航程足够的 UFO，请先研发并制造。';
+ if(!ships.length)return NO_LOCAL_UFO;
  if(!ships.some(s=>ufoDefinition(s).seats>=count))return 'UFO 座位不足，请减少乘客或制造更大级别的 UFO。';
  if(!ships.some(s=>ufoDefinition(s).seats>=count&&s.durability>=UFO_WEAR_PER_FLIGHT))return 'UFO 耐久不足，无法航行。';
  if(hasLocalChef(g,islandOf(p))&&!availableUfo(g,p,level,count,actionId,shipId))return '当前星球有星厨，食物不足，请先在本星球储备足够本航段全员食用的食物。';
@@ -49,7 +66,7 @@ export function finishLogistics(g,type,p,career,nextId,actionId=null){
 export function validSpaceLogistics(s,catalog){
  const count=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e9,place=p=>p&&Object.hasOwn(catalog,p.island)&&['front','back'].includes(p.side),flight=f=>f===undefined||f&&['return','dispatch'].includes(f.kind)&&place(f.from)&&place(f.to)&&Number.isFinite(f.elapsed)&&f.elapsed>=0&&Number.isFinite(f.duration)&&f.duration>0&&f.elapsed<=f.duration&&(f.retireReason===undefined||typeof f.retireReason==='string');
  if(!s?.materials||!s.cargo||!Object.entries(s.materials).every(([id,n])=>Object.hasOwn(catalog,id)&&count(n))||!Object.entries(s.cargo).every(([id,n])=>{const ship=s.ships?.find(ship=>ship.id===id);return ship&&count(n)&&n<=(UFOS[ship.tier-1]?.cargoCapacity??0);}))return false;
- return s&&s.backs?.home===true&&Object.entries(s.backs).every(([id,v])=>Object.hasOwn(catalog,id)&&v===true)&&s.provisions&&Object.entries(s.provisions).every(([id,n])=>Object.hasOwn(catalog,id)&&count(n))&&Array.isArray(s.ships)&&s.ships.length<=128&&new Set(s.ships.map(s=>s.id)).size===s.ships.length&&s.ships.every(s=>typeof s.id==='string'&&UFOS.some(d=>d.tier===s.tier)&&Object.hasOwn(catalog,s.island)&&['front','back'].includes(s.side)&&count(s.food)&&count(s.durability)&&s.durability<=100&&(s.reservedBy===null||count(s.reservedBy))&&flight(s.flight));
+ return s&&s.backs?.eva===true&&Object.entries(s.backs).every(([id,v])=>Object.hasOwn(catalog,id)&&v===true)&&s.provisions&&Object.entries(s.provisions).every(([id,n])=>Object.hasOwn(catalog,id)&&count(n))&&Array.isArray(s.ships)&&s.ships.length<=128&&new Set(s.ships.map(s=>s.id)).size===s.ships.length&&s.ships.every(s=>typeof s.id==='string'&&UFOS.some(d=>d.tier===s.tier)&&Object.hasOwn(catalog,s.island)&&['front','back'].includes(s.side)&&count(s.food)&&count(s.durability)&&s.durability<=100&&(s.reservedBy===null||count(s.reservedBy))&&flight(s.flight));
 }
 
 export function shipFoodStatus(ship){const capacity=ufoDefinition(ship).seats*2;return {capacity,ratio:Math.min(1,ship.food/capacity),full:ship.food>=capacity};}

@@ -156,11 +156,11 @@ test('guests browse resident dossiers locally and navigate once without tracking
   await expect(page.locator('#player-name')).toHaveText(initial.npcs.nova.name);
   await expect(page.locator('#world')).toHaveAttribute('data-island','spore');await expect(page.locator('#world')).toHaveAttribute('data-side','back');
   await expect(page.locator('#dossier-body .needs-grid')).toContainText('17');
-  Object.assign(service.authority.state.npcs.nova,{island:'home',side:'front',x:-3,z:-3});service.authority.state.npcs.nova.needs.hunger=42;
+  Object.assign(service.authority.state.npcs.nova,{island:'eva',side:'front',x:-3,z:-3});service.authority.state.npcs.nova.needs.hunger=42;
   await expect(page.locator('#dossier-body .needs-grid')).toContainText('42');
   await expect(page.locator('#world')).toHaveAttribute('data-island','spore');await expect(page.locator('#world')).toHaveAttribute('data-side','back');
   await page.locator('#dossier-next').click();await page.locator('#dossier-select').click();await page.locator(`[data-dossier-option="${initial.npcs.nova.uid}"]`).click();
-  await expect(page.locator('#world')).toHaveAttribute('data-island','home');await expect(page.locator('#world')).toHaveAttribute('data-side','front');
+  await expect(page.locator('#world')).toHaveAttribute('data-island','eva');await expect(page.locator('#world')).toHaveAttribute('data-side','front');
   expect(service.authority.state.player.uid).toBe(initial.player.uid);expect(writes).toEqual([]);expect(errors).toEqual([]);
   await page.locator('#operator-login').click();await page.locator('#operator-token').fill('dossier-test-'.repeat(5));await page.locator('#operator-form button[type="submit"]').click();await expect(page.locator('#operator-dialog')).not.toBeVisible();
   await page.locator('#claim-control').click();await expect(page.locator('#online-status')).toHaveAttribute('data-status','operator');

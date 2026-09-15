@@ -27,7 +27,7 @@ test('a frightened resident can seek light and a hostile resident refuses it',()
 });
 test('companionship follows a moving friend, including returning from ahead, without teleporting',()=>{
  const g=quiet();g.objects=[];g.player.prayer.nether=10;g.player.x=7;g.player.z=0;g.npcs.nova.x=0;g.npcs.nova.z=0;
- changeBond(g,g.player,g.npcs.nova,{trust:40});g.npcs.nova.queue.push({id:g.nextId++,type:'walk',targetId:null,target:{x:8,z:3,island:'home',side:'front'},source:'manual',phase:'walking',elapsed:0,path:null});
+ changeBond(g,g.player,g.npcs.nova,{trust:40});g.npcs.nova.queue.push({id:g.nextId++,type:'walk',targetId:null,target:{x:8,z:3,island:'eva',side:'front'},source:'manual',phase:'walking',elapsed:0,path:null});
  assert.equal(enqueue(g,'accompany','nova').ok,true);run(g,1);assert.ok(g.player.x<7);assert.ok(!g.queue[0]?.blinkTransit);
  run(g,8);assert.ok(Math.hypot(g.player.x-g.npcs.nova.x,g.player.z-g.npcs.nova.z)<2.5);
  assert.doesNotThrow(()=>restore(serialize(g)));

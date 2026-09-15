@@ -11,7 +11,7 @@ export const livingResident=(g,p)=>g.living.residents[p.uid]??EMPTY_RESIDENT;
 export const livingSite=(g,o)=>g.living.sites[o.id]??EMPTY_SITE;
 export const mutableResident=(g,p)=>g.living.residents[p.uid]??=( {...EMPTY_RESIDENT,bonds:[],practice:emptyPractice()} );
 export const mutableSite=(g,o)=>g.living.sites[o.id]??={...EMPTY_SITE};
-export const supportedIsland=p=>['home','spore'].includes(islandOf(p));
+export const supportedIsland=p=>['eva','spore'].includes(islandOf(p));
 export const livingSiteObject=o=>supportedIsland(o)&&(o.type==='spiritTree'||islandOf(o)==='spore'&&!!o.plant);
 export const livingPeople=g=>[g.player,...Object.entries(g.npcs).filter(([id])=>id!==g.controlledId).map(([,p])=>p)].filter(p=>p.alive);
 export const bondTo=(g,a,b)=>livingResident(g,a).bonds.find(r=>r.uid===b.uid);

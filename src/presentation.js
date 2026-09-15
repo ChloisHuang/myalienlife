@@ -1,5 +1,17 @@
 const lerp=(a,b,t)=>a+(b-a)*t;
 const compatible=(a,b)=>a&&b&&a.uid===b.uid&&a.island===b.island&&a.side===b.side&&Math.hypot(a.x-b.x,a.z-b.z)<6;
+
+// The server emits snapshots on a fixed timer, but arrival times jitter around
+// that grid: one delayed snapshot shows up as a single very long interval
+// followed by a very short one. An EWMA chases that long tail and permanently
+// inflates the render delay, so estimate the cadence with a median over a short
+// sliding window instead. A median ignores isolated stalls (and reconnect gaps)
+// while still tracking a genuinely slower stream.
+const CADENCE_WINDOW=24,CADENCE_MIN_MS=1,CADENCE_MAX_MS=5000;
+function median(values){
+ const sorted=[...values].sort((a,b)=>a-b),middle=sorted.length>>1;
+ return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;
+}
 function action(out,a,b,t){
  if(!a||!b||a.id!==b.id||a.phase!==b.phase)return;
  out.elapsed=lerp(a.elapsed,b.elapsed,t);
@@ -8,12 +20,15 @@ function action(out,a,b,t){
 
 // Render-only snapshots: never tick, predict rewards, or write into the live game.
 export function createPresentation(){
- let frames=[],gap=250,cursor=-Infinity,rendered,source;
+ let frames=[],gap=250,cadence=[],cursor=-Infinity,rendered,source;
  return{
   push(state,at=performance.now()){
    const last=frames.at(-1);
-   if(last&&(state.speed!==last.state.speed||state.player.uid!==last.state.player.uid||state.day<last.state.day)){frames=[];cursor=-Infinity;source=null;}
-   else if(last){const interval=at-last.at;if(interval>100)gap=frames.length===1?interval:lerp(gap,interval,.2);}
+   if(last&&(state.speed!==last.state.speed||state.player.uid!==last.state.player.uid||state.day<last.state.day)){frames=[];cursor=-Infinity;source=null;cadence=[];}
+   else if(last){
+    const interval=at-last.at;
+    if(interval>=CADENCE_MIN_MS&&interval<=CADENCE_MAX_MS){cadence.push(interval);if(cadence.length>CADENCE_WINDOW)cadence.shift();gap=median(cadence);}
+   }
    frames.push({state,at});if(frames.length>32)frames.shift();
   },
   sample(current,now=performance.now()){

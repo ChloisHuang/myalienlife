@@ -4,13 +4,13 @@ import {createLiving,validLiving,migrateLiving,pruneLiving,bondTo,changeBond,mut
 import {trailAt,trailGuide} from './living-routes.js';
 import {spatialTarget,spatialCandidates,waitForCompany,refuses,resourceTurn} from './living-spatial.js';
 import {LIVING_ACTIONS,LIVING_SOCIAL,livingConversation,livingOptions,livingError,livingBonus,finishLiving,advanceLiving,bondWeight,validLivingQueue} from './living-world.js';
-import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,UFO_EMPTY_FLIGHT_SECONDS,ufoInTransit,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics} from './space-logistics.js';
+import {loadConstructionCargo,depositShipCargo,flightFoodPenalty,fleetLimit,retireUfo,UFO_WEAR_PER_FLIGHT,UFO_EMPTY_FLIGHT_SECONDS,ufoInTransit,ufoLandingSpot,UFOS,createSpaceLogistics,validSpaceLogistics,backDiscovered,availableUfo,ufoDefinition,finishLogistics,localUfoMissing,dispatchableUfo,NO_LOCAL_UFO,UFO_AUTO_RETURN} from './space-logistics.js';
 import {actionAccessError} from './action-access.js';
 import {oceanBlocked,OCEAN_ITEMS} from './ocean-definition.js';
 import {FAIRYTALE_ITEMS,FAIRYTALE_CONSTRUCTION_ITEMS,fairytaleBlocked} from './fairytale-definition.js';
 import {groupId,advanceCooperation,AUTONOMOUS_COOPERATION_WEIGHT,autonomousCooperationReady,restFromCooperation} from './cooperation.js';
 import {discovered,populationCapacity,islandCatalog,islandDefinition,createCivilization,validCivilization,civilizationError,contributeCivilization} from './civilization.js';
-import {actionPreference,autonomyBonus} from './autonomy.js';
+import {actionPreference,autonomyBonus,relocationChance} from './autonomy.js';
 import {createProject,contributeProject,projectActions,projectError,workbench} from './settlements.js';
 import {housingFurniture} from './housing-layout.js';
 import {WONDER_ACTIONS,WONDER_OPTIONS,createWonders,createWonder,wonderError,pairedCooldown,advanceWonders,finishWonder,useCrystal,validWonder,validWonders} from './wonders.js';
@@ -18,7 +18,7 @@ import {isNether,PRAYER_RULES,DEFAULT_PRAYER_CHANCES,createPrayerState,normalize
 import {SIDES,sideOf,islandOf,sameSide,createGates,DEFAULT_GATE_POSITION} from './island.js';
 import {CROPS,MUSHROOM_SEED_COST,harvestPrice,plantTraits,materialSource,createPlant,advancePlants,plantActionError,tendPlant,harvestPlant,validPlant} from './plants.js';
 import {defaultGenome,defaultHeadShape,residentHeadShape,HEAD_SHAPE,inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS} from './genetics.js';
-import {createEnvironmentPreferences,createEnvironmentExperience,environmentProfile,recordEnvironmentExperience,MIGRATION_COOLDOWN_MINUTES,validEnvironmentPreferences,validEnvironmentExperience} from './island-preferences.js';
+import {createEnvironmentPreferences,createEnvironmentExperience,environmentProfile,recordEnvironmentExperience,migrationCooldownRemaining,settlementIsland as settlementOf,MIGRATION_COOLDOWN_MINUTES,validEnvironmentPreferences,validEnvironmentExperience} from './island-preferences.js';
 export {inheritTraits,generateResidentName,DEFAULT_MUTATION_RATES,MUTATION_PARTS};
 import {RESIDENTS,GENDERS,SKILLS,SOFA_SEATS,isSeating,localToWorld,approachPosition,skillProgress,lifeStage,DEFAULT_LIFE_STAGES} from './characters.js';
 export {skillProgress};
@@ -190,12 +190,12 @@ function migrateResidentNames(g){
  for(const birth of g.incubations||[])for(const parent of birth.parents||[])if(renamed.has(parent.uid))parent.name=renamed.get(parent.uid);
 }
 function initialDevotion(uid){let hash=0;for(const char of uid)hash=(Math.imul(hash,31)+char.codePointAt(0))>>>0;return 20+hash%61;}
-const identity=(n,profile)=>({side:'front',uid:n.id,name:n.name,color:n.color,trait:n.trait,...profile,homeIsland:'home',migrationCooldownUntil:0,lastEnvironmentExperienceDay:0,environmentPreferences:createEnvironmentPreferences(n.id==='kai'?'player':n.id),environmentExperience:createEnvironmentExperience(),education:createEducation(),alive:true,starvation:0,devotion:initialDevotion(n.id),prayer:createPrayerState(),parents:[],genome:{...defaultGenome(),...residentHeadShape(n.id)},mutations:[],familyDesire:n.id==='zig'?.25:.7,lastBirthDay:null,preferences:{...PREFERENCES[n.id]}});
+const identity=(n,profile)=>({side:'front',uid:n.id,name:n.name,color:n.color,trait:n.trait,...profile,settlementIsland:'eva',migrationCooldownUntil:0,lastEnvironmentExperienceDay:0,environmentPreferences:createEnvironmentPreferences(n.id==='kai'?'player':n.id),environmentExperience:createEnvironmentExperience(),education:createEducation(),alive:true,starvation:0,devotion:initialDevotion(n.id),prayer:createPrayerState(),parents:[],genome:{...defaultGenome(),...residentHeadShape(n.id)},mutations:[],familyDesire:n.id==='zig'?.25:.7,lastBirthDay:null,preferences:{...PREFERENCES[n.id]}});
 const controlledResidentId=g=>g.controlledId??'player';
 export const neighbors=g=>Object.entries(g.npcs).filter(([id])=>id!==controlledResidentId(g)).map(([id,n])=>({id,...n}));
 const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),career:createCareer(n.id),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
 const randomIndex=(random,length)=>Math.min(length-1,Math.floor(Math.max(0,Math.min(.999999,random()))*length));
-const arrivalIslands=g=>Object.keys(islandCatalog(g)).filter(id=>id==='home'||g.civilization.visits[id]>0);
+const arrivalIslands=g=>Object.keys(islandCatalog(g)).filter(id=>id==='eva'||g.civilization.visits[id]>0);
 function livingPopulationByIsland(g){
  const counts=Object.fromEntries(arrivalIslands(g).map(id=>[id,0]));
  for(const person of allActors(g))if(person.position.alive&&Object.hasOwn(counts,islandOf(person.position)))counts[islandOf(person.position)]++;
@@ -219,7 +219,7 @@ function arrivalSpots(g,island){
 }
 function createArrivalResident(g,island,careerId,spot,random){
  const id=`resident-${g.nextId++}`,preferences={...PREFERENCES.player,...ARRIVAL_PREFERENCES[careerId]},used=[g.player,...Object.values(g.npcs),...(g.memorials||[])].map(person=>person.name),name=generateResidentName({uid:id,preferences},used),person=createNeighbor({id,name,color:ARRIVAL_COLORS[randomIndex(random,ARRIVAL_COLORS.length)],trait:`${CAREERS[careerId].name} · 新抵达`,x:spot.x,z:spot.z});
- person.gender=Object.keys(GENDERS)[randomIndex(random,Object.keys(GENDERS).length)];person.age=adultStart(g)+randomIndex(random,Math.max(1,90-adultStart(g)));person.island=island;person.homeIsland=island;person.side='front';person.money=ADULT_STARTING_MONEY;person.preferences=preferences;person.needs=Object.fromEntries(Object.keys(NEEDS).map(key=>[key,90]));person.skills=createSkills();Object.assign(person.skills,careerSkillRequirements(careerId,1,g.config));person.career={id:careerId,level:1,shifts:0};person.familyDesire=.7;person.lastBirthDay=null;person.activity='刚抵达星湾，正在熟悉新的岛面';person.ai=createAI(true);
+ person.gender=Object.keys(GENDERS)[randomIndex(random,Object.keys(GENDERS).length)];person.age=adultStart(g)+randomIndex(random,Math.max(1,90-adultStart(g)));person.island=island;person.settlementIsland=island;person.side='front';person.money=ADULT_STARTING_MONEY;person.preferences=preferences;person.needs=Object.fromEntries(Object.keys(NEEDS).map(key=>[key,90]));person.skills=createSkills();Object.assign(person.skills,careerSkillRequirements(careerId,1,g.config));person.career={id:careerId,level:1,shifts:0};person.familyDesire=.7;person.lastBirthDay=null;person.activity='刚抵达星湾，正在熟悉新的岛面';person.ai=createAI(true);
  const related=Object.keys(g.npcs);person.relationships=Object.fromEntries(related.map(other=>[other,60]));g.relationships??={};g.relationships[id]=60;for(const other of related){g.npcs[other].relationships??={};g.npcs[other].relationships[id]=60;}g.npcs[id]=person;
  return person;
 }
@@ -235,7 +235,7 @@ function maybeResidentArrival(g,random){
  const island=arrivalIsland(g);return island?addResidents(g,island,1,random):null;
 }
 export function createGame(config){return {
- version:25,living:createLiving({day:1,minute:510}),space:createSpaceLogistics(),civilization:createCivilization(),viewIsland:'home',wonders:createWonders(),viewSide:'front',controlledId:'player',config:normalizeConfig(config),population:{lastArrivalDay:0},harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(true),
+ version:26,living:createLiving({day:1,minute:510}),space:createSpaceLogistics(),civilization:createCivilization(),viewIsland:'eva',wonders:createWonders(),viewSide:'front',controlledId:'player',config:normalizeConfig(config),population:{lastArrivalDay:0},harvest:{spores:0,mushrooms:0},incubations:[],memorials:[],majorEvents:[],minute:510,day:1,speed:1,money:2400,player:{x:0,z:2,...identity({id:'kai',name:'凯伊',color:'#91dab9',trait:'好奇心旺盛 · 热爱生活'},RESIDENTS.player),preferences:{...PREFERENCES.player}},autonomy:createAI(true),
  npcs:Object.fromEntries(NPCS.map(n=>[n.id,createNeighbor(n)])),
  needs:{hunger:76,energy:88,social:62,fun:72,hygiene:85,comfort:79},relationships:{nova:15,zig:12,lumi:20,pip:8},
  career:{id:'scientist',level:1,shifts:0},skills:{...createSkills(),science:CAREERS.scientist.levels[0].skills.science},queue:[],nextId:1,
@@ -343,23 +343,31 @@ export function enqueue(g,type,targetId,point,partnerId=null,destinationId=null,
  if(g.autonomy){g.autonomy.cooldown=3;g.autonomy.reason='优先执行你的安排';}return{ok:true};
 }
 export function cancelAction(g,id){const q=g.queue.find(a=>a.id===id);if(q?.type==='voyage'||q?.type==='boardUfo')cancelFlight(g,q);if(WONDER_ACTIONS[q?.type]?.paired)cancelPaired(g,q);g.queue=g.queue.filter(a=>a.id!==id);g.autonomy.cooldown=5;g.autonomy.reason='稍作休息，再决定下一步';}
-function startEmptyUfoFlight(ship,to,kind,retireReason){
+// Empty repositioning is free: only a passenger leg wears a ship out.
+function startEmptyUfoFlight(ship,to,kind){
  if(ufoInTransit(ship)||ship.durability<UFO_WEAR_PER_FLIGHT)return false;
- const from={island:ship.island,side:ship.side};ship.durability-=UFO_WEAR_PER_FLIGHT;ship.flight={kind,from,to:{island:to.island,side:to.side},elapsed:0,duration:UFO_EMPTY_FLIGHT_SECONDS};
- if(ship.durability===0)ship.flight.retireReason=retireReason;return true;
+ const from={island:ship.island,side:ship.side};ship.flight={kind,from,to:{island:to.island,side:to.side},elapsed:0,duration:UFO_EMPTY_FLIGHT_SECONDS};return true;
 }
 function autoReturnUfo(g,ship,origin){
- if(!startEmptyUfoFlight(ship,origin,'return','自动返航后耐久耗尽'))return false;
- const message=`${ufoDefinition(ship).name}完成载客后空船自动返航至${islandDefinition(g,origin.island).name}，消耗 1 次航程。`;g.log.unshift({text:message,at:g.minute});return true;
+ if(!startEmptyUfoFlight(ship,origin,'return'))return false;
+ const message=`${ufoDefinition(ship).name}完成载客后空船自动返航至${islandDefinition(g,origin.island).name}。`;g.log.unshift({text:message,at:g.minute});return true;
 }
 export function dispatchUfo(g,id){
  const ship=g.space.ships.find(s=>s.id===id);if(!ship)return{ok:false,message:'这艘 UFO 已不存在。'};
  if(ship.flight)return{ok:false,message:'这艘 UFO 正在飞行中，请等待抵达。'};
  if(ship.reservedBy!==null)return{ok:false,message:'这艘 UFO 正在等待登船，请先取消航行安排。'};
  if(sameSide(ship,g.player))return{ok:false,message:'这艘 UFO 已在当前岛面。'};
- const target=islandOf(g.player),side=sideOf(g.player),definition=islandDefinition(g,target);if(ufoDefinition(ship).range<definition.level)return{ok:false,message:'这艘 UFO 的航程不足，无法调度到当前星岛。'};
+ const target=islandOf(g.player),side='front',definition=islandDefinition(g,target);if(ufoDefinition(ship).range<definition.level)return{ok:false,message:'这艘 UFO 的航程不足，无法调度到当前星岛。'};
  if(ship.durability<UFO_WEAR_PER_FLIGHT)return{ok:false,message:'这艘 UFO 耐久不足，无法执行调度。'};
- startEmptyUfoFlight(ship,{island:target,side},'dispatch','调度后耐久耗尽');const cargo=g.space.cargo[ship.id]??0,message=`${ufoDefinition(ship).name}开始调度到${definition.name} · ${SIDES[side]}，消耗 1 次航程${cargo?`；抵达后将卸下 ${cargo} 份植生复材`:''}。`;g.log.unshift({text:message,at:g.minute});return{ok:true,message};
+ startEmptyUfoFlight(ship,{island:target,side},'dispatch');const cargo=g.space.cargo[ship.id]??0,message=`${ufoDefinition(ship).name}开始调度到${definition.name} · ${SIDES[side]}${cargo?`；抵达后将卸下 ${cargo} 份植生复材`:''}。`;g.log.unshift({text:message,at:g.minute});return{ok:true,message};
+}
+// A resident who wants to fly but has no ship on their island face calls the nearest parked one over.
+function requestUfo(g,person,level,count=1){
+ // Ships always park on the day face, like every passenger landing, so the caller can actually board after walking to the portal.
+ // Empty repositioning: no passengers yet, so no rations are consumed on this leg.
+ const target={island:islandOf(person.position),side:'front'},now=gameMinutes(g),ship=dispatchableUfo(g,target,level,now);
+ if(!ship||!startEmptyUfoFlight(ship,target,'dispatch'))return false;
+ ship.dispatchedAt=now;g.log.unshift({text:`${person.position.name}准备出航，${ufoDefinition(ship).name}已自动调度前往${islandDefinition(g,target.island).name} · ${SIDES[target.side]}。`,at:g.minute});return true;
 }
 function advanceUfoFlights(g,dt){
  for(const ship of [...g.space.ships]){
@@ -374,9 +382,9 @@ function evacuateIslandContents(g,id,{markDestroyed=false,strictNurserySpace=tru
  // Preserve growing starbuds by evacuating their occupied incubators first.
  for(const birth of g.incubations.filter(b=>objects.has(b.podId))){
   const source=g.objects.find(o=>o.id===birth.podId);let spot;
-  for(const side of ['front','back'])for(let z=-6;z<=6&&!spot;z+=2)for(let x=-10;x<=10&&!spot;x+=2)if(canPlace(g,x,z,side,'home')&&rescuedPods.every(p=>p.side!==side||Math.hypot(p.x-x,p.z-z)>=2))spot={x,z,side,island:'home'};
+  for(const side of ['front','back'])for(let z=-6;z<=6&&!spot;z+=2)for(let x=-10;x<=10&&!spot;x+=2)if(canPlace(g,x,z,side,'eva')&&rescuedPods.every(p=>p.side!==side||Math.hypot(p.x-x,p.z-z)>=2))spot={x,z,side,island:'eva'};
   if(!spot&&strictNurserySpace)return {ok:false,message:'主岛没有安置孕育舱的空间，请先腾出位置再摧毁。'};
-  rescuedPods.push({...source,...(spot??{x:source.x,z:source.z,side:'front',island:'home'})});
+  rescuedPods.push({...source,...(spot??{x:source.x,z:source.z,side:'front',island:'eva'})});
  }
  const people=allActors(g);if(!g.player.alive&&!people.some(p=>p.position===g.player))people.unshift(actor(g,'player'));
  for(const person of people){
@@ -386,20 +394,20 @@ function evacuateIslandContents(g,id,{markDestroyed=false,strictNurserySpace=tru
    if(WONDER_ACTIONS[q.type]?.paired)cancelPaired(g,q);
    const at=person.queue.indexOf(q);if(at>=0)person.queue.splice(at,1);
   }
-  if(evacuate){Object.assign(person.position,{island:'home',side:'front',x:0,z:2});person.ai.cooldown=5;person.ai.reason=reason;}
-  if(person.position.homeIsland===id)person.position.homeIsland='home';
+  if(evacuate){Object.assign(person.position,{island:'eva',side:'front',x:0,z:2});person.ai.cooldown=5;person.ai.reason=reason;}
+  if(person.position.settlementIsland===id)person.position.settlementIsland='eva';
  }
- for(const ship of g.space.ships)if(ship.island===id||ship.flight?.from.island===id||ship.flight?.to.island===id){Object.assign(ship,{island:'home',side:'front',reservedBy:null});delete ship.flight;}
- g.space.provisions.home=(g.space.provisions.home??0)+(g.space.provisions[id]??0);delete g.space.provisions[id];delete g.space.backs[id];
- g.space.materials.home=(g.space.materials.home??0)+(g.space.materials[id]??0);delete g.space.materials[id];
+ for(const ship of g.space.ships)if(ship.island===id||ship.flight?.from.island===id||ship.flight?.to.island===id){Object.assign(ship,{island:'eva',side:'front',reservedBy:null});delete ship.flight;}
+ g.space.provisions.eva=(g.space.provisions.eva??0)+(g.space.provisions[id]??0);delete g.space.provisions[id];delete g.space.backs[id];
+ g.space.materials.eva=(g.space.materials.eva??0)+(g.space.materials[id]??0);delete g.space.materials[id];
  g.objects=g.objects.filter(o=>!objects.has(o.id));g.objects.push(...rescuedPods);
  if(markDestroyed&&!g.civilization.destroyedIslands.includes(id))g.civilization.destroyedIslands.push(id);delete g.civilization.projects[id];
  pruneLiving(g);
- if(g.viewIsland===id){g.viewIsland='home';g.viewSide='front';}
+ if(g.viewIsland===id){g.viewIsland='eva';g.viewSide='front';}
  return {ok:true};
 }
 export function destroyIsland(g,id){
- if(id==='home')return {ok:false,message:'主岛不能摧毁。'};
+ if(id==='eva')return {ok:false,message:'主岛不能摧毁。'};
  if(!discovered(g,id))return {ok:false,message:'只能摧毁已发现且尚未摧毁的星岛。'};
  const name=islandDefinition(g,id).name,result=evacuateIslandContents(g,id,{markDestroyed:true});if(!result.ok)return result;
  const message=`${name}已摧毁，居民、飞船和孕育中的星芽已撤回主岛。`;
@@ -486,7 +494,7 @@ function surfacePath(g,start,end){
  if(!found)return null;const path=[{x:ex,z:ez,island:islandOf(start),side:sideOf(start)}];let prev=seen.get(key(ex,ez));while(prev){path.unshift({...prev,island:islandOf(start),side:sideOf(start)});prev=seen.get(key(prev.x,prev.z));}path.shift();path.push(end);for(const p of path){const trail=trailAt(p);if(trail)p.livingTrail=trail.kind;}return path;
 }
 // Dijkstra connects walkable surface paths with deliberate, timed gate crossings.
-function findPath(g,start,end){
+export function findPath(g,start,end){
  if(islandOf(start)!==islandOf(end))return null;
  if(canBlinkTo(g,start,end))return [{...end,blink:true}];
  const gates=g.objects.filter(o=>o.type==='gate'),nodes=[start,...gates.map(o=>({...approachPosition(o),island:islandOf(o),side:sideOf(o)})),end],goal=nodes.length-1;
@@ -542,11 +550,17 @@ export function autonomousCandidates(g,id){
   for(const type of types){
    if(!type||type==='incubate'||type==='replant'&&o.type==='mushroom'&&!canAfford(g,person,MUSHROOM_SEED_COST))continue;
    if(type==='voyage'||type==='starVoyage')for(const id of Object.keys(islandCatalog(g))){
-    const localShip=availableUfo(g,person.position,islandDefinition(g,id).level,1);
+    const level=islandDefinition(g,id).level,localShip=availableUfo(g,person.position,level,1);
     if(type==='starVoyage'&&localShip)continue;
-    if(!civilizationError(g,type,o,person.position,person.skills,id))candidates.push({type,targetId:o.id,destinationId:id});
+    const issue=civilizationError(g,type,o,person.position,person.skills,id),callUfo=issue===NO_LOCAL_UFO&&sideOf(person.position)==='front'&&localUfoMissing(g,person.position,level)&&!!dispatchableUfo(g,{island:islandOf(person.position),side:'front'},Math.max(level,islandDefinition(g,islandOf(person.position)).level),gameMinutes(g));
+    if(!issue||callUfo)candidates.push({type,targetId:o.id,destinationId:id,callUfo});
    }
    else if(type==='travel'){for(const gate of g.objects)if(gate.type==='gate'&&gate.id!==o.id&&travelDestination(g,o,gate.id))candidates.push({type,targetId:o.id,destinationId:gate.id});}
+   // Settlement happens at the terminal of the island being moved to, exactly like the player:
+   // a resident can only commit to an island they are standing on, so a terminal elsewhere must
+   // never advertise a destination that the workbench rule will reject. Either face of that
+   // island counts: the gate between them is a passage, so the walk routes through it.
+   else if(type==='settleIsland'){if(islandOf(o)===islandOf(person.position))candidates.push({type,targetId:o.id,destinationId:islandOf(o)});}
    else if(WONDER_ACTIONS[type]?.paired){if(cooperationPartners(g,person,type,o).length)candidates.push({type,targetId:o.id});}
    else candidates.push(type==='study'?{type,targetId:o.id,studySkill:studyFacilitySkill(o)}:{type,targetId:o.id});
   }
@@ -574,20 +588,23 @@ function buildDiscoveredGates(g,person){
  for(const p of plans)buyItem(g,'gate',p.x,p.z,0,{island,side:p.side,residentId:person.id});
  g.log.unshift({text:`${person.position.name}花费 ${price*plans.length} 星币，为${islandDefinition(g,island).name}补齐双面折跃门。`,at:g.minute});person.ai.reason='为发现的幽星面建好了折跃门';person.ai.cooldown=4;return true;
 }
-function decide(g,person,random=Math.random){
- if(person.needs.hunger>=15&&buildDiscoveredGates(g,person))return;
- const candidates=autonomousCandidates(g,person.id);
+// The same scoring the AI uses, exposed so tests can see which candidates survive and why.
+export function scoredCandidates(g,person,candidates=autonomousCandidates(g,person.id)){
  const active=allActors(g).flatMap(a=>a.queue.slice(0,1));
  const weights={hunger:1.8,energy:1.6,social:1.3,fun:1,hygiene:1.4,comfort:.8};
- const scored=[];
-  for(const candidate of candidates){
-   if(['relax','lounge'].includes(candidate.type)){if(freeSofaSeat(g,candidate.targetId)<0)continue;}else if(candidate.targetId&&!['treeRest','seekLight','witnessPrayer','pray','tendTree'].includes(candidate.type)&&active.some(q=>q.targetId===candidate.targetId&&!WONDER_ACTIONS[candidate.type]?.paired))continue;
-   const action=ACTIONS[candidate.type],cost=actionCost(g,candidate.type);if(cost&&!canAfford(g,person,cost))continue;const target=destination(g,candidate.targetId,candidate.point);
-  if(!target)continue;
-  if(actionAccessError(g,person,candidate.type))continue;
-  if(civilizationError(g,candidate.type,g.objects.find(o=>o.id===candidate.targetId),person.position,person.skills,candidate.destinationId))continue;
+ const scored=[],rejected=[];
+ for(const candidate of candidates){
+   const drop=reason=>rejected.push({type:candidate.type,destinationId:candidate.destinationId,targetId:candidate.targetId,reason});
+   if(['relax','lounge'].includes(candidate.type)){if(freeSofaSeat(g,candidate.targetId)<0){drop('no-seat');continue;}}// A gate can serve many departures at once: only one flight is planned per portal, but every
+// resident must still be free to weigh their own trip instead of being locked out by a neighbour.
+else if(candidate.targetId&&!['treeRest','seekLight','witnessPrayer','pray','tendTree','voyage','starVoyage'].includes(candidate.type)&&active.some(q=>q.targetId===candidate.targetId&&!WONDER_ACTIONS[candidate.type]?.paired)){drop('target-busy');continue;}
+   const action=ACTIONS[candidate.type],cost=actionCost(g,candidate.type);if(cost&&!canAfford(g,person,cost)){drop('unaffordable');continue;}const target=destination(g,candidate.targetId,candidate.point);
+  if(!target){drop('no-target');continue;}
+  if(actionAccessError(g,person,candidate.type)){drop('no-access');continue;}
+  // A trip with no ship on this island face scores like any other choice; the ship is only called if the trip actually wins.
+  if(!candidate.callUfo&&civilizationError(g,candidate.type,g.objects.find(o=>o.id===candidate.targetId),person.position,person.skills,candidate.destinationId)){drop('civilization');continue;}
   if(!WONDER_ACTIONS[candidate.type]?.paired&&wonderError(g,candidate.type,g.objects.find(o=>o.id===candidate.targetId),person,allActors(g),candidate.partnerId))continue;
-  const bonus=autonomyBonus(g,person,candidate,allActors(g)),lifeBonus=livingBonus(g,person,candidate,allActors(g));if(bonus===null||lifeBonus===null)continue;
+  const bonus=autonomyBonus(g,person,candidate,allActors(g)),lifeBonus=livingBonus(g,person,candidate,allActors(g));if(bonus===null||lifeBonus===null){drop('zero-bonus');continue;}
   let score=bonus+lifeBonus+(candidate.spaceWithdrawal?180:0),dominant=null,largest=0;
   if(candidate.type==='study'){
    if(Math.min(...Object.values(person.needs))<40)continue;
@@ -608,16 +625,39 @@ function decide(g,person,random=Math.random){
   if(['traceRelic','decodeRelic','restoreMemory'].includes(candidate.type))score+=12;if(candidate.type==='catchBugs')score+=g.wonders.dust<3?15:0;
   score-=Math.hypot(person.position.x-target.x,person.position.z-target.z)*.35;
   if(person.ai.lastAction===candidate.type)score-=14;
-  if(score<=0)continue;
-  const path=findPath(g,person.position,target);if(!path)continue;
+  if(score<=0){rejected.push({type:candidate.type,destinationId:candidate.destinationId,targetId:candidate.targetId,reason:'non-positive',bonus,lifeBonus,preference,effects:action.effects,score});continue;}
+  const path=findPath(g,person.position,target);if(!path){drop('no-path');continue;}
   const reason=candidate.type==='plantMushroom'?'找一块空地种蘑菇，赚取下一笔收成':candidate.type==='harvest'?'植物成熟了，收获后自动出售':candidate.type==='replant'?'清理枯萎植物，重新播种':candidate.type==='garden'?'给植物补水，让它健康生长':candidate.type==='incubate'?'生活稳定、照料人手充足，想迎接新的家人':candidate.type==='care'?'幼体需要喂养，先照料小居民':candidate.type==='work'?'状态良好，工作赚取星币':largest>preference&&dominant?`${NEEDS[dominant][0]}需要补充`:'想做一件自己喜欢的事';
   scored.push({...candidate,target,path,score,reason});
  }
+
+ return {scored,rejected};
+}
+
+function decide(g,person,random=Math.random){
+ if(person.needs.hunger>=15&&buildDiscoveredGates(g,person))return;
+ const candidates=autonomousCandidates(g,person.id);
+ const active=allActors(g).flatMap(a=>a.queue.slice(0,1));
+ const weights={hunger:1.8,energy:1.6,social:1.3,fun:1,hygiene:1.4,comfort:.8};
+ const {scored}=scoredCandidates(g,person,candidates);
  if(!scored.length){person.ai.reason='暂时没有合适的行动，休息观察';person.ai.cooldown=3;return;}
  // Select the activity first; participant choice has its own subsequent draw.
  for(const c of scored)if(WONDER_ACTIONS[c.type]?.paired||c.type==='lounge')c.score*=AUTONOMOUS_COOPERATION_WEIGHT;
  const food=person.needs.hunger<15?scored.filter(c=>ACTIONS[c.type].effects.hunger>0):[];
  const best=chooseWeighted(food.length?food:scored,random);
+ if(globalThis.process?.env?.ORBIT_TRIP&&(best.type==='voyage'||best.type==='starVoyage')){
+  (globalThis.__trip??=[]).push({day:g.day,who:person.position.name,from:islandOf(person.position),settle:settlementOf(g,person.position),
+   action:best.type,dest:best.destinationId,weight:Number(best.score.toFixed(1)),
+   top:scored.slice().sort((x,y)=>y.score-x.score).slice(0,4).map(x=>x.type+(x.destinationId?':'+x.destinationId:'')+'='+x.score.toFixed(0))});
+ }
+ if(globalThis.process?.env?.ORBIT_WEIGHTS){
+  const t=globalThis.__w??=[];
+  t.push({day:g.day,who:person.position.name,here:islandOf(person.position),settlementIsland:person.position.settlementIsland??'eva',
+   total:Number(scored.reduce((sum,c)=>sum+c.score,0).toFixed(1)),
+   chosen:best.type+(best.destinationId?':'+best.destinationId:''),chosenScore:Number(best.score.toFixed(1)),
+   options:scored.map(c=>({t:c.type,d:c.destinationId??null,s:Number(c.score.toFixed(1))})).sort((a,b)=>b.s-a.s).slice(0,5)});
+ }
+ if(best.callUfo){requestUfo(g,person,Math.max(islandDefinition(g,best.destinationId).level,islandDefinition(g,islandOf(person.position)).level));person.ai.cooldown=4;person.ai.reason='想出门远行，已经呼叫最近的 UFO';return;}
  if(WONDER_ACTIONS[best.type]?.paired){const partners=cooperationPartners(g,person,best.type,g.objects.find(o=>o.id===best.targetId));if(!partners.length)return;best.partnerId=chooseWeighted(partners.map(p=>({id:p.id,score:Math.max(1,20+bondWeight(g,person.position,p.position)+(person.id==='player'?g.relationships[p.id]:person.relationships[p.id]??0)*.2-p.queue.length*2-Math.hypot(p.position.x-person.position.x,p.position.z-person.position.z)*.3)})),random).id;}
  const q=makeAction(g,best.type,best.targetId,best.target,'ai');q.path=best.path;if(best.partnerId!==undefined)q.partnerId=best.partnerId;if(best.destinationId)q.destinationId=best.destinationId;
  if(q.type==='study'){q.studySkill=best.studySkill;q.studyVersion=2;}
@@ -651,7 +691,7 @@ function ensureSettlementStations(g,id){
  }
 }
 export function ensureStarIsland(g,id){
- if(id==='home')return;
+ if(id==='eva')return;
  const definition=islandDefinition(g,id);
  if(definition.theme==='ocean')for(const o of g.objects){
   if(islandOf(o)!==id||!o.sceneFixed)continue;
@@ -687,7 +727,7 @@ function finishAction(g,person,q,random){
  const livingIssue=livingError(g,q.type,person.position,object,allActors(g).find(p=>p.id===q.targetId)?.position);if(livingIssue){releaseAction(person,q);return;}
  const livingBefore={health:object?.plant?.health};
  if(civilIssue&&!['developBlueprint','constructIsland'].includes(q.type)){if(q.type==='voyage')cancelFlight(g,q);else if(WONDER_ACTIONS[q.type]?.paired)cancelPaired(g,q);else releaseAction(person,q);g.log.unshift({text:civilIssue,at:g.minute});return;}
- if(q.type==='settleIsland'){person.position.homeIsland=islandOf(person.position);person.position.migrationCooldownUntil=gameMinutes(g)+MIGRATION_COOLDOWN_MINUTES;g.log.unshift({text:`${person.position.name}移居${islandDefinition(g,person.position.homeIsland).name}，将这里设为根据地。`,at:g.minute});}
+ if(q.type==='settleIsland'){person.position.settlementIsland=islandOf(person.position);person.position.migrationCooldownUntil=gameMinutes(g)+MIGRATION_COOLDOWN_MINUTES;g.log.unshift({text:`${person.position.name}移居${islandDefinition(g,person.position.settlementIsland).name}，将这里设为根据地。`,at:g.minute});}
  if(q.type==='voyage'||q.type==='starVoyage'){
   const id=q.destinationId,byShip=q.type==='voyage',ship=byShip?g.space.ships.find(s=>s.id===q.shipId):null,passengers=byShip?flightPassengers(g,q):[],count=passengers.length+1;
   if(byShip&&(!ship||ship.reservedBy!==q.id||passengers.length!==(q.passengerUids?.length??0)||passengers.some(p=>!sameSide(p.position,person.position)))){cancelFlight(g,q);return;}
@@ -695,8 +735,18 @@ function finishAction(g,person,q,random){
   if(!spot){cancelFlight(g,q);g.log.unshift({text:'UFO 降落区被挡住，请腾出通路。',at:g.minute});return;}
   const shortage=byShip?flightFoodPenalty(ship.food,count):null;
   if(byShip){ship.food=Math.max(0,ship.food-count);ship.durability-=UFO_WEAR_PER_FLIGHT;ship.island=id;ship.side='front';ship.reservedBy=null;const cargo=depositShipCargo(g,ship);if(cargo)g.log.unshift({text:`${ufoDefinition(ship).name}向${islandDefinition(g,id).name}卸下 ${cargo} 份植生复材。`,at:g.minute});}
-  for(const p of [person,...passengers]){if(shortage){p.needs.hunger=clamp(p.needs.hunger-shortage.hunger);p.needs.energy=clamp(p.needs.energy-shortage.energy);}Object.assign(p.position,spot);g.civilization.visits[id]++;if(p!==person){const at=p.queue.findIndex(a=>a.hostActionId===q.id);if(at>=0)p.queue.splice(at,1);restFromCooperation(g,p);}if(p.id==='player'){g.viewIsland=id;g.viewSide='front';}}
-  if(isPlayer)g.completed++;g.log.unshift({text:byShip?`${ufoDefinition(ship).name}载 ${count} 人抵达${islandDefinition(g,id).name}，舱内剩余 ${ship.food} 份食物。${shortage.missing?`缺粮 ${shortage.missing} 份，每人营养 −${shortage.hunger}、能量 −${shortage.energy}。`:''}`:`${person.position.name}通过星门抵达${islandDefinition(g,id).name}。`,at:g.minute});releaseAction(person,q);if(byShip){if(ship.durability===0)retireUfo(g,ship,'耐久耗尽');else autoReturnUfo(g,ship,origin);}return;
+  for(const p of [person,...passengers]){if(shortage){p.needs.hunger=clamp(p.needs.hunger-shortage.hunger);p.needs.energy=clamp(p.needs.energy-shortage.energy);}Object.assign(p.position,spot);g.civilization.visits[id]++;if(p!==person){const at=p.queue.findIndex(a=>a.hostActionId===q.id);if(at>=0)p.queue.splice(at,1);restFromCooperation(g,p);}if(p.id==='player'){g.viewIsland=id;g.viewSide='front';}
+   // Living somewhere is weighed where a resident can actually feel it: on the island they just
+   // landed on, with that island itself in front of them. The draw is a probability, never a
+   // permission, so a crowded island is unlikely to win a newcomer but never refuses one.
+   if(islandOf(p.position)!==settlementOf(g,p.position)){
+    p.ai.cooldown=0;
+    if(p.id!=='player'&&migrationCooldownRemaining(p.position,gameMinutes(g))<=0&&random()<relocationChance(g,p,allActors(g),id)){
+     p.position.settlementIsland=id;p.position.migrationCooldownUntil=gameMinutes(g)+MIGRATION_COOLDOWN_MINUTES;
+     g.log.unshift({text:`${p.position.name}决定移居${islandDefinition(g,id).name}，把这里当作新的根据地。`,at:g.minute});
+    }
+   }}
+  if(isPlayer)g.completed++;g.log.unshift({text:byShip?`${ufoDefinition(ship).name}载 ${count} 人抵达${islandDefinition(g,id).name}，舱内剩余 ${ship.food} 份食物。${shortage.missing?`缺粮 ${shortage.missing} 份，每人营养 −${shortage.hunger}、能量 −${shortage.energy}。`:''}`:`${person.position.name}通过星门抵达${islandDefinition(g,id).name}。`,at:g.minute});releaseAction(person,q);if(byShip){if(ship.durability===0)retireUfo(g,ship,'耐久耗尽');else if(UFO_AUTO_RETURN)autoReturnUfo(g,ship,origin);}return;
  }
  const wonderIssue=wonderError(g,q.type,object,person,allActors(g),q.partnerId);
  if(wonderIssue){person.queue.shift();person.ai.cooldown=3;g.log.unshift({text:wonderIssue,at:g.minute});return;}
@@ -962,7 +1012,7 @@ function hatchReady(g){
   const inherited=inheritTraits(birth.parents,Math.random,g.config?.mutationRates,g.config?.prayer);
   const usedNames=[g.player,...Object.values(g.npcs),...g.memorials].map(person=>person.name);
   const n={id,name:generateResidentName({uid:id,preferences:inherited.preferences},usedNames),color:inherited.color,trait:'星湾新生 · 喜爱陪伴',x:spot.x,z:spot.z};
-  const baby=createNeighbor(n);Object.assign(baby,{island:islandOf(pod),homeIsland:islandOf(pod),side:sideOf(pod),uid:id,name:n.name,...inherited,gender:['male','female','nonbinary'][serial%3],age:0,money:0,inventory:createInventory(),parents:birth.parents.map(p=>({uid:p.uid,name:p.name})),activity:'在摇篮中休息 · 等待照料'});
+  const baby=createNeighbor(n);Object.assign(baby,{island:islandOf(pod),settlementIsland:islandOf(pod),side:sideOf(pod),uid:id,name:n.name,...inherited,gender:['male','female','nonbinary'][serial%3],age:0,money:0,inventory:createInventory(),parents:birth.parents.map(p=>({uid:p.uid,name:p.name})),activity:'在摇篮中休息 · 等待照料'});
   baby.relationships=Object.fromEntries(Object.keys(g.npcs).map(id=>[id,10]));
   for(const other of Object.values(g.npcs))other.relationships[id]=10;
   g.npcs[id]=baby;g.relationships[id]=birth.parents.some(p=>p.uid===g.player.uid)?60:10;
@@ -1036,7 +1086,7 @@ export function restore(raw){
   for(const q of [g.queue,...Object.values(g.npcs).map(n=>n.queue)].flat())if(['tuneSleep','tuneInsight'].includes(q.type)){q.type='activateCrystal';q.phase='walking';q.elapsed=0;q.path=null;}
   g.version=12;
  }
- if(g?.version===12){g.civilization=createCivilization();g.viewIsland='home';g.version=13;}
+ if(g?.version===12){g.civilization=createCivilization();g.viewIsland='eva';g.version=13;}
  if(g?.version===13){g.civilization.seed=20260908;g.civilization.islands={};g.version=14;}
  if(g?.version===14){g.civilization.knowledge=0;g.version=15;}
  if(g?.version===15){for(const queue of [g.queue,...Object.values(g.npcs).map(n=>n.queue)])for(let i=queue.length-1;i>=0;i--)if(queue[i].type==='voyage')queue.splice(i,1);g.space=createSpaceLogistics();for(const o of g.objects)if(sideOf(o)==='back')g.space.backs[islandOf(o)]=true;for(const p of [g.player,...Object.values(g.npcs)])if(sideOf(p)==='back')g.space.backs[islandOf(p)]=true;g.version=16;}
@@ -1052,13 +1102,13 @@ export function restore(raw){
  for(const p of [g.player,...Object.values(g.npcs||{})])delete p.islandVisit;
  g.config=normalizeConfig(g.config);
  for(const p of [g.player,...Object.values(g.npcs||{})])migrateEducation(p);
- const repairEnvironment=(p,id)=>{p.homeIsland??='home';p.migrationCooldownUntil??=0;p.lastEnvironmentExperienceDay??=0;p.environmentPreferences??=createEnvironmentPreferences(id);p.environmentExperience??=createEnvironmentExperience();};
+ const repairEnvironment=(p,id)=>{p.settlementIsland??='eva';p.migrationCooldownUntil??=0;p.lastEnvironmentExperienceDay??=0;p.environmentPreferences??=createEnvironmentPreferences(id);p.environmentExperience??=createEnvironmentExperience();};
  repairEnvironment(g.player,'player');for(const [id,p] of Object.entries(g.npcs||{}))repairEnvironment(p,id);for(const parent of (g.incubations||[]).flatMap(b=>b.parents||[])){parent.environmentPreferences??=createEnvironmentPreferences(parent.uid==='kai'?'player':parent.uid);}
  for(const o of g.objects||[])if(CROPS[o.type]&&o.plant?.giant===undefined)o.plant.giant=false;
  if(g.civilization.destroyedIslands===undefined)g.civilization.destroyedIslands=[];
  if(g.space.materials===undefined)g.space.materials={};
  if(g.space.cargo===undefined)g.space.cargo={};
- for(const id of Object.keys(islandCatalog(g)))if(id!=='home'&&g.civilization.visits[id]>0&&g.objects.some(o=>islandOf(o)===id))ensureStarIsland(g,id);
+ for(const id of Object.keys(islandCatalog(g)))if(id!=='eva'&&g.civilization.visits[id]>0&&g.objects.some(o=>islandOf(o)===id))ensureStarIsland(g,id);
  if(g.majorEvents===undefined)g.majorEvents=[];
  for(const q of [g.queue,...Object.values(g.npcs||{}).map(n=>n.queue)].flat())if(seatedAction(q)&&q.seat===undefined){q.seat=null;q.phase='walking';q.path=null;}
  for(const [id,n] of Object.entries(g.npcs||{})){if(n.money===undefined)n.money=n.age>=18?600:0;n.inventory={...createInventory(),...(n.inventory||{})};if(!n.career)n.career=createCareer(id);}
@@ -1069,7 +1119,7 @@ export function restore(raw){
  const validInventory=i=>i&&Object.values(CROPS).every(c=>Number.isSafeInteger(i[c.key])&&i[c.key]>=0);
  const validCareerState=state=>state&&CAREERS[state.id]&&Number.isInteger(state.level)&&state.level>=1&&state.level<=CAREERS[state.id].levels.length&&Number.isInteger(state.shifts)&&state.shifts>=0;
  const validMajorEvents=events=>Array.isArray(events)&&events.length<=3&&events.every(event=>event&&typeof event.type==='string'&&typeof event.text==='string'&&event.text.length<=200&&finite(event.at)&&Number.isInteger(event.day)&&event.day>0);
- const validResident=p=>p&&validEducation(p.education)&&Number.isInteger(p.devotion)&&range(p.devotion,0,100)&&validPrayerState(p.prayer)&&Object.hasOwn(islandCatalog(g),islandOf(p))&&Object.hasOwn(islandCatalog(g),p.homeIsland)&&Object.hasOwn(SIDES,sideOf(p))&&Object.hasOwn(GENDERS,p.gender)&&range(p.age,0,120)&&validGenome(p.genome)&&Array.isArray(p.mutations)&&p.mutations.every(m=>typeof m==='string')&&range(p.familyDesire,0,1)&&(p.lastBirthDay===null||range(p.lastBirthDay,1,1e12))&&Number.isInteger(p.lastEnvironmentExperienceDay)&&range(p.lastEnvironmentExperienceDay,0,1e12)&&range(p.migrationCooldownUntil,0,1e12)&&validEnvironmentPreferences(p.environmentPreferences)&&validEnvironmentExperience(p.environmentExperience)&&typeof p.alive==='boolean'&&typeof p.uid==='string'&&typeof p.name==='string'&&p.name.length<=40&&/^#[0-9a-f]{6}$/i.test(p.color)&&typeof p.trait==='string'&&range(p.starvation,0,1e12)&&validParents(p.parents)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
+ const validResident=p=>p&&validEducation(p.education)&&Number.isInteger(p.devotion)&&range(p.devotion,0,100)&&validPrayerState(p.prayer)&&Object.hasOwn(islandCatalog(g),islandOf(p))&&Object.hasOwn(islandCatalog(g),p.settlementIsland)&&Object.hasOwn(SIDES,sideOf(p))&&Object.hasOwn(GENDERS,p.gender)&&range(p.age,0,120)&&validGenome(p.genome)&&Array.isArray(p.mutations)&&p.mutations.every(m=>typeof m==='string')&&range(p.familyDesire,0,1)&&(p.lastBirthDay===null||range(p.lastBirthDay,1,1e12))&&Number.isInteger(p.lastEnvironmentExperienceDay)&&range(p.lastEnvironmentExperienceDay,0,1e12)&&range(p.migrationCooldownUntil,0,1e12)&&validEnvironmentPreferences(p.environmentPreferences)&&validEnvironmentExperience(p.environmentExperience)&&typeof p.alive==='boolean'&&typeof p.uid==='string'&&typeof p.name==='string'&&p.name.length<=40&&/^#[0-9a-f]{6}$/i.test(p.color)&&typeof p.trait==='string'&&range(p.starvation,0,1e12)&&validParents(p.parents)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
  const validIncubationParent=p=>validGenome(p.genome)&&validPrayerState(p.prayer)&&/^#[0-9a-f]{6}$/i.test(p.color)&&range(p.familyDesire,0,1)&&validEnvironmentPreferences(p.environmentPreferences)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
  const validAI=a=>a&&(a.cooperationAfter===undefined||range(a.cooperationAfter,0,1e12))&&typeof a.enabled==='boolean'&&range(a.cooldown,0,60)&&typeof a.reason==='string'&&(a.lastAction===null||Object.hasOwn(ACTIONS,a.lastAction))&&(a.lastTarget===null||typeof a.lastTarget==='string')&&Number.isInteger(a.lastWorkDay)&&a.lastWorkDay>=0;
  const validPopulation=p=>p&&Number.isInteger(p.lastArrivalDay)&&range(p.lastArrivalDay,0,1e12);
@@ -1080,7 +1130,7 @@ export function restore(raw){
  if(g?.version===20){for(const ship of g.space.ships)ship.durability=100;g.version=21;}
  if(g?.version===21){
   const c=g.civilization,existing=Object.values(c.islands).sort((a,b)=>a.index-b.index).map(b=>b.id),legacyCityVisited=(c.visits?.city??0)>0;
-  c.discoveryPath=['home'];
+  c.discoveryPath=['eva'];
   if(c.observations>=3||c.visits.spore>0||g.wonders.archive===3||legacyCityVisited||existing.length)c.discoveryPath.push('spore');
   c.discoveryPath.push(...existing);c.projects=Object.fromEntries(['spore',...existing].map(id=>[id,createProject()]));g.version=22;
  }
@@ -1111,12 +1161,48 @@ export function restore(raw){
   g.version=25;
  }
  migrateLiving(g);
+ // The first island used to be identified by the literal 'home', which repeatedly got confused
+ // with a resident's own settlement island. It is 'eva' now, and the per-resident field is
+ // 'settlementIsland'; this maps old records onto the new names.
+ // A v25 save is the shape written before the rename; run this exactly once.
+ if(g?.version===25){
+  const migrateIslandId=id=>id==='home'?'eva':id;
+  const residents=[g.player,...Object.values(g.npcs??{})];
+  for(const person of residents){
+   if(!person)continue;
+   person.settlementIsland=migrateIslandId(person.settlementIsland??person.homeIsland);
+   delete person.homeIsland;
+   if(person.island!==undefined)person.island=migrateIslandId(person.island);
+  }
+  for(const birth of g.incubations??[])for(const parent of birth.parents??[])delete parent.homeIsland;
+  for(const person of g.memorials??[])delete person.homeIsland;
+  for(const object of g.objects??[])if(object.island!==undefined)object.island=migrateIslandId(object.island);
+  for(const ship of g.space?.ships??[]){
+   ship.island=migrateIslandId(ship.island);
+   if(ship.flight)for(const end of ['from','to'])if(ship.flight[end])ship.flight[end].island=migrateIslandId(ship.flight[end].island);
+  }
+  const c=g.civilization;
+  if(c){
+   c.discoveryPath=(c.discoveryPath??[]).map(migrateIslandId);
+   c.destroyedIslands=(c.destroyedIslands??[]).map(migrateIslandId);
+   for(const key of ['visits','surveys','surveyDays'])if(c[key])c[key]=Object.fromEntries(Object.entries(c[key]).map(([id,value])=>[migrateIslandId(id),value]));
+   if(c.islands)c.islands=Object.fromEntries(Object.entries(c.islands).map(([id,value])=>[migrateIslandId(id),value]));
+   if(c.projects)c.projects=Object.fromEntries(Object.entries(c.projects).map(([id,value])=>[migrateIslandId(id),value]));
+  }
+  for(const key of ['provisions','materials','cargo','backs'])if(g.space?.[key])g.space[key]=Object.fromEntries(Object.entries(g.space[key]).map(([id,value])=>[migrateIslandId(id),value]));
+  g.viewIsland=migrateIslandId(g.viewIsland);
+  for(const queue of [g.queue,...residents.map(person=>person?.queue??[])])if(Array.isArray(queue))for(const action of queue){
+   if(action.destinationId)action.destinationId=migrateIslandId(action.destinationId);
+   if(action.target?.island!==undefined)action.target.island=migrateIslandId(action.target.island);
+  }
+  g.version=26;
+ }
  // Old workbench lessons cannot continue at unrelated facilities; retain all earned progress.
  for(const queue of new Set([g.queue,...Object.values(g.npcs).map(n=>n.queue)]))if(Array.isArray(queue))for(let i=queue.length-1;i>=0;i--){const a=queue[i];if(a.type==='study'&&a.studyVersion===undefined&&Object.hasOwn(SKILLS,a.studySkill)){if(studyFacilitySkill(studyTarget(g,a.targetId))!==a.studySkill)queue.splice(i,1);else a.studyVersion=2;}}
  const validQueue=q=>Array.isArray(q)&&q.length<=6&&q.every(a=>(a.type!=='study'||Object.hasOwn(SKILLS,a.studySkill)&&a.studyVersion===2&&studyFacilitySkill(studyTarget(g,a.targetId))===a.studySkill)&&validFlight(a)&&validLivingQueue(g,a)&&Object.hasOwn(ACTIONS,a.type)&&(!WONDER_ACTIONS[a.type]||g.objects.some(o=>o.id===a.targetId&&WONDER_OPTIONS[o.type]?.includes(a.type)))&&(!WONDER_ACTIONS[a.type]?.paired||(a.hostId?typeof a.hostId==='string'&&Number.isInteger(a.hostActionId):typeof a.partnerId==='string'&&(a.partnerId==='player'||Object.hasOwn(g.npcs,a.partnerId))))&&(!seatedAction(a)||(a.seat===null||Number.isInteger(a.seat)&&a.seat>=0&&a.seat<SOFA_SEATS.length)&&g.objects?.some(o=>o.id===a.targetId&&isSeating(o)))&&(a.type!=='incubate'||a.partnerId===null||a.partnerId===g.player.uid||Object.hasOwn(g.npcs,a.partnerId))&&(a.type!=='travel'||typeof a.destinationId==='string'&&a.destinationId!==a.targetId&&g.objects.some(o=>o.id===a.destinationId&&o.type==='gate'))&&(!a.blinkTransit||range(a.blinkTransit.elapsed,0,BLINK_SECONDS)&&a.phase==='walking'&&a.path?.[0]?.blink===true)&&(!a.transit||range(a.transit.elapsed,0,1e9)&&a.path?.[0]?.gateId===a.transit.sourceId&&a.path[0].destinationId===a.transit.destinationId)&&(!['voyage','starVoyage'].includes(a.type)||Object.hasOwn(islandCatalog(g),a.destinationId)&&g.objects.some(o=>o.id===a.targetId&&o.type==='portal'))&&(a.blockedSeconds===undefined||range(a.blockedSeconds,0,1e9))&&point(a.target)&&Object.hasOwn(islandCatalog(g),islandOf(a.target))&&Object.hasOwn(SIDES,sideOf(a.target))&&Number.isInteger(a.id)&&['ai','manual'].includes(a.source)&&range(a.elapsed,0,1e9)&&(['walking','waiting','acting'].includes(a.phase)&&a.blessing===undefined||a.phase==='celebrating'&&a.type==='pray'&&range(a.elapsed,0,PRAYER_RULES.celebrationSeconds)&&validBlessing(a.blessing))&&(a.type!=='pray'||g.objects.some(o=>o.id===a.targetId&&o.type==='spiritTree'&&(a.phase!=='celebrating'||sideOf(o)===a.blessing.side)))&&(a.path===null||Array.isArray(a.path)&&a.path.every(p=>point(p)&&(p.blink===undefined||p.blink===true)))&&(['walk','plantMushroom'].includes(a.type)||LIVING_SOCIAL.has(a.type)&&a.targetId==="player"&&g.player.alive||Object.hasOwn(g.npcs,a.targetId)||g.objects?.some(o=>o.id===a.targetId)));
  const residentNpcCount=Object.keys(g.npcs||{}).length-Number(g.controlledId!=='player');
  // Capacity limits new births; it must not invalidate an existing save after an island is removed or a legacy migration changes the capacity.
- const valid=g?.version===25&&validLiving(g)&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&validPopulation(g.population)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
+ const valid=g?.version===26&&validLiving(g)&&validCivilization(g.civilization)&&validSpaceLogistics(g.space,islandCatalog(g))&&Object.hasOwn(islandCatalog(g),g.viewIsland)&&validWonders(g.wonders)&&typeof g.controlledId==='string'&&['player',...Object.keys(g.npcs||{})].includes(g.controlledId)&&Object.hasOwn(SIDES,g.viewSide)&&validConfig(g.config)&&validPopulation(g.population)&&g.harvest&&Object.values(CROPS).every(c=>Number.isSafeInteger(g.harvest[c.key])&&g.harvest[c.key]>=0)&&validMajorEvents(g.majorEvents)&&point(g.player)&&validResident(g.player)&&validSkills(g.skills)&&range(g.money,0,1e12)&&Number.isInteger(g.day)&&g.day>0&&[0,1,3].includes(g.speed)
   &&validNeeds(g.needs)&&validAI(g.autonomy)&&g.npcs&&Object.entries(g.npcs).every(([id,n])=>id!=='player'&&(id===g.controlledId||range(g.relationships?.[id],0,100))&&point(n)&&validResident(n)&&n.alive&&range(n.money,0,1e12)&&validInventory(n.inventory)&&validNeeds(n.needs)&&validSkills(n.skills)&&validCareerState(n.career)&&validAI(n.ai)&&validQueue(n.queue)&&typeof n.activity==='string'&&Object.keys(g.npcs).filter(other=>other!==id).every(other=>range(n.relationships?.[other],0,100)))
   &&Array.isArray(g.incubations)&&g.incubations.length<=Object.keys(islandCatalog(g)).length*8&&g.incubations.every(b=>typeof b.id==='string'&&range(b.due,0,1e12)&&validParents(b.parents)&&b.parents.length>=1&&b.parents.every(validIncubationParent)&&g.objects.some(o=>o.id===b.podId&&o.type==='nursery'))&&new Set(g.incubations.map(b=>b.podId)).size===g.incubations.length
   &&Array.isArray(g.memorials)&&g.memorials.every(m=>typeof m.uid==='string'&&typeof m.name==='string'&&range(m.age,0,120)&&validParents(m.parents)&&['old_age','starvation'].includes(m.cause)&&range(m.day,1,1e12))

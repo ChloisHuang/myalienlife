@@ -24,7 +24,7 @@ export function createIslandPreviews(renderer,scene,hidden){
     let read;
     try{
      // Match the old 1920x1080 screenshots' portrait CSS crops, without rendering the unused pixels.
-     camera.setViewOffset(1920,1080,(1920-540)*(id==='home'?.34:.49),0,540,1080);
+     camera.setViewOffset(1920,1080,(1920-540)*(id==='eva'?.34:.49),0,540,1080);
      hidden.forEach(node=>{node.visible=false;});
      renderer.setRenderTarget(target);renderer.render(scene,camera);
      pass.render(renderer,output,target);

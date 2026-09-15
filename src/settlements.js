@@ -1,4 +1,4 @@
-import {islandOf,sameSide} from './island.js';
+import {islandOf} from './island.js';
 import {housingLayout} from './housing-layout.js';
 import {migrationCooldownRemaining} from './island-preferences.js';
 
@@ -10,7 +10,7 @@ export const projectActions=o=>PROJECT_STATIONS[o?.type]??[];
 export const workbench=o=>Object.hasOwn(PROJECT_STATIONS,o?.type);
 export const createProject=(seed=0)=>({blueprint:0,construction:0,plan:housingLayout(seed)});
 export const projectFor=(g,id)=>g.civilization.projects[id];
-export const projectComplete=(g,id)=>id==='home'||projectFor(g,id)?.construction===PROJECT_WORK.construction;
+export const projectComplete=(g,id)=>id==='eva'||projectFor(g,id)?.construction===PROJECT_WORK.construction;
 export function remainingConstructionMaterials(g,id){
  const project=projectFor(g,id);
  return project?Math.ceil(PROJECT_WORK.construction/MATERIAL_WORK_SECONDS)-Math.ceil(project.construction/MATERIAL_WORK_SECONDS):0;
@@ -18,14 +18,14 @@ export function remainingConstructionMaterials(g,id){
 export function projectError(g,type,o,p){
  if(!PROJECT_ACTIONS.includes(type))return null;
  const id=islandOf(p),project=projectFor(g,id);
- if(!sameSide(o,p))return '请使用当前岛面的工作台。';
+ if(islandOf(o)!==islandOf(p))return '请使用本岛的工作台。';
  if(!projectActions(o).includes(type))return '设计请使用星图蓝图绘制台，施工与移居请使用筑星施工终端。';
  if(type==='settleIsland'){
   if(!projectComplete(g,id))return '岛屿建设完成后才能移居。';
-  if(p.homeIsland===id)return '这里已经是你的根据地。';
+  if(p.settlementIsland===id)return '这里已经是你的根据地。';
   const remaining=migrationCooldownRemaining(p,(g.day-1)*1440+g.minute);return remaining?`移居冷却中，还需 ${Math.ceil(remaining)} 游戏分钟。`:null;
  }
- if(!project||id==='home')return '请先到达需要开发的新星岛。';
+ if(!project||id==='eva')return '请先到达需要开发的新星岛。';
  if(type==='developBlueprint')return project.blueprint>=PROJECT_WORK.blueprint?'本岛蓝图已开发完成。':null;
  return project.blueprint<PROJECT_WORK.blueprint?'蓝图开发达到 100% 后才能开始建设。':projectComplete(g,id)?'本岛建设已完成。':project.construction>=Math.ceil(project.construction/MATERIAL_WORK_SECONDS)*MATERIAL_WORK_SECONDS&&!(g.space.materials[id]>0)?'本岛缺少植生复材，请由植物职业提取并用飞船运抵。':null;
 }

@@ -10,7 +10,7 @@ test('unrevealed backs, other races, disabled autonomy and insufficient money do
  for(const edit of [g=>delete g.space.backs.spore,g=>g.player.prayer.nether=0,g=>g.autonomy.enabled=false,g=>g.money=839]){const g=fixture();edit(g);const money=g.money;tick(g,.1,()=>.5);assert.equal(gates(g).length,0);assert.equal(g.money,money);}
 });
 test('NPC purchases only the missing face and leaves player wallet and camera untouched',()=>{
- const g=fixture();g.autonomy.enabled=false;const n=g.npcs.nova;n.island='spore';n.side='front';n.prayer.nether=10;n.money=900;n.ai.enabled=true;n.ai.cooldown=0;g.objects.push({id:'existing-front',type:'gate',x:-8,z:-4,rotation:0,island:'spore',side:'front'});tick(g,.1,()=>.5);assert.equal(gates(g).length,2);assert.equal(n.money,480);assert.equal(g.money,1500);assert.equal(g.viewIsland,'home');
+ const g=fixture();g.autonomy.enabled=false;const n=g.npcs.nova;n.island='spore';n.side='front';n.prayer.nether=10;n.money=900;n.ai.enabled=true;n.ai.cooldown=0;g.objects.push({id:'existing-front',type:'gate',x:-8,z:-4,rotation:0,island:'spore',side:'front'});tick(g,.1,()=>.5);assert.equal(gates(g).length,2);assert.equal(n.money,480);assert.equal(g.money,1500);assert.equal(g.viewIsland,'eva');
 });
 test('blocked back placement does not buy a stranded front gate or spend money',()=>{
  const g=fixture();for(let z=-6;z<=6;z+=2)for(let x=-10;x<=10;x+=2)g.objects.push({id:`block-${x}-${z}`,type:'pod',x,z,rotation:0,island:'spore',side:'back'});tick(g,.1,()=>.5);assert.equal(gates(g).length,0);assert.equal(g.money,1500);

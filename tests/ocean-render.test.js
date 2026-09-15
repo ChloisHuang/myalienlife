@@ -152,7 +152,7 @@ test('authored stages stay independent and item pack is not a scenery alias',()=
  assert.equal(front.root.getObjectByProperty('visible',false)?.userData.revealAt,1);
  assert.equal(back.root.children[0].children[0].visible,true);
  assert.equal(kit.prop('ocean-palace','ocean'),null);
- assert.ok(kit.prop('oceanPearlLamp','home'));
+ assert.ok(kit.prop('oceanPearlLamp','eva'));
  front.dispose();back.dispose();
 });
 

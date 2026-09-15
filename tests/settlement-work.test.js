@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createGame,enqueue,tick,restore,serialize,cancelAction} from '../src/simulation.js';
 import {PROJECT_WORK,projectActions,workbench} from '../src/settlements.js';
 import {autonomyBonus} from '../src/autonomy.js';
-function setup(){const g=createGame();g.career.id='architect';g.space.materials.spore=60;g.autonomy.enabled=false;for(const p of Object.values(g.npcs))p.ai.enabled=false;g.player.island=g.viewIsland='spore';g.civilization.visits.spore=1;g.civilization.discoveryPath=['home','spore'];for(const k in g.config.needDecay)g.config.needDecay[k]=0;g.objects.push({id:'blueprint',type:'blueprintTable',island:'spore',side:'front',x:-3,z:0,rotation:0},{id:'bench',type:'constructionTerminal',island:'spore',side:'front',x:0,z:0,rotation:0});return g;}
+function setup(){const g=createGame();g.career.id='architect';g.space.materials.spore=60;g.autonomy.enabled=false;for(const p of Object.values(g.npcs))p.ai.enabled=false;g.player.island=g.viewIsland='spore';g.civilization.visits.spore=1;g.civilization.discoveryPath=['eva','spore'];for(const k in g.config.needDecay)g.config.needDecay[k]=0;g.objects.push({id:'blueprint',type:'blueprintTable',island:'spore',side:'front',x:-3,z:0,rotation:0},{id:'bench',type:'constructionTerminal',island:'spore',side:'front',x:0,z:0,rotation:0});return g;}
 test('research workstations do not expose settlement project actions',()=>{
  assert.deepEqual(projectActions({type:'lab'}),[]);
  assert.deepEqual(projectActions({type:'stove'}),[]);
@@ -12,7 +12,7 @@ test('research workstations do not expose settlement project actions',()=>{
  assert.equal(workbench({type:'lab'}),false);
 });
 test('visited remote islands receive the dedicated settlement stations',()=>{
- const g=createGame();g.civilization.discoveryPath=['home','spore'];g.civilization.visits.spore=1;
+ const g=createGame();g.civilization.discoveryPath=['eva','spore'];g.civilization.visits.spore=1;
  g.objects.push({id:'spore-lab',type:'lab',island:'spore',side:'front',x:5,z:-3,rotation:0});
  const loaded=restore(serialize(g));
  assert.equal(loaded.objects.filter(o=>o.island==='spore'&&o.type==='blueprintTable').length,1);
@@ -33,9 +33,9 @@ test('completed work reveals the nursery once, survives reload, and low needs do
  assert.equal(enqueue(g,'constructIsland','bench').ok,true);for(let i=0;i<450;i++)tick(g,.1,()=>1);
  assert.equal(project.construction,600);assert.equal(g.objects.filter(o=>o.type==='nursery'&&o.island==='spore').length,1);
  const loaded=restore(serialize(g));assert.equal(loaded.objects.filter(o=>o.type==='nursery'&&o.island==='spore').length,1);
- loaded.player.homeIsland='spore';loaded.needs.hunger=1;
+ loaded.player.settlementIsland='spore';loaded.needs.hunger=1;
  const p={id:'player',position:loaded.player,needs:loaded.needs,skills:loaded.skills,queue:[],ai:loaded.autonomy};
- assert.equal(autonomyBonus(loaded,p,{type:'voyage',targetId:'bench',destinationId:'home'},[p]),null);
+ assert.equal(autonomyBonus(loaded,p,{type:'voyage',targetId:'bench',destinationId:'eva'},[p]),null);
 });
 test('canceling blueprint work preserves only the seconds actually worked',()=>{
  const g=setup();enqueue(g,'developBlueprint','blueprint');for(let i=0;i<100;i++)tick(g,.1,()=>1);
@@ -46,5 +46,5 @@ test('architects must use dedicated settlement stations; settlement itself has n
  const g=setup();g.skills.science=0;
  assert.equal(enqueue(g,'developBlueprint','bench').ok,false);assert.equal(enqueue(g,'developBlueprint','blueprint').ok,true);g.queue=[];
  assert.equal(enqueue(g,'settleIsland','blueprint').ok,false);Object.assign(g.civilization.projects.spore,PROJECT_WORK);g.career.id='diplomat';
- assert.equal(enqueue(g,'settleIsland','bench').ok,true);for(let i=0;i<100;i++)tick(g,.1,()=>1);assert.equal(g.player.homeIsland,'spore');
+ assert.equal(enqueue(g,'settleIsland','bench').ok,true);for(let i=0;i<100;i++)tick(g,.1,()=>1);assert.equal(g.player.settlementIsland,'spore');
 });

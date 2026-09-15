@@ -13,7 +13,7 @@ test('new games place the default teleport gates in the open southwest clearing'
 
 test('build mode can sell fixed furniture from every item pack',()=>{
  const g=game(),items=[['pod',420],['spiritTree',380],['lab',560],['gate',420]];
- for(const [i,[type,price]] of items.entries())g.objects.push({id:`fixed-${type}`,type,x:i*2,z:4,rotation:0,island:'home',side:'front',fixed:true});
+ for(const [i,[type,price]] of items.entries())g.objects.push({id:`fixed-${type}`,type,x:i*2,z:4,rotation:0,island:'eva',side:'front',fixed:true});
  const before=g.money;for(const [type] of items)assert.equal(sellItem(g,`fixed-${type}`),true);assert.equal(g.money,before+items.reduce((sum,[,price])=>sum+Math.floor(price*.7),0));assert.equal(g.objects.some(o=>o.id.startsWith('fixed-')),false);
 });
 
@@ -67,7 +67,7 @@ test('both faces and cooking survive save roundtrip; version 8 upgrades explicit
  const old=game();old.version=8;delete old.viewSide;delete old.skills.cooking;old.objects=old.objects.filter(o=>o.type!=='gate');
  for(const p of [old.player,...Object.values(old.npcs)]){delete p.side;if(p.skills)delete p.skills.cooking;}
  for(const o of old.objects)delete o.side;
- const upgraded=restore(serialize(old));assert.equal(upgraded.version,25);assert.equal(upgraded.skills.cooking,0);assert.equal(upgraded.player.side,'front');assert.equal(upgraded.objects.filter(o=>o.type==='gate').length,2);
+ const upgraded=restore(serialize(old));assert.equal(upgraded.version,26);assert.equal(upgraded.skills.cooking,0);assert.equal(upgraded.player.side,'front');assert.equal(upgraded.objects.filter(o=>o.type==='gate').length,2);
  const invalid=structuredClone(loaded);invalid.player.side='void';assert.throws(()=>restore(serialize(invalid)));
 });
 

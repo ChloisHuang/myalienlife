@@ -15,7 +15,7 @@ function run(g,seconds){for(let i=0;i<seconds*10;i++)tick(g,.1,()=>.99);}
 test('living state is versioned, compact, and migrates v22 without changing residents',()=>{
  const g=quiet();assert.equal(g.living?.version,2);
  const old=structuredClone(g);old.version=22;delete old.living;
- const loaded=restore(JSON.stringify(old));assert.equal(loaded.version,25);
+ const loaded=restore(JSON.stringify(old));assert.equal(loaded.version,26);
  assert.deepEqual(loaded.living,g.living);assert.equal(loaded.player.uid,g.player.uid);
  assert.ok(JSON.stringify(loaded.living).length<100);
 });
@@ -52,7 +52,7 @@ test('only tending the real fairytale garden develops persistent botanical affin
  assert.equal(enqueue(g,'garden',garden.id).ok,true);run(g,20);
  assert.ok(g.living.residents[g.player.uid].garden>0);
  const before=g.living.residents[g.player.uid].garden;
- Object.assign(g.player,{island:'home',side:'front',x:7,z:4.4});g.viewIsland='home';
+ Object.assign(g.player,{island:'eva',side:'front',x:7,z:4.4});g.viewIsland='eva';
  enqueue(g,'garden','garden');run(g,20);
  assert.equal(g.living.residents[g.player.uid].garden,before);
 });
@@ -86,7 +86,7 @@ test('light support requires a real awakened resident and changes fear and depen
 
 test('dual light mode and choosing to accompany someone suspend blinking, not racial identity',()=>{
  const g=quiet();g.player.prayer.radiance=10;g.player.prayer.nether=10;
- const target={x:6,z:5,island:'home',side:'front'},s=mutableResident(g,g.player);
+ const target={x:6,z:5,island:'eva',side:'front'},s=mutableResident(g,g.player);
  s.mode='light';assert.equal(canBlinkTo(g,g.player,target),false);
  s.mode='shadow';assert.equal(canBlinkTo(g,g.player,target),true);
  assert.equal(enqueue(g,'accompany','nova').ok,true);

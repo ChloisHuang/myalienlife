@@ -60,8 +60,8 @@ test('translates hosted access status labels',()=>{
 });
 
 test('translates the global fleet, automatic return, and remote dispatch rules',()=>{
- const help='在全息研究台制造，完成后悬浮停靠在岛边外圈；全局上限等于未摧毁星岛数量（N），不限制单个星岛停靠数；载客单程、空船自动返航和远程调度各消耗 10 耐久，耗尽到站回收；载客抵达后若还有航程次数，UFO 会自动空船返回出发岛面；量子科学职业且科学满级可独自通过星门，无需飞船或食物；储备粮由星厨在所在星球制作；出发星球有在世星厨时，缺粮禁止出航，无星厨才允许扣营养和能量航行；UFO 自动导航，乘坐不限技能、种族和职业，幼体可由同行居民携带。';
+ const help='在全息研究台制造，完成后悬浮停靠在岛边外圈；全局上限等于未摧毁星岛数量（N），不限制单个星岛停靠数；只有载客航段消耗 10 耐久，耗尽到站回收；空船返航和远程调度不消耗耐久；载客抵达后 UFO 会留在当地，等待下一次调度；量子科学职业且科学满级可独自通过星门，无需飞船或食物；储备粮由星厨在所在星球制作；出发星球有在世星厨时，缺粮禁止出航，无星厨才允许扣营养和能量航行；UFO 自动导航，乘坐不限技能、种族和职业，幼体可由同行居民携带。';
  assert.match(translateText(help,'en'),/global fleet limit equals the number of intact islands \(N\)/);
- assert.match(translateText(help,'en'),/automatically returns empty/);
- assert.equal(translateText('调度到露米纳星湾 · 消耗 1 次航程','en'),'Dispatch to Lumina Bay · costs 1 flight use');
+ assert.match(translateText(help,'en'),/stays on that island until it is called again/);
+ assert.equal(translateText('调度到露米纳星湾 · 晴昼面','en'),'Dispatch to Lumina Bay · Daylight side');
 });

@@ -26,7 +26,7 @@ test('planting rejects occupied soil and insufficient funds, rechecks on complet
 });
 test('autonomy chooses local free planting locations with a bounded crop population',()=>{
  const g=quiet();assert.ok(sim.autonomousCandidates(g,'nova').some(c=>c.type==='plantMushroom'&&c.point));
- for(let i=0;i<6;i++)g.objects.push({id:`m-${i}`,type:'mushroom',x:i*2-8,z:5,side:'front',island:'home',rotation:0,plant:createPlant()});
+ for(let i=0;i<6;i++)g.objects.push({id:`m-${i}`,type:'mushroom',x:i*2-8,z:5,side:'front',island:'eva',rotation:0,plant:createPlant()});
  assert.ok(!sim.autonomousCandidates(g,'nova').some(c=>c.type==='plantMushroom'));
 });
 test('urgent needs take priority over discretionary planting',()=>{
@@ -38,7 +38,7 @@ test('an autonomous NPC actually plants, paying only from its personal wallet',(
  step(g);assert.equal(n.money,580);assert.equal(g.money,2400);assert.ok(g.objects.some(o=>o.type==='mushroom'&&o.x===target.x&&o.z===target.z));
 });
 test('pending autonomous plantings count toward the local crop limit',()=>{
- const g=quiet();for(let i=0;i<6;i++)g.queue.push({id:g.nextId++,type:'plantMushroom',targetId:null,target:{x:i*2-8,z:5,island:'home',side:'front'},source:'manual',elapsed:0,phase:'walking',path:null});
+ const g=quiet();for(let i=0;i<6;i++)g.queue.push({id:g.nextId++,type:'plantMushroom',targetId:null,target:{x:i*2-8,z:5,island:'eva',side:'front'},source:'manual',elapsed:0,phase:'walking',path:null});
  assert.ok(!sim.autonomousCandidates(g,'nova').some(c=>c.type==='plantMushroom'));
 });
 test('dead mushroom replacement also requires seed money',()=>{

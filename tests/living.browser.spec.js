@@ -22,7 +22,7 @@ test.afterEach(async({page})=>{const {directory,errors}=sessions.get(page);await
 function quiet(){const g=createGame();g.speed=0;g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;return g;}
 test('saved cross-face tree rest does not trap a starving autonomous resident',async({page})=>{
  const g=quiet();g.autonomy.enabled=true;g.needs.hunger=5;g.needs.energy=0;g.player.prayer.nether=10;
- const tree=buyItem(g,'spiritTree',0,0,0,{island:'home',side:'back'}).object;
+ const tree=buyItem(g,'spiritTree',0,0,0,{island:'eva',side:'back'}).object;
  enqueue(g,'treeRest',tree.id);g.queue[0].source='ai';g.queue[0].phase='waiting';
  await load(page,g);await page.locator('[data-speed="3"]').click();
  await expect.poll(async()=>{const state=await saved(page);return state.needs.hunger;},{timeout:30000}).toBeGreaterThan(20);
@@ -101,7 +101,7 @@ test('tree rest and light gathering use distinct physical positions with the jou
  const g=quiet();g.log=[];g.objects.push({id:'rest-tree',type:'spiritTree',x:0,z:3,side:'front',rotation:0});mutableSite(g,g.objects.at(-1)).vitality=35;
  g.player.x=0;g.player.z=1;g.player.prayer.radiance=10;g.player.prayer.nether=10;mutableResident(g,g.player).mode='light';
  Object.assign(g.npcs.nova,{x:2,z:2});mutableResident(g,g.npcs.nova).fear=75;
- g.npcs.nova.queue=[{id:g.nextId++,type:'seekLight',targetId:'player',target:{x:1.7,z:1,island:'home',side:'front'},source:'manual',phase:'walking',elapsed:0,path:null}];
+ g.npcs.nova.queue=[{id:g.nextId++,type:'seekLight',targetId:'player',target:{x:1.7,z:1,island:'eva',side:'front'},source:'manual',phase:'walking',elapsed:0,path:null}];
  enqueue(g,'treeRest','rest-tree');g.speed=1;
  await load(page,g);await page.addStyleTag({content:'#journal,#toast{display:none!important}'});await page.waitForTimeout(2500);await page.locator('[data-speed="0"]').click();
  const state=await saved(page);expect(Math.hypot(state.player.x-state.npcs.nova.x,state.player.z-state.npcs.nova.z)).toBeGreaterThan(.6);

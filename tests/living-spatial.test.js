@@ -34,7 +34,7 @@ test('an active prayer attracts a trusted witness even when the praying resident
 
 test('competing tree users wait at different positions while the current ritual continues',()=>{
  const g=quiet();g.objects=[];const tree=buyItem(g,'spiritTree',0,0).object;
- Object.assign(g.player,{x:0,z:1.6});Object.assign(g.npcs.nova,{x:0,z:2});g.npcs.nova.queue=[{id:g.nextId++,type:'pray',targetId:tree.id,target:{x:0,z:1.6,island:'home',side:'front'},source:'manual',phase:'acting',elapsed:0,path:[]}];
+ Object.assign(g.player,{x:0,z:1.6});Object.assign(g.npcs.nova,{x:0,z:2});g.npcs.nova.queue=[{id:g.nextId++,type:'pray',targetId:tree.id,target:{x:0,z:1.6,island:'eva',side:'front'},source:'manual',phase:'acting',elapsed:0,path:[]}];
  enqueue(g,'pray',tree.id);for(let i=0;i<40;i++)tick(g,.05);
  assert.ok(Math.hypot(g.player.x-g.npcs.nova.x,g.player.z-g.npcs.nova.z)>1);assert.notEqual(g.queue[0].phase,'acting');
 });

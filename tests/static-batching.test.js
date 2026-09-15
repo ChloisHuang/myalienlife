@@ -6,7 +6,7 @@ import {StarToonMaterial} from '../src/npr.js';
 import {batchStatic,disposeStaticBatches} from '../src/static-batching.js';
 
 test('static sofa parts share one draw per material without changing their surface',()=>{
- const sofa=createPropFactory({})('sofa','home'),meshes=[];
+ const sofa=createPropFactory({})('sofa','eva'),meshes=[];
  sofa.traverse(o=>{if(o.isMesh)meshes.push(o);});
  assert.equal(meshes.length,3);
  sofa.updateMatrixWorld(true);
@@ -17,7 +17,7 @@ test('static sofa parts share one draw per material without changing their surfa
 });
 
 test('transparent build previews keep the original independently sorted pieces',()=>{
- const sofa=createPropFactory({})('sofa','home',false),meshes=[];
+ const sofa=createPropFactory({})('sofa','eva',false),meshes=[];
  sofa.traverse(o=>{if(o.isMesh)meshes.push(o);});assert.equal(meshes.length,7);
  assert.equal(meshes.some(o=>o.isInstancedMesh),false);
 });
@@ -25,7 +25,7 @@ test('transparent build previews keep the original independently sorted pieces',
 test('merged surfaces preserve raycasting and release only their newly allocated buffers',()=>{
  const prop=createPropFactory({});
  for(const type of ['sofa','pod','food','loadingPlatform','blueprintTable']){
-  const before=prop(type,'home',false),after=prop(type,'home');before.updateMatrixWorld(true);after.updateMatrixWorld(true);
+  const before=prop(type,'eva',false),after=prop(type,'eva');before.updateMatrixWorld(true);after.updateMatrixWorld(true);
   for(const x of [-.3,0,.3])for(const z of [-.3,0,.3]){
    const ray=new THREE.Raycaster(new THREE.Vector3(x,4,z),new THREE.Vector3(0,-1,0));
    const a=ray.intersectObject(before,true)[0],b=ray.intersectObject(after,true)[0];

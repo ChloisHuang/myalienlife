@@ -4,7 +4,7 @@ import {createWorld} from '../src/world.js';
 
 // Isolated in-memory acceptance scene: never reads or writes the user's save.
 const game=createGame(),status=document.querySelector('#status'),container=document.querySelector('#world');
-game.viewIsland='spore';game.civilization.discoveryPath=['home','spore'];game.civilization.visits.spore=1;
+game.viewIsland='spore';game.civilization.discoveryPath=['eva','spore'];game.civilization.visits.spore=1;
 game.minute=720;game.money=5000;game.autonomy.enabled=false;
 game.civilization.projects.spore.blueprint=300;game.civilization.projects.spore.construction=600;
 for(const n of Object.values(game.npcs))n.ai.enabled=false;

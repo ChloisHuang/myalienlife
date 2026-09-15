@@ -7,7 +7,7 @@ test('visible actor on the current island face keeps full animation',()=>{
 });
 
 test('actor on another island skips full animation',()=>{
- assert.equal(shouldAnimateActor({person:{island:'home',side:'front'},viewIsland:'spore',viewSide:'front'}),false);
+ assert.equal(shouldAnimateActor({person:{island:'eva',side:'front'},viewIsland:'spore',viewSide:'front'}),false);
 });
 
 test('actor on the hidden face skips full animation while the island is settled',()=>{
@@ -19,7 +19,7 @@ test('both island faces animate while the island is flipping',()=>{
 });
 
 test('blink and onboard presentation keep animation enabled even away from the current face',()=>{
- const base={person:{island:'home',side:'back'},viewIsland:'spore',viewSide:'front'};
+ const base={person:{island:'eva',side:'back'},viewIsland:'spore',viewSide:'front'};
  assert.equal(shouldAnimateActor({...base,blinkTransit:true}),true);
  assert.equal(shouldAnimateActor({...base,onboard:true}),true);
 });

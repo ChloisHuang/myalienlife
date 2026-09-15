@@ -9,7 +9,7 @@ import {groundHeight,localToWorld} from '../src/characters.js';
 
 const bytes=await readFile(new URL('../public/assets/alien.glb',import.meta.url));
 const {scene}=await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength),'');
-function fixture(island='home',x=0,z=0){
+function fixture(island='eva',x=0,z=0){
  const person=createGame().player;Object.assign(person,{island,x,z,age:28});person.genome.stature=1;
  return {person,rig:createCharacter(scene,person)};
 }
@@ -20,7 +20,7 @@ test('furniture-local height follows the authored elevated meadow placement',()=
  assert.ok(Math.abs(localToWorld(object,[0,0,0]).y-1.64)<1e-8);
 });
 
-for(const [island,type,height,front] of [['home','sofa',.49,.6],['spore','sofa',.705,.365],['home','fairyBench',.705,.365],['ocean','sofa',.67,.725]]){
+for(const [island,type,height,front] of [['eva','sofa',.49,.6],['spore','sofa',.705,.365],['eva','fairyBench',.705,.365],['ocean','sofa',.67,.725]]){
  test(`${island} ${type} supports the seated body and keeps shins outside the cushion`,()=>{
   for(const stature of [.65,1,1.2])for(const rotation of [0,Math.PI/2]){
    const {person,rig}=fixture(island);person.genome.stature=stature;
@@ -64,7 +64,7 @@ test('neutral standing is upright and the infant cradle pose remains intentional
 for(const type of ['treeRest','seekLight','pray'])test(`${type} bends the legs with the lowered body, keeping skin above the floor`,()=>{
  for(const stature of [.65,1,1.2]){
   const {person,rig}=fixture();person.genome.stature=stature;person.side='back';
-  const object=type==='seekLight'?undefined:{type:'spiritTree',x:0,z:-1.6,rotation:0,side:'back',island:'home'};
+  const object=type==='seekLight'?undefined:{type:'spiritTree',x:0,z:-1.6,rotation:0,side:'back',island:'eva'};
   updateCharacter(rig,{person,object,action:{id:type,type,phase:'acting',elapsed:2},time:0,delta:0});
   const skin=rig.limbs.LeftLeg.mesh,vertex=new THREE.Vector3();let minimum=Infinity;
   for(let i=0;i<skin.geometry.attributes.position.count;i++){skin.getVertexPosition(i,vertex);skin.localToWorld(vertex);minimum=Math.min(minimum,vertex.y);}
@@ -81,7 +81,7 @@ test('elder walking keeps an upright travel axis rather than tilting the entire 
 });
 
 test('walking after sleep does not retain the lying-down pitch',()=>{
- const {person,rig}=fixture();const object={type:'pod',x:0,z:0,rotation:0,island:'home'};
+ const {person,rig}=fixture();const object={type:'pod',x:0,z:0,rotation:0,island:'eva'};
  updateCharacter(rig,{person,object,action:{id:'sleep',type:'sleep',phase:'acting',elapsed:2},time:0,delta:0});
  person.z+=.02;
  updateCharacter(rig,{person,action:{id:'walk',type:'walk',phase:'walking'},time:1/60,delta:1/60});
@@ -108,7 +108,7 @@ test('tending roots bends the upper body without rotating planted legs around th
  const {person,rig}=fixture();
  updateCharacter(rig,{person,time:0,delta:0});
  const ankle=rig.root.worldToLocal(position(rig.joints.LeftLegAnkle));
- const object={type:'spiritTree',x:0,z:-1.25,rotation:0,island:'home',side:'front'};
+ const object={type:'spiritTree',x:0,z:-1.25,rotation:0,island:'eva',side:'front'};
  updateCharacter(rig,{person,object,action:{id:'tend',type:'tendTree',phase:'acting',elapsed:2},time:0,delta:0});
  const contact=rig.root.worldToLocal(position(rig.joints.LeftLegAnkle));
  assert.ok(contact.distanceTo(ankle)<.001,`planted ankle moved ${contact.distanceTo(ankle)}`);
