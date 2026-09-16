@@ -1197,7 +1197,9 @@ test('UFO moving approach is rendered on desktop and mobile',async({page})=>{
  state.space.ships=[{id:'tilting-ufo',tier:3,island:'eva',side:'front',food:8,durability:100,reservedBy:null}];expect(enqueue(state,'voyage','portal',undefined,null,'spore',[],'tilting-ufo').ok).toBe(true);
  state.queue[0].phase='acting';state.queue[0].path=[];state.queue[0].elapsed=state.config.actionDurations.voyage*.03;state.speed=0;fixtures.set(page,state);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:5173');await expect(page.locator('#loading')).toBeHidden({timeout:45000});await expect(page.locator('.ufo-flight-board')).toContainText('前往接人');
- const board=page.locator('.ufo-flight-board');const initialBoard=await board.innerText();for(let i=0;i<8;i++){await page.waitForTimeout(100);await expect(board).toHaveText(initialBoard);}
+ // The board is a laid-out HUD, not one pre-formatted string: compare innerText with innerText. toHaveText reads
+ // the element with Playwright's own tag-based text extractor, which cannot see the line breaks layout creates.
+ const board=page.locator('.ufo-flight-board');const initialBoard=await board.innerText();for(let i=0;i<8;i++){await page.waitForTimeout(100);expect(await board.innerText()).toBe(initialBoard);}
  await page.screenshot({path:'artifacts/ufo-tilt-desktop.png'});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/ufo-tilt-mobile.png'});expect(errors).toEqual([]);
 });
 

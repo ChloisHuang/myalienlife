@@ -1,5 +1,5 @@
 import {islandOf,sideOf,sameSide} from './island.js';
-import {isRadiant,isNether,isDual} from './prayer.js';
+import {isRadiant,isNether,isDual,PRAYER_COOLDOWN_MINUTES,prayerCooldownRemaining} from './prayer.js';
 import {livingMinutes,livingResident,livingSite,mutableResident,mutableSite,bondTo,changeBond,bounded,pruneLiving,supportedIsland,LIVING_LIMITS} from './living-state.js';
 import {practiceToday,adapt,fadeAdaptation,awaken} from './living-adaptation.js';
 import {validRouteAction} from './living-routes.js';
@@ -18,6 +18,8 @@ export const LIVING_ACTIONS={
 };
 export const LIVING_SOCIAL=new Set(['shareLight','accompany','confront','reconcile','seekLight','witnessPrayer']);
 export const livingConversation=type=>['shareLight','confront','reconcile'].includes(type);
+export const TREE_CARE_COOLDOWN_MINUTES=1440;
+export const treeCareCooldownRemaining=(person,now)=>Math.max(0,(person.treeCareCooldownUntil??0)-now);
 export function validLivingQueue(g,q){
  if(!validRouteAction(q))return false;
  if(!Object.hasOwn(LIVING_ACTIONS,q.type))return true;
@@ -40,6 +42,8 @@ export function livingOptions(g,o){
  return [...(o.type==='spiritTree'?['tendTree','treeRest']:[]),...(inForest(o)&&o.type==='gate'?['listenForest']:[])];
 }
 export function livingError(g,type,p,o,other){
+ const prayerCooldown=type==='pray'?prayerCooldownRemaining(p,livingMinutes(g)):0;if(prayerCooldown>0)return `祈祷冷却中，还需 ${Math.ceil(prayerCooldown)} 游戏分钟。`;
+ const treeCareCooldown=type==='tendTree'?treeCareCooldownRemaining(p,livingMinutes(g)):0;if(treeCareCooldown>0)return `照料圣树冷却中，还需 ${Math.ceil(treeCareCooldown)} 游戏分钟。`;
  if(type==='pray'&&o?.type==='spiritTree'&&supportedIsland(o)&&livingSite(g,o).vitality<12)return '圣树垂光暗淡，先照料根系或等待恢复。';
  if(!Object.hasOwn(LIVING_ACTIONS,type))return null;
  if(!supportedIsland(p))return '这项互动属于露米纳星湾与童梦星屿。';
@@ -63,6 +67,7 @@ export function finishLiving(g,person,q,o,people,before={}){
  if(['harvest','extractMaterials','replant'].includes(q.type)&&o&&g.living.sites[o.id])g.living.sites[o.id].rescue=null;
  const witnesses=people.filter(a=>a!==person&&nearby(p,a.position,5)).map(a=>a.position);
  if(q.type==='tendTree'){
+  p.treeCareCooldownUntil=livingMinutes(g)+TREE_CARE_COOLDOWN_MINUTES;
   const site=mutableSite(g,o);
   if(site.vitality<25&&site.rescue===null&&site.keeper!==p.uid)site.rescue=p.uid;
   site.vitality=bounded(site.vitality+28);site.keeper=p.uid;practiceToday(g,p,'tree');
@@ -71,6 +76,7 @@ export function finishLiving(g,person,q,o,people,before={}){
  }
  if(q.type==='treeRest')mutableSite(g,o).vitality=bounded(livingSite(g,o).vitality+8);
  if(q.type==='pray'&&supportedIsland(o)){
+  p.prayerCooldownUntil=livingMinutes(g)+PRAYER_COOLDOWN_MINUTES;
   const site=mutableSite(g,o),low=site.vitality<45;site.vitality=bounded(site.vitality-12);
   if(low)for(const a of people)if(a.position.uid===site.keeper&&a!==person&&nearby(p,a.position,6))changeBond(g,a.position,p,{resentment:12});
  }

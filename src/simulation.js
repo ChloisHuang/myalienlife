@@ -190,7 +190,7 @@ function migrateResidentNames(g){
  for(const birth of g.incubations||[])for(const parent of birth.parents||[])if(renamed.has(parent.uid))parent.name=renamed.get(parent.uid);
 }
 function initialDevotion(uid){let hash=0;for(const char of uid)hash=(Math.imul(hash,31)+char.codePointAt(0))>>>0;return 20+hash%61;}
-const identity=(n,profile)=>({side:'front',uid:n.id,name:n.name,color:n.color,trait:n.trait,...profile,settlementIsland:'eva',migrationCooldownUntil:0,lastEnvironmentExperienceDay:0,environmentPreferences:createEnvironmentPreferences(n.id==='kai'?'player':n.id),environmentExperience:createEnvironmentExperience(),education:createEducation(),alive:true,starvation:0,devotion:initialDevotion(n.id),prayer:createPrayerState(),parents:[],genome:{...defaultGenome(),...residentHeadShape(n.id)},mutations:[],familyDesire:n.id==='zig'?.25:.7,lastBirthDay:null,preferences:{...PREFERENCES[n.id]}});
+const identity=(n,profile)=>({side:'front',uid:n.id,name:n.name,color:n.color,trait:n.trait,...profile,settlementIsland:'eva',migrationCooldownUntil:0,lastEnvironmentExperienceDay:0,environmentPreferences:createEnvironmentPreferences(n.id==='kai'?'player':n.id),environmentExperience:createEnvironmentExperience(),education:createEducation(),alive:true,starvation:0,devotion:initialDevotion(n.id),prayer:createPrayerState(),prayerCooldownUntil:0,treeCareCooldownUntil:0,parents:[],genome:{...defaultGenome(),...residentHeadShape(n.id)},mutations:[],familyDesire:n.id==='zig'?.25:.7,lastBirthDay:null,preferences:{...PREFERENCES[n.id]}});
 const controlledResidentId=g=>g.controlledId??'player';
 export const neighbors=g=>Object.entries(g.npcs).filter(([id])=>id!==controlledResidentId(g)).map(([id,n])=>({id,...n}));
 const createNeighbor=n=>({x:n.x,z:n.z,...identity(n,RESIDENTS[n.id]),money:startingMoney(n.id),inventory:createInventory(),needs:{hunger:76,energy:85,social:78,fun:70,hygiene:82,comfort:78},skills:createSkills(),career:createCareer(n.id),relationships:Object.fromEntries(NPCS.filter(other=>other.id!==n.id).map(other=>[other.id,0])),queue:[],ai:createAI(true),activity:'享受星湾的微风'});
@@ -529,6 +529,14 @@ function chooseWeighted(candidates,random){
  let roll=Math.max(0,Math.min(1-Number.EPSILON,random()))*total;
  return ordered.find(candidate=>{roll-=candidate.score;return roll<0;})||ordered[ordered.length-1];
 }
+const autonomousActivityKey=candidate=>['voyage','starVoyage'].includes(candidate.type)?'voyage':candidate.type;
+export function chooseAutonomousCandidate(candidates,random=Math.random){
+ const grouped=new Map();
+ for(const candidate of candidates){const key=autonomousActivityKey(candidate);if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(candidate);}
+ const activities=[...grouped.values()].map(options=>({score:Math.max(...options.map(option=>option.score)),options}));
+ const activity=chooseWeighted(activities,random);
+ return activity.options.length===1?activity.options[0]:chooseWeighted(activity.options,random);
+}
 function cooperationPartners(g,person,type,o){if(actionAccessError(g,person,type)||!autonomousCooperationReady(g,person))return [];return allActors(g).filter(partner=>partner.id!==person.id&&(bondTo(g,partner.position,person.position)?.resentment??0)<40&&partner.queue.length<6&&autonomousCooperationReady(g,partner)&&Math.min(partner.needs.hunger,partner.needs.energy)>=20&&!wonderError(g,type,o,person,allActors(g),partner.id));}
 export function autonomousCandidates(g,id){
  const person=actor(g,id),people=allActors(g);
@@ -644,7 +652,7 @@ function decide(g,person,random=Math.random){
  // Select the activity first; participant choice has its own subsequent draw.
  for(const c of scored)if(WONDER_ACTIONS[c.type]?.paired||c.type==='lounge')c.score*=AUTONOMOUS_COOPERATION_WEIGHT;
  const food=person.needs.hunger<15?scored.filter(c=>ACTIONS[c.type].effects.hunger>0):[];
- const best=chooseWeighted(food.length?food:scored,random);
+ const best=chooseAutonomousCandidate(food.length?food:scored,random);
  if(globalThis.process?.env?.ORBIT_TRIP&&(best.type==='voyage'||best.type==='starVoyage')){
   (globalThis.__trip??=[]).push({day:g.day,who:person.position.name,from:islandOf(person.position),settle:settlementOf(g,person.position),
    action:best.type,dest:best.destinationId,weight:Number(best.score.toFixed(1)),
@@ -1093,6 +1101,7 @@ export function restore(raw){
  if(g?.version===16){for(const p of [g.player,...Object.values(g.npcs)])p.devotion=initialDevotion(p.uid);g.version=17;}
  // Existing v10 prayer saves predate the independent front-side attribute.
  for(const p of [g.player,...Object.values(g.npcs||{})])if(p?.prayer){if(p.prayer.radiance===undefined)p.prayer.radiance=0;normalizePrayerState(p.prayer);}
+ for(const p of [g.player,...Object.values(g.npcs||{})]){p.prayerCooldownUntil??=0;p.treeCareCooldownUntil??=0;}
  for(const parent of (g.incubations||[]).flatMap(b=>b.parents||[]))if(!parent.prayer)parent.prayer=createPrayerState();else{if(parent.prayer.radiance===undefined)parent.prayer.radiance=0;normalizePrayerState(parent.prayer);}
  g.controlledId??='player';
  g.population??={lastArrivalDay:0};g.population.lastArrivalDay??=0;
@@ -1119,7 +1128,7 @@ export function restore(raw){
  const validInventory=i=>i&&Object.values(CROPS).every(c=>Number.isSafeInteger(i[c.key])&&i[c.key]>=0);
  const validCareerState=state=>state&&CAREERS[state.id]&&Number.isInteger(state.level)&&state.level>=1&&state.level<=CAREERS[state.id].levels.length&&Number.isInteger(state.shifts)&&state.shifts>=0;
  const validMajorEvents=events=>Array.isArray(events)&&events.length<=3&&events.every(event=>event&&typeof event.type==='string'&&typeof event.text==='string'&&event.text.length<=200&&finite(event.at)&&Number.isInteger(event.day)&&event.day>0);
- const validResident=p=>p&&validEducation(p.education)&&Number.isInteger(p.devotion)&&range(p.devotion,0,100)&&validPrayerState(p.prayer)&&Object.hasOwn(islandCatalog(g),islandOf(p))&&Object.hasOwn(islandCatalog(g),p.settlementIsland)&&Object.hasOwn(SIDES,sideOf(p))&&Object.hasOwn(GENDERS,p.gender)&&range(p.age,0,120)&&validGenome(p.genome)&&Array.isArray(p.mutations)&&p.mutations.every(m=>typeof m==='string')&&range(p.familyDesire,0,1)&&(p.lastBirthDay===null||range(p.lastBirthDay,1,1e12))&&Number.isInteger(p.lastEnvironmentExperienceDay)&&range(p.lastEnvironmentExperienceDay,0,1e12)&&range(p.migrationCooldownUntil,0,1e12)&&validEnvironmentPreferences(p.environmentPreferences)&&validEnvironmentExperience(p.environmentExperience)&&typeof p.alive==='boolean'&&typeof p.uid==='string'&&typeof p.name==='string'&&p.name.length<=40&&/^#[0-9a-f]{6}$/i.test(p.color)&&typeof p.trait==='string'&&range(p.starvation,0,1e12)&&validParents(p.parents)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
+ const validResident=p=>p&&validEducation(p.education)&&Number.isInteger(p.devotion)&&range(p.devotion,0,100)&&validPrayerState(p.prayer)&&range(p.prayerCooldownUntil,0,1e12)&&range(p.treeCareCooldownUntil,0,1e12)&&Object.hasOwn(islandCatalog(g),islandOf(p))&&Object.hasOwn(islandCatalog(g),p.settlementIsland)&&Object.hasOwn(SIDES,sideOf(p))&&Object.hasOwn(GENDERS,p.gender)&&range(p.age,0,120)&&validGenome(p.genome)&&Array.isArray(p.mutations)&&p.mutations.every(m=>typeof m==='string')&&range(p.familyDesire,0,1)&&(p.lastBirthDay===null||range(p.lastBirthDay,1,1e12))&&Number.isInteger(p.lastEnvironmentExperienceDay)&&range(p.lastEnvironmentExperienceDay,0,1e12)&&range(p.migrationCooldownUntil,0,1e12)&&validEnvironmentPreferences(p.environmentPreferences)&&validEnvironmentExperience(p.environmentExperience)&&typeof p.alive==='boolean'&&typeof p.uid==='string'&&typeof p.name==='string'&&p.name.length<=40&&/^#[0-9a-f]{6}$/i.test(p.color)&&typeof p.trait==='string'&&range(p.starvation,0,1e12)&&validParents(p.parents)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
  const validIncubationParent=p=>validGenome(p.genome)&&validPrayerState(p.prayer)&&/^#[0-9a-f]{6}$/i.test(p.color)&&range(p.familyDesire,0,1)&&validEnvironmentPreferences(p.environmentPreferences)&&p.preferences&&Object.entries(p.preferences).every(([k,v])=>Object.hasOwn(ACTIONS,k)&&range(v,0,100));
  const validAI=a=>a&&(a.cooperationAfter===undefined||range(a.cooperationAfter,0,1e12))&&typeof a.enabled==='boolean'&&range(a.cooldown,0,60)&&typeof a.reason==='string'&&(a.lastAction===null||Object.hasOwn(ACTIONS,a.lastAction))&&(a.lastTarget===null||typeof a.lastTarget==='string')&&Number.isInteger(a.lastWorkDay)&&a.lastWorkDay>=0;
  const validPopulation=p=>p&&Number.isInteger(p.lastArrivalDay)&&range(p.lastArrivalDay,0,1e12);

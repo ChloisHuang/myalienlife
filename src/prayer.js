@@ -2,6 +2,8 @@ import {SKILLS,skillProgress,lifeStage} from './characters.js';
 
 export const DEFAULT_PRAYER_CHANCES={skillChance:2,radianceChance:1,netherChance:1,mutationChance:.1,rejuvenationChance:.1,racialInheritanceRate:30,racialInheritanceStdDev:20,racialMutationInheritanceChance:5};
 export const PRAYER_RULES={radianceThreshold:10,netherThreshold:10,celebrationSeconds:4};
+export const PRAYER_COOLDOWN_MINUTES=1440;
+export const prayerCooldownRemaining=(person,now)=>Math.max(0,(person.prayerCooldownUntil??0)-now);
 export const PRAYER_MUTATIONS={crown:'晶冠角',spines:'脊晶',freckles:'星辉斑',eyes:'异色瞳'};
 export const createPrayerState=()=>({radiance:0,nether:0,mutations:[]});
 export const isRadiant=person=>person.prayer?.radiance>=PRAYER_RULES.radianceThreshold;

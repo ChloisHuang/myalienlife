@@ -1,11 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createGame,buyItem,enqueue,tick,restore,serialize,ACTIONS,autonomousCandidates} from '../src/simulation.js';
+import {createGame,buyItem,enqueue,tick,restore,serialize,ACTIONS,autonomousCandidates,chooseAutonomousCandidate} from '../src/simulation.js';
 const run=(g,n)=>{for(let i=0;i<n*10;i++)tick(g,.1,()=>0);};
 function setup(){const g=createGame();g.objects=[];g.autonomy.enabled=false;for(const n of Object.values(g.npcs))n.ai.enabled=false;g.config.needDecay=Object.fromEntries(Object.keys(g.needs).map(k=>[k,0]));return g;}
 test('all current object interactions can enter autonomous candidate generation, including paired invitations',()=>{
  const g=setup();buyItem(g,'lamp',0,0);buyItem(g,'relic',3,0).object.wonder.chapter=1;buyItem(g,'portal',6,0);const types=autonomousCandidates(g,'player').map(c=>c.type);
  for(const type of ['chaseOrb','passOrb','sootheOrb','decodeTogether'])assert.ok(types.includes(type),type);assert.equal(ACTIONS.memoryExpedition,undefined);assert.ok(Object.values(ACTIONS).every(a=>!a.manualOnly));
+});
+test('autonomous sampling chooses an activity before choosing among its targets',()=>{
+ const dance={type:'dance',targetId:'music',score:20};
+ const oneChat={type:'chat',targetId:'resident-a',score:20};
+ assert.equal(chooseAutonomousCandidate([oneChat,dance],()=>.75).type,'dance');
+ const manyChats=Array.from({length:12},(_,index)=>({type:'chat',targetId:`resident-${index}`,score:20}));
+ assert.equal(chooseAutonomousCandidate([...manyChats,dance],()=>.75).type,'dance','extra chat targets must not multiply chat activity weight');
+});
+
+test('UFO and direct-gate destinations share one travel activity draw',()=>{
+ const candidates=[
+  {type:'voyage',destinationId:'spore',score:30},
+  {type:'starVoyage',destinationId:'ocean',score:30},
+  {type:'research',targetId:'lab',score:30}
+ ];
+ assert.equal(chooseAutonomousCandidate(candidates,()=>.5).type,'research','multiple travel destinations must not multiply travel activity weight');
 });
 test('AI invites a busy partner and keeps the shared action queued',()=>{
  const g=setup(),o=buyItem(g,'lamp',0,0).object;g.player.preferences={passOrb:100};g.autonomy.enabled=true;g.needs.fun=20;g.needs.social=10;

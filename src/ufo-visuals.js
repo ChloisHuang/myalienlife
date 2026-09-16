@@ -71,7 +71,9 @@ function emptyUfoFlightPresentation(g,ship,flight){
  if(progress<.45){const phase=progress/.45,path=ufoFlightPath(fromDock,phase,true);position={x:path.x,y:path.y,z:path.z};scale=1-smooth(phase);({pitch,roll}=flightLean(path.lean.dx,path.lean.dz,phase));}
  else if(progress<.55){const path=ufoFlightPath(arriving?toDock:fromDock,arriving?0:1,!arriving);position={x:path.x,y:path.y,z:path.z};scale=0;stage=`${label} · 星际航行`;}
  else{const phase=(progress-.55)/.45,path=ufoFlightPath(toDock,phase,false);position={x:path.x,y:path.y,z:path.z};scale=smooth(phase);({pitch,roll}=flightLean(path.lean.dx,path.lean.dz,phase));stage=`${label} · 正在抵达`;}
- return{...position,island:location.island,side:location.side,scale,pitch,roll,progress,flying:true,beam:0,stage,pickup:position,crew:[],route:`${islandDefinition(g,flight.from.island).name} → ${islandDefinition(g,flight.to.island).name}`};
+ const routeFrom=islandDefinition(g,flight.from.island).name,routeTo=islandDefinition(g,flight.to.island).name;
+ // An empty repositioning leg carries nobody, so it is never "boarding" — its ticket has no stub to tear.
+ return{...position,island:location.island,side:location.side,scale,pitch,roll,progress,flying:true,beam:0,stage,pickup:position,crew:[],boarded:true,routeFrom,routeTo,route:`${routeFrom} → ${routeTo}`};
 }
 // The saved action is the single clock for the ship, beam and every passenger.
 // Once the saucer has settled over the spot the beam is emitted downwards, so it needs its own short unfold instead of
@@ -95,9 +97,11 @@ export function ufoFlightPresentation(g,ship){
   else if(progress<.86){position=pickup;beam=smooth((progress-.70)/UFO_BEAM_UNFOLD);stage='光束放下';}
   else{const t=(progress-.86)/.14;position=mix(pickup,dock,smooth(t));lean(dock.x-pickup.x,dock.z-pickup.z,t);stage='返回外圈停靠';}
  }
+ const routeFrom=action?islandDefinition(g,ship.island).name:'',routeTo=action?islandDefinition(g,action.destinationId).name:'';
+ // Boarding ends with the beam that carries the passengers up, at the .28 the stages below turn on.
  return {...position,island:location.island,side:location.side,scale,pitch,roll,progress,flying,beam,stage,pickup,
-  crew:flying?[host.person.uid,...action.passengerUids]:[],
-  route:action?`${islandDefinition(g,ship.island).name} → ${islandDefinition(g,action.destinationId).name}`:''};
+  crew:flying?[host.person.uid,...action.passengerUids]:[],boarded:progress>=.28,
+  routeFrom,routeTo,route:action?`${routeFrom} → ${routeTo}`:''};
 }
 export function ufoPassengerPresentation(flight,person){
  const p=flight.progress;if(p<.12)return {visible:true,island:flight.island,side:flight.side,x:person.x,z:person.z,y:groundHeight(person.x,person.z,flight.side,flight.island),scale:1};

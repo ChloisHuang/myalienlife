@@ -1,0 +1,43 @@
+/* UFO 航行动态：每艘在飞的船是一张登机牌（src/flight-board.js）。
+   一整排不换行；票根是"登机中"这件事本身——登机一结束就被撕掉，票面自己合拢。
+   票面宽度固定：撕票只带走左边那张票根，白票本身不长不短，字也不会重新折行。
+   不做外框线、不做大圆角半透明卡片：纸、打孔、虚线齿孔和投影撑起它的身份。 */
+.ufo-flight-board{position:absolute;left:50%;top:104px;transform:translateX(-50%);/* 图层必须低于星岛选择器（.locations z-index:3）*/z-index:2;max-width:calc(100% - 28px);display:flex;flex-wrap:nowrap;justify-content:center;align-items:flex-start;gap:10px;pointer-events:none}
+.ufo-flight-board:empty,.ufo-flight-board[hidden]{display:none}
+
+.ufo-ticket{position:relative;display:flex;flex:0 0 auto;align-items:stretch;color:#2c473d;filter:drop-shadow(0 12px 20px #0d173073)}
+
+/* ── 票根：登机中 ─────────────────────────────────────────────── */
+.ufo-stub{position:relative;flex:0 0 38px;transition:flex-basis .5s cubic-bezier(.32,.9,.3,1)}
+.ufo-ticket[data-boarded] .ufo-stub{flex-basis:0}
+.ufo-stub-tab{position:absolute;left:0;top:0;bottom:0;width:38px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:linear-gradient(180deg,#5d8f7c,#48705f);color:#eef7f0}
+.ufo-stub-tab:before{content:'';width:6px;height:6px;border-radius:50%;background:#b7f4d5;box-shadow:0 0 9px #b7f4d5;animation:ufo-pulse 1.5s ease-in-out infinite}
+.ufo-stub-label{writing-mode:vertical-rl;font-size:10px;font-weight:700;letter-spacing:3px}
+@keyframes ufo-pulse{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes ufo-tear{from{opacity:1}to{transform:translate(-15px,22px) rotate(-27deg);opacity:0}}
+.ufo-ticket[data-boarded]:not([data-tearing]) .ufo-stub-tab{transform:translate(-15px,22px) rotate(-27deg);opacity:0}
+.ufo-ticket[data-tearing] .ufo-stub-tab{animation:ufo-tear .6s cubic-bezier(.36,.7,.4,1) forwards}
+@media(prefers-reduced-motion:reduce){.ufo-stub-tab:before{animation:none}.ufo-ticket[data-tearing] .ufo-stub-tab{animation:none}}
+
+/* ── 票面：宽度写死，撕票时只有票根那一截离开 ─────────────────── */
+.ufo-card{position:relative;flex:0 0 auto;background:#f8f9f0;border-left:1px dashed #b3c2b4;
+ -webkit-mask-image:radial-gradient(circle 7px at 0 0,transparent 98%,#000 100%),radial-gradient(circle 7px at 0 100%,transparent 98%,#000 100%);-webkit-mask-composite:source-in;
+ mask-image:radial-gradient(circle 7px at 0 0,transparent 98%,#000 100%),radial-gradient(circle 7px at 0 100%,transparent 98%,#000 100%);mask-composite:intersect}
+/* 右侧留出的 43px 是那枚骑在票边上的圆章的位置，和撕不撕票无关。 */
+/* 进度条就是票面底边那一整条；右侧 40px 留给压上来的圆章，两者都与撕不撕票无关。 */
+.ufo-body{min-height:64px;display:grid;gap:6px;align-content:center;padding:9px 40px 13px 11px}
+.ufo-route{white-space:nowrap;font-size:12px;font-weight:700;letter-spacing:.3px;color:#2f4a41}
+.ufo-stage{white-space:nowrap;font-size:9px;font-weight:700;letter-spacing:1.2px;color:#6d8b7c}
+.ufo-track{position:absolute;left:0;right:0;bottom:0;height:3px;background:#e3e9df;overflow:hidden}
+.ufo-track i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5fae8c,#3f9c78)}
+
+/* ── 圆章：骑在票面右缘上，纸外的半枚被票面的 mask 直接切掉 ───── */
+.ufo-stamp{position:absolute;right:-13px;top:50%;width:50px;height:50px;transform:translateY(-50%) rotate(9deg);display:grid;place-items:center;border:2px dashed #3f9c78;border-radius:50%;background:#f2f8ee;color:#2f8062;font-family:'Manrope',ui-monospace,monospace;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+.ufo-stamp:before{content:'';position:absolute;inset:3px;border:1px solid #3f9c7840;border-radius:50%}
+.ufo-stamp i{font-style:normal;font-size:8px;font-weight:500;opacity:.5;margin-left:.5px}
+
+@media(max-width:1200px){.ufo-body{padding-right:36px}.ufo-route{font-size:11px}.ufo-stamp{width:44px;height:44px;right:-11px;font-size:13px}}
+/* 手机上这块屏太金贵：航程是一时的状态，不值得挡住星岛本身，直接不出现。
+   和 #world / .scene-ui 用同一个判定——窄屏，或手机横过来时的 phone-layout。 */
+@media(max-width:760px){.ufo-flight-board{display:none}}
+.phone-layout .ufo-flight-board{display:none}

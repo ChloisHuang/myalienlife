@@ -18,7 +18,7 @@ run('ssh',[...ssh,target,'command -v rsync >/dev/null']);
 const tests=(await readdir(resolve(root,'tests'))).filter(n=>n.endsWith('.test.js')).map(n=>`tests/${n}`);
 // Keep the wall-clock capacity gate isolated from other test workers.
 run(process.execPath,['--test','--test-concurrency=1',...tests]);
-const id=new Date().toISOString().replace(/[^0-9]/g,''),directory=await buildRelease({analyticsSnippet,assetVersion:id}),archive=resolve(root,'.deploy',`${id}.tgz`);
+const id=new Date().toISOString().replace(/[^0-9]/g,''),directory=await buildRelease({analyticsSnippet}),archive=resolve(root,'.deploy',`${id}.tgz`);
 run('tar',[...(process.platform==='darwin'?['--no-xattrs']:[]),'-czf',archive,'-C',directory,'.'],{env:{...process.env,COPYFILE_DISABLE:'1'}});
 const hash=createHash('sha256').update(await readFile(archive)).digest('hex');
 run('ssh',[...ssh,target,'mkdir -p /opt/myalienlife/incoming && chmod 700 /opt/myalienlife/incoming']);

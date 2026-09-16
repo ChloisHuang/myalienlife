@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,buyItem,enqueue,tick,serialize,restore,cancelAction,takeOver,ITEMS,skillProgress} from '../src/simulation.js';
-import {resolvePrayer,PRAYER_RULES,PRAYER_MUTATIONS,validBlessing,isRadiant,prayerRaceName} from '../src/prayer.js';
+import {resolvePrayer,PRAYER_RULES,PRAYER_MUTATIONS,PRAYER_COOLDOWN_MINUTES,prayerCooldownRemaining,validBlessing,isRadiant,prayerRaceName} from '../src/prayer.js';
 
 test('radiance uses an independent ten-percent front roll and never rewards the back',()=>{
  for(const [side,roll,expected]of [['front',.0999,true],['front',.1,false],['back',0,false]]){
@@ -78,7 +78,7 @@ test('configured prayer percentages control actual player and NPC rewards indepe
   const {g,tree}=setup(side),person=npc?g.npcs.nova:g.player;person.side=side;person.x=0;person.z=5.6;
   const skills=npc?person.skills:g.skills;
   for(const chances of [{skillChance:0,netherChance:0,mutationChance:0},{skillChance:100,netherChance:100,mutationChance:0},{skillChance:0,netherChance:0,mutationChance:100}]){
-   g.config.prayer={...g.config.prayer,...chances};const beforeSkills={...skills},before=structuredClone(person.prayer);
+   g.config.prayer={...g.config.prayer,...chances};const beforeSkills={...skills},before=structuredClone(person.prayer);person.prayerCooldownUntil=0;
    enqueue(g,'pray',tree.id);if(npc){person.queue=g.queue;g.queue=[];}
    advance(g,()=>!(npc?person.queue:g.queue).length);
    assert.equal(JSON.stringify(skills)!==JSON.stringify(beforeSkills),side==='front'&&chances.skillChance===100);
@@ -156,7 +156,7 @@ test('back rolls nether and mutation independently, transforms at threshold, and
  assert.equal(g.player.prayer.nether,10);assert.equal(g.queue[0].blessing.transformed,true);assert.deepEqual(g.player.prayer.mutations,[]);
  advance(g,()=>!g.queue.length);
  for(let i=0;i<2;i++){
-  rolls=[.9,0,0];enqueue(g,'pray',tree.id);advance(g,()=>g.queue[0]?.phase==='celebrating');
+  g.player.prayerCooldownUntil=0;rolls=[.9,0,0];enqueue(g,'pray',tree.id);advance(g,()=>g.queue[0]?.phase==='celebrating');
   assert.equal(g.player.prayer.nether,10);assert.equal(g.player.prayer.mutations.length,i+1);
   advance(g,()=>!g.queue.length);
  }
@@ -171,6 +171,16 @@ test('cancelled, paused and unsuccessful prayers do not grant rewards',t=>{
  g.speed=0;tick(g,100);assert.equal(g.player.prayer.nether,0);assert.deepEqual(g.player.prayer.mutations,[]);
  cancelAction(g,g.queue[0].id);g.speed=1;tick(g,20);assert.equal(g.player.prayer.nether,0);
  enqueue(g,'pray',tree.id);advance(g,()=>!g.queue.length);assert.equal(g.player.prayer.nether,0);assert.deepEqual(g.player.prayer.mutations,[]);
+});
+
+test('completed prayer starts a one-day cooldown, survives reload, and cancellation stays free',t=>{
+ t.mock.method(Math,'random',()=>0);
+ const {g,tree}=setup();assert.equal(g.player.prayerCooldownUntil,0);
+ assert.equal(enqueue(g,'pray',tree.id).ok,true);advance(g,()=>g.queue[0]?.phase==='celebrating');
+ const now=(g.day-1)*1440+g.minute;assert.equal(prayerCooldownRemaining(g.player,now),PRAYER_COOLDOWN_MINUTES);
+ const loaded=restore(serialize(g));assert.equal(loaded.player.prayerCooldownUntil,g.player.prayerCooldownUntil);
+ advance(g,()=>!g.queue.length);const blocked=enqueue(g,'pray',tree.id);assert.equal(blocked.ok,false);assert.match(blocked.message,/祈祷冷却中/);
+ g.player.prayerCooldownUntil=(g.day-1)*1440+g.minute;assert.equal(enqueue(g,'pray',tree.id).ok,true);cancelAction(g,g.queue[0].id);assert.equal(prayerCooldownRemaining(g.player,(g.day-1)*1440+g.minute),0);
 });
 
 test('prayer outcome follows the placed tree despite viewing the other island face',t=>{

@@ -34,6 +34,7 @@ import {getWeather} from './weather.js';
 import {BookOpen,NotebookPen,ChevronLeft,ChevronRight,CloudFog,CloudDrizzle,Wind} from 'lucide';
 import './style.css';
 import './resident-panel.css';
+import './flight-board.css';
 import './floating-island.css';
 import {createFloatingIsland} from './floating-island.js';
 import {PictureInPicture2,ArrowLeft} from 'lucide';
@@ -103,7 +104,7 @@ $('#app').innerHTML=`
   <a class="brand" href="/" aria-label="星外日常">${icon('Orbit')}<div><b>星外日常<span>ORBIT LIFE</span></b><small>在宇宙的一角，好好生活。</small></div></a>
   <a id="github-link" class="github-link" href="https://github.com/ChloisHuang/myalienlife/" target="_blank" rel="noreferrer" aria-label="在 GitHub 查看项目" title="在 GitHub 查看项目">${githubMark()}</a>
   <div class="time-control"><div class="day">${icon('Sun')}<span id="day">第 ${game.day} 天</span><b id="clock">08:30</b></div><div class="speed-buttons">${buttons([['暂停','Pause','data-speed="0"'],['正常速度','Play','data-speed="1"'],['三倍速度','FastForward','data-speed="3"']])}</div></div>
-  <div class="top-actions"><div class="wallet">${icon('Sparkles')}<strong id="money">2,400</strong><small>星币</small></div><button id="build-button" class="build-button" aria-label="建造模式">${icon('Hammer')}</button><button id="language-toggle" class="language-toggle" type="button" data-language="${getLanguage()==='zh'?'en':'zh'}" aria-label="Switch language" title="Switch language">${icon('Languages')}<span data-language-label>${languageButtonLabel}</span></button><button class="icon-button" id="config" title="参数配置" aria-label="参数配置">${icon('Settings')}</button>${hosted?'':`<button class="icon-button" id="pull-remote-save" title="拉取线上存档" aria-label="拉取线上存档">${icon('Download')}</button>`}<button class="icon-button" id="save" title="保存游戏" aria-label="保存游戏">${icon('Save')}</button><button class="icon-button" id="help" title="操作指南" aria-label="操作指南">${icon('CircleHelp')}</button></div>
+  <div class="top-actions">${hosted?'':`<button class="demo-sync-button" id="pull-remote-save" type="button" title="同步Demo存档" aria-label="同步Demo存档">${icon('Download')}<span>同步Demo存档</span></button>`}<div class="wallet">${icon('Sparkles')}<strong id="money">2,400</strong><small>星币</small></div><button id="build-button" class="build-button" aria-label="建造模式">${icon('Hammer')}</button><button id="language-toggle" class="language-toggle" type="button" data-language="${getLanguage()==='zh'?'en':'zh'}" aria-label="Switch language" title="Switch language">${icon('Languages')}<span data-language-label>${languageButtonLabel}</span></button><button class="icon-button" id="config" title="参数配置" aria-label="参数配置">${icon('Settings')}</button><button class="icon-button" id="save" title="保存游戏" aria-label="保存游戏">${icon('Save')}</button><button class="icon-button" id="help" title="操作指南" aria-label="操作指南">${icon('CircleHelp')}</button></div>
  <span id="save-status" title="每 60 秒保存到服务器；离开页面和刷新前也会保存。"></span></header>
  <main class="scene-ui">
   <div class="location"><span class="eyebrow">KEPLER–186F / 居住区 07</span><h1>露米纳星湾<span class="live-dot"></span></h1><p id="weather" aria-label="当前天气"></p></div>

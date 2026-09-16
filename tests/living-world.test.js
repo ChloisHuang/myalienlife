@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createGame,buyItem,sellItem,enqueue,tick,serialize,restore,switchControl,ensureStarIsland,cancelAction,autonomousCandidates} from '../src/simulation.js';
 import {changeBond,bondTo,mutableResident,mutableSite,validLiving,LIVING_LIMITS} from '../src/living-state.js';
-import {livingBonus,relationLabel,advanceLiving} from '../src/living-world.js';
+import {livingBonus,relationLabel,advanceLiving,TREE_CARE_COOLDOWN_MINUTES,treeCareCooldownRemaining} from '../src/living-world.js';
 import {canBlinkTo} from '../src/nether-blink.js';
 import patch from 'fast-json-patch';
 
@@ -39,10 +39,19 @@ test('tree care restores shared vitality and prayer spends it only on completion
  assert.equal(g.living.sites[tree.id].keeper,g.player.uid);
  assert.equal(enqueue(g,'pray',tree.id).ok,true);run(g,25);
  assert.ok(g.living.sites[tree.id].vitality<100);
- const before=g.living.sites[tree.id].vitality;
+ const before=g.living.sites[tree.id].vitality;g.player.treeCareCooldownUntil=0;
  assert.equal(enqueue(g,'tendTree',tree.id).ok,true);run(g,35);
  assert.ok(g.living.sites[tree.id].vitality>before);
  assert.deepEqual(restore(serialize(g)).living,g.living);
+});
+
+test('completed tree care starts a one-day cooldown, survives reload, and cancellation stays free',()=>{
+ const g=quiet(),tree=buyItem(g,'spiritTree',0,4).object;
+ assert.equal(g.player.treeCareCooldownUntil,0);assert.equal(enqueue(g,'tendTree',tree.id).ok,true);run(g,20);
+ const now=(g.day-1)*1440+g.minute;assert.ok(treeCareCooldownRemaining(g.player,now)>TREE_CARE_COOLDOWN_MINUTES-20);
+ const loaded=restore(serialize(g));assert.equal(loaded.player.treeCareCooldownUntil,g.player.treeCareCooldownUntil);
+ const blocked=enqueue(g,'tendTree',tree.id);assert.equal(blocked.ok,false);assert.match(blocked.message,/照料圣树冷却中/);
+ g.player.treeCareCooldownUntil=now;assert.equal(enqueue(g,'tendTree',tree.id).ok,true);cancelAction(g,g.queue[0].id);assert.equal(treeCareCooldownRemaining(g.player,now),0);
 });
 
 test('only tending the real fairytale garden develops persistent botanical affinity',()=>{

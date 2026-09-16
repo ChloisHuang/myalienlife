@@ -5,6 +5,7 @@ import {BLINK_SECONDS} from './nether-blink.js';
 import {isRadiant} from './prayer.js';
 import {createBlinkVisual} from './nether-blink-visuals.js';
 import {shipFoodStatus} from './space-logistics.js';
+import {createFlightBoard} from './flight-board.js';
 import {ufoHoverMotion,createUfoVisual,ufoDock,ufoFlightPresentation,ufoPassengerPresentation,createUfoTransferBeam,ufoPlacement} from './ufo-visuals.js';
 import {islandDefinition,islandCatalog,discovered} from './civilization.js';
 import {createIslandTerrain} from './island-terrain.js';
@@ -31,15 +32,15 @@ import {prepareSurroundings,updateSurroundings} from './storybook-surroundings.j
 import {BiolumeMaterial,stylizeAsset,createPostProcessing,createAtmosphere,createBioluminescence} from './npr.js';
 import {getWeather} from './weather.js';
 import {createWeatherEffects} from './weather-effects.js';
-import {getLanguage,translateText} from './i18n.js';
 import {createDynamicResolutionController,getQualityProfile} from './performance-settings.js';
 import {shouldAnimateActor} from './actor-animation-visibility.js';
 import {createIslandPreviews} from './island-previews.js';
-import {versionedAsset} from './asset-url.js';
+import {parseAssetVersions,versionedAsset} from './asset-url.js';
 
 import {colors,material,mesh,box,sphere,cylinder,ring,createPropFactory} from './props.js';
 const CAMERA_ZOOM=.92,CAMERA_PAN_RIGHT=2.4;
-const assetPath=path=>versionedAsset(path,import.meta.env?.VITE_ASSET_VERSION??'');
+const assetVersions=parseAssetVersions(import.meta.env?.VITE_ASSET_VERSIONS??'');
+const assetPath=path=>versionedAsset(path,assetVersions);
 function seedRandom(seed){return()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
 
 export async function createWorld(container,getGame,{onClick,onHover,onPlace,onBootProgress,weatherProvider=getWeather,qualityProfile=getQualityProfile('pc','high'),independentAmbient=false}){
@@ -228,7 +229,7 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,onB
    const objectMesh=objectMeshes.get(o.id);objectMesh.visible=islandOf(o)===g.viewIsland;surfaceItems[sideOf(o)].add(objectMesh);
   }
  }
- const ufoMeshes=new Map(),onboard=new Map(),ufoAnchors=new Map(),flightBoard=document.createElement('div');flightBoard.className='ufo-flight-board';flightBoard.setAttribute('aria-label','UFO 航行动态');container.append(flightBoard);let flightBoardText='';
+ const ufoMeshes=new Map(),onboard=new Map(),ufoAnchors=new Map(),flightBoard=createFlightBoard(container);
  function syncUfos(g,dt){
   const flights=[];onboard.clear();
   for(const [id,visual] of ufoMeshes)if(!g.space.ships.some(s=>s.id===id)){visual.beam.dispose();visual.dispose();ufoMeshes.delete(id);ufoAnchors.delete(id);}
@@ -246,9 +247,10 @@ export async function createWorld(container,getGame,{onClick,onHover,onPlace,onB
    // Tilt in world travel axes before the saucer's independent local spin.
    root.rotation.set(motion.pitch+flight.pitch,motion.yaw,motion.roll+flight.roll,'ZXY');
    root.userData.flightStage=flight.stage;
-   if(flight.route)flights.push(`${flight.stage} · ${Math.round(flight.progress*100)}% · ${flight.route}`);
+   // The board reads the same presentation the saucer flies, so a row can never disagree with the ship.
+   if(flight.route)flights.push({id:ship.id,stage:flight.stage,progress:flight.progress,boarded:flight.boarded,from:flight.routeFrom,to:flight.routeTo});
   }
-  const text=flights.map(line=>translateText(line,getLanguage())).join('\n');if(text!==flightBoardText){flightBoard.textContent=text;flightBoard.hidden=!text;flightBoardText=text;}
+  flightBoard.update(flights);
   container.dataset.ufoBeams=String([...ufoMeshes.values()].filter(v=>v.beam.root.visible).length);
   container.dataset.ufoFlights=String(flights.length);
   container.dataset.ufoCount=String(g.space.ships.filter(s=>s.island===g.viewIsland&&s.side===g.viewSide).length);

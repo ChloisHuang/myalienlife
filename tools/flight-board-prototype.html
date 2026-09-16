@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>PROTOTYPE · UFO 航行动态条</title><link rel="icon" href="data:,">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+/* PROTOTYPE — throwaway. Question: "这个 UFO 航行动态条应该长什么样？"
+   4 个结构上互不相同的方案 + 现状对照，?variant= 切换，底部浮条翻页。
+   背景用真实游戏截图（去掉了旧版动态条所在的那一条）。 */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;font-family:'Manrope','Noto Sans SC','Microsoft YaHei',sans-serif}
+#backdrop{position:fixed;inset:0;background-repeat:no-repeat;background-size:1440px auto;background-position:0 -170px;background-color:#131c2e;transition:background-image .2s}
+body[data-scene=bright] #backdrop{background-image:url('/artifacts/star-island-spore.png');background-position:0 -56px;background-color:#8fa7cf}
+body[data-scene=night] #backdrop{background-image:url('/artifacts/ufo-takeoff.png')}
+
+/* the board's real anchor: centred, near the top of the 3D world */
+#stage{position:absolute;left:0;right:0;top:26px;display:flex;justify-content:center;pointer-events:none}
+#stage>*{pointer-events:auto}
+/* compare mode: every variant stacked in one frame */
+body[data-compare] #stage{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;padding:24px 0 0;overflow:hidden;background:linear-gradient(#0b142480,#0b1424d9)}
+body[data-compare] #stage>*{pointer-events:auto}
+.cmp{position:relative;display:flex;flex-direction:column;align-items:center;margin:0 auto 26px}
+.cmp>b{display:inline-block;margin-bottom:8px;font:700 9px/1 'Manrope',sans-serif;letter-spacing:2px;color:#0e1a2b;background:#7ff0cd;padding:4px 9px;border-radius:2px}
+body[data-compare] .vfd-stack{position:static;width:1180px;margin:0 auto}
+body[data-compare] .vfb-stack{gap:8px}
+body[data-compare] .v-current{width:max-content;margin:0 auto}
+
+/* ───────────────────────── 1 · 现状 ───────────────────────── */
+.v-current{max-width:calc(100% - 28px);padding:9px 13px;border:1px solid #8ee6d177;border-radius:12px;background:#173448e8;color:#b9ffe4;font-size:12px;line-height:1.8;white-space:pre-line}
+
+/* ───────────────────────── A · 遥测刻度条 ─────────────────────────
+   一把量尺，不是一个卡片。没有外框线：靠不透明度、切角、发丝高光和投影把面板从场景里"举"起来。
+   底边本身就是进度轨——边框即进度。 */
+.vfa{width:min(560px,calc(100vw - 40px));background:linear-gradient(180deg,#182740,#0d182a);clip-path:polygon(0 9px,9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%);box-shadow:0 16px 34px -12px #060d1acc,inset 0 1px 0 #ffffff2b}
+.vfa-head{display:flex;align-items:center;gap:8px;padding:7px 16px 6px;font-size:9px;font-weight:700;letter-spacing:2.4px;color:#7d95a8;border-bottom:1px solid #ffffff12}
+.vfa-head b{margin-left:auto;font-size:9px;letter-spacing:1px;color:#5d7488;font-variant-numeric:tabular-nums}
+.vfa-row{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;padding:9px 16px 13px}
+.vfa-row+.vfa-row{border-top:1px solid #ffffff12}
+.vfa-stage{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:1.6px;color:#9df0d5;white-space:nowrap}
+.vfa-stage:before{content:'';width:6px;height:6px;flex:0 0 6px;background:var(--accent);transform:rotate(45deg);box-shadow:0 0 9px var(--accent)}
+.vfa-route{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:600;letter-spacing:.5px;color:#e9f2f7}
+.vfa-pct{padding-left:14px;border-left:1px solid #ffffff1f;font:700 14px/1 'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#f2fffa}
+.vfa-pct i{font-style:normal;font-size:9px;font-weight:500;opacity:.45;margin-left:1px}
+.vfa-track{position:absolute;left:0;right:0;bottom:0;height:3px;background:#ffffff14;overflow:hidden}
+.vfa-track s{display:block;height:100%;width:var(--p);text-decoration:none;background:linear-gradient(90deg,#3fbf98,var(--accent));box-shadow:0 0 12px var(--accent)}
+.vfa-track s:after{content:'';position:absolute;right:0;top:-2px;width:1px;height:6px;background:#fff}
+
+/* ───────────────────────── B · 星港登机牌 ─────────────────────────
+   纸质票根，接的是游戏里星岛选择器那套"手账纸"语言，而不是顶栏那套深色 HUD。
+   结构：竖排票根 + 打孔虚线 + 主票面（航线是主角）+ 圆形章。 */
+.vfb-stack{display:grid;gap:11px;justify-items:center}
+.vfb-wrap{--perf:46px;position:relative;width:min(520px,calc(100vw - 40px));filter:drop-shadow(0 13px 22px #0d173080)}
+.vfb{position:relative;display:flex;align-items:stretch;background:#f8f9f0;color:#2c473d;
+  -webkit-mask-image:radial-gradient(circle 7px at var(--perf) 0,transparent 98%,#000 100%),radial-gradient(circle 7px at var(--perf) 100%,transparent 98%,#000 100%);
+  -webkit-mask-composite:source-in;
+  mask-image:radial-gradient(circle 7px at var(--perf) 0,transparent 98%,#000 100%),radial-gradient(circle 7px at var(--perf) 100%,transparent 98%,#000 100%);
+  mask-composite:intersect}
+.vfb-stub{flex:0 0 var(--perf);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:11px 0;background:linear-gradient(180deg,#5d8f7c,#48705f);color:#eef7f0}
+.vfb-stub b{writing-mode:vertical-rl;font-size:11px;font-weight:700;letter-spacing:3px}
+.vfb-stub .vfb-dot{width:6px;height:6px;border-radius:50%;background:#b7f4d5;box-shadow:0 0 9px #b7f4d5;animation:pulse 1.5s ease-in-out infinite}
+.vfb-perf{position:relative;flex:0 0 1px;margin:10px 0;background:repeating-linear-gradient(180deg,#b9c6b8 0 4px,transparent 4px 9px)}
+.vfb-body{flex:1;min-width:0;padding:10px 15px 12px}
+.vfb-route{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:700;letter-spacing:.6px;color:#2f4a41}
+.vfb-route em{font-style:normal;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vfb-route .vfb-arrow{flex:0 0 auto;color:#7fa392;font-size:13px;letter-spacing:-1px}
+.vfb-meta{display:flex;align-items:center;gap:9px;margin-top:8px}
+.vfb-meta span{font-size:10px;font-weight:700;letter-spacing:1.4px;color:#6d8b7c}
+.vfb-track{position:relative;flex:1;height:4px;background:#dde5d8;border-radius:2px;overflow:hidden}
+.vfb-track s{display:block;height:100%;width:var(--p);text-decoration:none;background:linear-gradient(90deg,#5fae8c,#3f9c78)}
+.vfb-pct{font:700 13px/1 'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#3d6a58}
+.vfb-stamp{position:absolute;right:-13px;top:-13px;display:grid;place-items:center;width:50px;height:50px;transform:rotate(9deg);border:2px dashed #3f9c78;border-radius:50%;color:#2f8062;background:#f2f8ee;font:700 15px/1 'JetBrains Mono',ui-monospace,monospace}
+.vfb-stamp i{font-style:normal;font-size:8px;letter-spacing:0}
+.vfb-stamp:before{content:'';position:absolute;inset:3px;border:1px solid #3f9c7840;border-radius:50%}
+
+/* ───────────────────────── C · 航行刻度盘 ─────────────────────────
+   进度是主角：分段圆环 + 指针。信息改成上下两行的竖排结构，和 A 的单行横排正交。 */
+.vfc{position:relative;display:flex;align-items:center;gap:14px;padding:13px 20px 13px 15px;background:#0f1c2e;border-radius:3px;box-shadow:0 18px 36px -14px #050b16,inset 0 1px 0 #ffffff1f}
+.vfc:before,.vfc:after{content:'';position:absolute;width:9px;height:9px;border:1px solid #6ee7c0;opacity:.75}
+.vfc:before{left:5px;top:5px;border-right:0;border-bottom:0}
+.vfc:after{right:5px;bottom:5px;border-left:0;border-top:0}
+.vfc-dial{position:relative;width:56px;height:56px;flex:0 0 56px}
+.vfc-ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from -90deg,#7ff0cd 0 var(--p),#ffffff1a var(--p) 100%);-webkit-mask:radial-gradient(circle,transparent 0 20px,#000 20px);mask:radial-gradient(circle,transparent 0 20px,#000 20px)}
+.vfc-ticks-ring{position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(#ffffff33 0 1deg,transparent 1deg 30deg);-webkit-mask:radial-gradient(circle,transparent 0 24px,#000 24px 27px,transparent 27px);mask:radial-gradient(circle,transparent 0 24px,#000 24px 27px,transparent 27px)}
+.vfc-marker{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#eafff7;box-shadow:0 0 10px #8ee6d1;transform:rotate(var(--pd)) translateY(-25px)}
+.vfc-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:1px;font:700 15px/1 'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#eafff7}
+.vfc-num i{font-style:normal;font-size:8px;opacity:.55;transform:translateY(-4px)}
+.vfc-ladder{display:flex;gap:3px;margin-top:2px}
+.vfc-ladder i{flex:1;max-width:20px;height:3px;background:#ffffff1f}
+.vfc-ladder i.on{background:#6ee7c0;box-shadow:0 0 7px #6ee7c0}
+.vfc-copy{min-width:0;display:grid;gap:5px}
+.vfc-stage{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;letter-spacing:2.2px;color:#6ee7c0}
+.vfc-stage:before{content:'';width:14px;height:1px;background:#6ee7c0}
+.vfc-route{display:flex;align-items:center;gap:8px;font-size:14.5px;font-weight:600;letter-spacing:.5px;color:#f3f8fb;white-space:nowrap}
+.vfc-route span{color:#7c93a6;font-size:11px}
+.vfc-tail{margin-left:12px;padding-left:14px;align-self:stretch;display:flex;flex-direction:column;justify-content:center;gap:4px;border-left:1px solid #ffffff14}
+.vfc-tail b{font:700 10px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:1px;color:#9fb6c6}
+.vfc-ticks{display:flex;gap:2px}
+.vfc-ticks i{width:3px;height:9px;background:#ffffff1f}
+.vfc-ticks i.on{background:#6ee7c0;box-shadow:0 0 7px #6ee7c0}
+
+/* ───────────────────────── D · 星港翻牌通栏 ─────────────────────────
+   满幅贴边，不做圆角、不做卡片：把整条世界顶端做成机场翻牌屏。 */
+.vfd-stack{position:absolute;left:0;right:0;top:0}
+.vfd{position:relative;display:flex;align-items:stretch;gap:0;height:38px;background:#080d14;box-shadow:0 10px 24px -8px #000000a6,inset 0 -1px 0 #ffffff12,inset 0 1px 0 #ffffff1a;overflow:hidden}
+.vfd+.vfd{box-shadow:inset 0 1px 0 #ffffff12,inset 0 -1px 0 #ffffff12}
+.vfd-badge{display:flex;align-items:center;gap:8px;padding:0 16px;background:linear-gradient(180deg,#123a33,#0c2a26);color:#7ff0cd;font-size:10px;font-weight:700;letter-spacing:2.4px;box-shadow:inset -1px 0 0 #ffffff1f}
+.vfd-badge s{width:6px;height:6px;background:#7ff0cd;text-decoration:none;animation:pulse 1.2s ease-in-out infinite}
+.vfd-cells{display:flex;align-items:center;justify-content:center;gap:1px;flex:1;min-width:0;padding:5px 14px;overflow:hidden;background:linear-gradient(#ffffff14,#ffffff14) center/100% 1px no-repeat}
+.vfd-cells i{position:relative;display:grid;place-items:center;height:28px;min-width:15px;padding:0 3px;font:600 15px/1 'JetBrains Mono',ui-monospace,monospace;color:#e6f3ef;background:linear-gradient(180deg,#151d27,#101720);box-shadow:inset 0 1px 0 #ffffff0f,inset 0 -1px 0 #00000080}
+.vfd-cells i:after{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:#0000008f}
+.vfd-cells i:before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,#ffffff08,transparent);pointer-events:none}
+.vfd-tail{display:flex;align-items:center;gap:12px;padding:0 16px;background:#0d141d;box-shadow:inset 1px 0 0 #ffffff12}
+.vfd-blocks{display:flex;gap:2px}
+.vfd-blocks i{width:7px;height:16px;background:#1d2836}
+.vfd-blocks i.on{background:#7ff0cd;box-shadow:0 0 8px #7ff0cd99}
+.vfd-pct{font:700 15px/1 'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums;color:#7ff0cd;min-width:44px;text-align:right}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ───────────────────────── prototype switcher ───────────────────────── */
+#bar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:99;display:flex;align-items:center;gap:0;background:#0b0f16;border:1px solid #ffffff2e;border-radius:9px;box-shadow:0 18px 44px #000000b3;color:#e9f2f7;font-size:12px;overflow:hidden}
+#bar button{display:flex;align-items:center;justify-content:center;height:42px;padding:0 13px;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer}
+#bar button:hover{background:#ffffff14}
+#bar .sep{width:1px;height:22px;background:#ffffff1f}
+#bar .lab{min-width:190px;padding:0 6px;text-align:center;letter-spacing:.4px}
+#bar .lab b{color:#7ff0cd;margin-right:6px;font-weight:700}
+#bar .tag{font-size:10px;letter-spacing:1.6px;color:#6c7f90;padding:0 12px;border-right:1px solid #ffffff1f}
+</style></head>
+<body data-scene="night">
+<div id="backdrop"></div>
+<div id="stage"></div>
+
+<div id="bar">
+  <span class="tag">PROTOTYPE</span>
+  <button id="prev" aria-label="上一个方案">◀</button>
+  <span class="lab" id="lab"></span>
+  <button id="next" aria-label="下一个方案">▶</button>
+  <span class="sep"></span>
+  <button id="lang">EN</button>
+  <span class="sep"></span>
+  <button id="scene">亮景</button>
+</div>
+
+<script>
+const COPY={
+  zh:[{stage:'光束吸入',route:'露米纳星湾 → 童梦星屿',pct:24,accent:'#8ee6d1'},
+      {stage:'星际航行',route:'童梦星屿 → 孢海浮洲',pct:61,accent:'#7fd0f0'}],
+  en:[{stage:'Beam pickup',route:'Lumina Bay → Storybook Atoll',pct:24,accent:'#8ee6d1'},
+      {stage:'Deep-space flight',route:'Storybook Atoll → Spore Atoll',pct:61,accent:'#7fd0f0'}]
+};
+const VARIANTS=[
+  ['current','现状'],
+  ['a','A · 遥测刻度条'],
+  ['b','B · 星港登机牌'],
+  ['c','C · 航行刻度盘'],
+  ['d','D · 星港翻牌通栏']
+];
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const params=new URLSearchParams(location.search);
+let i=Math.max(0,VARIANTS.findIndex(v=>v[0]===(params.get('variant')??'a')));
+let lang=params.get('lang')==='en'?'en':'zh';
+let scene=params.get('scene')==='bright'?'bright':'night';
+
+const pct=p=>p+'%';
+const row=()=>COPY[lang];
+
+function renderCurrent(){return `<div class="v-current">${row().map(f=>`${esc(f.stage)} · ${f.pct}% · ${esc(f.route)}`).join('\n')}</div>`}
+
+function renderA(){
+  return `<div class="vfa">
+    <div class="vfa-head">${lang==='en'?'FLIGHT OPS':'航行动态'}<b>0${row().length}</b></div>
+    ${row().map(f=>`<div class="vfa-row" style="--p:${f.pct}%;--accent:${f.accent}">
+      <span class="vfa-stage">${esc(f.stage)}</span>
+      <span class="vfa-route">${esc(f.route)}</span>
+      <span class="vfa-pct">${f.pct}<i>%</i></span>
+      <span class="vfa-track"><s></s></span>
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderB(){
+  return `<div class="vfb-stack">${row().map(f=>{
+    const [from,to]=f.route.split('→').map(s=>s.trim());
+    return `<div class="vfb-wrap">
+      <div class="vfb">
+        <div class="vfb-stub"><span class="vfb-dot"></span><b>${lang==='en'?'BOARDING':'登 机 中'}</b></div>
+        <span class="vfb-perf"></span>
+        <div class="vfb-body">
+          <div class="vfb-route"><em>${esc(from)}</em><span class="vfb-arrow">→</span><em>${esc(to)}</em></div>
+          <div class="vfb-meta"><span>${esc(f.stage)}</span><span class="vfb-track"><s style="width:${f.pct}%"></s></span><span class="vfb-pct">${f.pct}%</span></div>
+        </div>
+      </div>
+      <div class="vfb-stamp">${f.pct}<i>%</i></div>
+    </div>`;}).join('')}</div>`;
+}
+
+function renderC(){
+  const f=row()[0],ticks=12,on=Math.round(f.pct/100*ticks);
+  const [from,to]=f.route.split('→').map(s=>s.trim());
+  return `<div class="vfc">
+    <div class="vfc-dial" style="--p:${f.pct}%;--pd:${f.pct*3.6}deg"><span class="vfc-ring"></span><span class="vfc-ticks-ring"></span><span class="vfc-marker"></span><span class="vfc-num">${f.pct}<i>%</i></span></div>
+    <div class="vfc-copy">
+      <span class="vfc-stage">${esc(f.stage)}</span>
+      <span class="vfc-route"><em>${esc(from)}</em><span>→</span><em>${esc(to)}</em></span>
+      <span class="vfc-ladder">${Array.from({length:ticks},(_,n)=>`<i class="${n<on?'on':''}"></i>`).join('')}</span>
+    </div>
+  </div>`;
+}
+
+function renderD(){
+  const blocks=12;
+  return `<div class="vfd-stack">${row().map(f=>{
+    const on=Math.round(f.pct/100*blocks);
+    return `<div class="vfd">
+      <div class="vfd-badge"><s></s>${esc(f.stage)}</div>
+      <div class="vfd-cells">${[...f.route].map(c=>`<i>${esc(c===' '?'\u00a0':c)}</i>`).join('')}</div>
+      <div class="vfd-tail"><div class="vfd-blocks">${Array.from({length:blocks},(_,n)=>`<i class="${n<on?'on':''}"></i>`).join('')}</div><span class="vfd-pct">${f.pct}%</span></div>
+    </div>`;}).join('')}</div>`;
+}
+
+const RENDER={current:renderCurrent,a:renderA,b:renderB,c:renderC,d:renderD};
+function draw(){
+  const [key,name]=VARIANTS[i],stage=document.querySelector('#stage');
+  const compare=params.get('variant')==='all';
+  stage.innerHTML=compare?VARIANTS.map(([k,n])=>`<div class="cmp"><b>${k==='current'?'1 · 现状':k.toUpperCase()+' · '+n.split('· ')[1]}</b>${RENDER[k]()}</div>`).join(''):RENDER[key]();
+  document.body.toggleAttribute('data-compare',compare);
+  document.querySelector('#lab').innerHTML=`<b>${key==='current'?'1':key.toUpperCase()}</b>${name}`;
+  document.querySelector('#lang').textContent=lang==='en'?'中文':'EN';
+  document.querySelector('#scene').textContent=scene==='night'?'亮景':'夜景';
+  document.body.dataset.scene=scene;
+  const q=new URLSearchParams({variant:key,lang,scene});history.replaceState(null,'','?'+q);
+}
+function step(d){i=(i+d+VARIANTS.length)%VARIANTS.length;draw();}
+document.querySelector('#prev').onclick=()=>step(-1);
+document.querySelector('#next').onclick=()=>step(1);
+document.querySelector('#lang').onclick=()=>{lang=lang==='en'?'zh':'en';draw();};
+document.querySelector('#scene').onclick=()=>{scene=scene==='night'?'bright':'night';draw();};
+addEventListener('keydown',e=>{
+  const t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;
+  if(e.key==='ArrowLeft')step(-1);else if(e.key==='ArrowRight')step(1);
+});
+draw();
+</script>
+</body></html>
